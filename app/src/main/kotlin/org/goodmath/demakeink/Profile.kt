@@ -310,7 +310,7 @@ class Profile(val pos: DoubleList, val low: List<Double>, maybeHigh: List<Double
                 }
                 val ca = atan2(cy2 - cy1, cx2 - cx1)
                 val steps = ((t2 - t1).absoluteValue / PI * quality).roundToInt()
-                for (i in 1 until steps) {
+                repeat((1 until steps).count()) {
                     val t = t1 + i * (t2 - t1) / steps
                     val (yy, xx) = cornuYx(t, mirror)
                     val aa = atan2(yy - cy1, xx - cx1)

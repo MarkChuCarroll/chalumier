@@ -1,11 +1,8 @@
-
-
 package org.goodmath.demakeink
 
 import org.goodmath.demakeink.curves.evalCornu
 import org.kotlinmath.*
 import kotlin.math.*
-import kotlin.math.exp
 
 /*
  * This file is a load of utility functions from demakein.
@@ -13,22 +10,22 @@ import kotlin.math.exp
  * all the original comments from the Python are here, prefixed with "ph:".
  */
 
-fun Complex.absoluteValue(): Double =
-    sqrt(re*re + im*im)
+/**
+ * The absolute value of a complex number is its modulus - aka
+ * its length considered as a vector.
+ */
+fun Complex.absoluteValue(): Double = mod
+
 
 /**
  * A tuple type for returning two doubles.
  */
-data class DoublePair(val one: Double, val two: Double)
-
-/**
- * A tuple type for returning three doubles.
- */
-data class DoubleTriple(val one: Double, val two: Double, val three: Double)
+typealias DoublePair = Pair<Double, Double>
 
 
 fun length(x: Double, y: Double): Double =
     sqrt(x * x + y * y)
+
 fun log2(n: Double): Double {
     return ln(n) / ln(2.0)
 }
@@ -99,6 +96,10 @@ fun tanner(phase: Complex): Double {
 fun floor(c: Complex): Complex = complex(floor(c.re), floor(c.im))
 
 fun ceil(c: Complex): Complex = complex(ceil(c.re), ceil(c.im))
+
+fun signed_sqrt(x: Double) =
+    sqrt(abs(x))*(x.sign)
+
 operator fun Complex.rem(n: Complex): Complex {
     // According to python2.7, if x and y are complex, then
     // x // y = floor((x/y).re)
@@ -108,17 +109,8 @@ operator fun Complex.rem(n: Complex): Complex {
     val floored = floor(this / n).re
     return this - (floored * n)
 }
-fun main() {
-    for (r in -2..2) {
-        for (i in -2 .. 2) {
-            val x = complex(  r.toDouble(), i.toDouble())
-            print("${x} % 1.0R = ${x % (1.0.R)}\n")
-            print("${x} % 1.0I = ${x % (1.0.I)}\n")
-        }
-    }
-}
 
-fun untanner(x: Double): Complex {
+fun unTanner(x: Double): Complex {
     val angle = atan(x) / PI
     val re = cos(angle)
     val im = sin(angle)
@@ -127,13 +119,13 @@ fun untanner(x: Double): Complex {
 
 fun junction2ReplyPhase(a0: Double, a1: Double, p1: Complex): Complex {
     val shift: Complex = floor(p1 + 0.5)
-    return untanner(a1 / a0 * tanner(p1 - shift)) + shift
+    return unTanner(a1 / a0 * tanner(p1 - shift)) + shift
 }
 
 fun junction3ReplyPhase(a0: Double, a1: Double, a2: Double, p1: Complex, p2: Complex): Complex {
     val shift1: Complex = floor(p1 + 0.5)
     val shift2: Complex = floor(p2 + 0.5)
-    return untanner(a1 / a0 * tanner(p1 - shift1) + a2 / a0 * tanner(p2 - shift2)) + shift1 + shift2
+    return unTanner(a1 / a0 * tanner(p1 - shift1) + a2 / a0 * tanner(p2 - shift2)) + shift1 + shift2
 }
 
 fun endFlangeLengthCorrection(outerDiameter: Double, innerDiameter: Double): Double {
