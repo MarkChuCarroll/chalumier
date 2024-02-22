@@ -13,6 +13,8 @@ plugins {
 
     // Apply the application plugin to add support for building a CLI application in Java.
     application
+    kotlin("plugin.serialization") version "1.9.22"
+
 }
 
 repositories {
@@ -24,6 +26,8 @@ dependencies {
     // This dependency is used by the application.
     implementation("com.google.guava:guava:31.1-jre")
     implementation("org.kotlinmath:complex-numbers:1.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+
 }
 
 testing {

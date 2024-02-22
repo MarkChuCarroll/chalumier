@@ -5,7 +5,7 @@ import org.kotlinmath.*
 import kotlin.math.*
 
 /*
- * This file is a load of utility functions from demakein.
+ * This file is a load of phase utility functions from demakein.
  * I've tried to reproduce the functionality of the original code, and
  * all the original comments from the Python are here, prefixed with "ph:".
  */
@@ -17,37 +17,15 @@ import kotlin.math.*
 fun Complex.absoluteValue(): Double = mod
 
 
-/**
- * A tuple type for returning two doubles.
- */
-typealias DoublePair = Pair<Double, Double>
-
-
-fun length(x: Double, y: Double): Double =
-    sqrt(x * x + y * y)
-
-fun log2(n: Double): Double {
-    return ln(n) / ln(2.0)
-}
-
-const val FourPi = PI * 4
-
-/**
- * ph: frequency response of a tree
- * of connected pipes depends on this kind of area
- * computation.
- */
-fun circleArea(diameter: Double): Double {
-    val radius = diameter / 2
-    return PI * radius * radius
-}
-
-const val SPEED_OF_SOUND = 346100.0
 
 /*
  * ph: Unit magnitude complex number represent phase
  */
 
+/**
+ * mcc: As far as I can figure out, this is only used by "resonanceScore",
+ * which is completely unused.
+ */
 fun pipeReply(reply: Complex, lengthOnWavelength: Double): Complex {
     val angle = FourPi * lengthOnWavelength
     return complex(cos(angle), sin(angle)) * reply
@@ -59,11 +37,11 @@ fun pipeReply(reply: Complex, lengthOnWavelength: Double): Complex {
  * and pipe 1 relative phase reply r1.
  *
  */
-fun junction2Reply(a0: Double, a1: Double, r1: Complex): Pair<Complex, Double> {
-    val ca0 = complex(a0, 0.0)
-    val ca1 = complex(a1, 0.0)
-    val pJunc = complex(2.0, 0)  * ca0 / (ca0 - ca1 * ((r1 - 1.0) / (r1 + 1.0)))
-    val mag1 = (pJunc / (r1 + 1.0)).absoluteValue()
+fun junction2Reply(a0: Double, a1: Double, r1: Double): Pair<Double, Double> {
+    val ca0 = a0
+    val ca1 = a1
+    val pJunc = 2.0  * ca0 / (ca0 - ca1 * ((r1 - 1.0) / (r1 + 1.0)))
+    val mag1 = (pJunc / (r1 + 1.0)).absoluteValue
     return Pair(pJunc - 1.0, mag1)
 }
 
@@ -72,25 +50,25 @@ fun junction2Reply(a0: Double, a1: Double, r1: Complex): Pair<Complex, Double> {
  * with pipe cross section areas a0, a1 and a2
  * and relative phase replies r1 and r2.
  */
-fun junction3Reply(a0: Double, a1: Double, a2: Double, r1: Complex, r2: Complex): Triple<Complex, Double, Double> {
-    val ca0 = complex(a0, 0.0)
-    val ca1 = complex(a1, 0.0)
-    val ca2 = complex(a2, 0.0)
+fun junction3Reply(a0: Double, a1: Double, a2: Double, r1: Double, r2: Double): Triple<Double, Double, Double> {
+    val ca0 = a0
+    val ca1 = a1
+    val ca2 = a2
 
-    val pjunc = complex(2.0, 0) * ca0 / (ca0 - ca1 * ((r1 - 1.0) / (r1 + 1.0)) - ca2 * ((r2 - 1.0) / (r2 + 1.0)))
-    val mag1 = (pjunc / (r1 + 1.0)).absoluteValue()
-    val mag2 = (pjunc / (r2 + 1.0)).absoluteValue()
+    val pjunc = 2.0 * ca0 / (ca0 - ca1 * ((r1 - 1.0) / (r1 + 1.0)) - ca2 * ((r2 - 1.0) / (r2 + 1.0)))
+    val mag1 = (pjunc / (r1 + 1.0)).absoluteValue
+    val mag2 = (pjunc / (r2 + 1.0)).absoluteValue
     return Triple(pjunc - 1.0, mag1, mag2)
 }
 
 // ph: Phase in[0,1] plus number of nodes
-fun pipeReplyPhase(phaseEnd: Complex, lengthOnWavelength: Double): Complex {
+fun pipeReplyPhase(phaseEnd: Double, lengthOnWavelength: Double): Double {
     return phaseEnd + lengthOnWavelength * 2.0
 }
 
-fun tanner(phase: Complex): Double {
-    val x: Complex = phase * PI
-    return tan(x.arg)
+fun tanner(phase: Double): Double {
+    val x = phase*PI
+    return tan(x)
 }
 
 fun floor(c: Complex): Complex = complex(floor(c.re), floor(c.im))
@@ -110,21 +88,18 @@ operator fun Complex.rem(n: Complex): Complex {
     return this - (floored * n)
 }
 
-fun unTanner(x: Double): Complex {
-    val angle = atan(x) / PI
-    val re = cos(angle)
-    val im = sin(angle)
-    return complex(re, im)
+fun unTanner(x: Double): Double {
+    return atan(x)/PI
 }
 
-fun junction2ReplyPhase(a0: Double, a1: Double, p1: Complex): Complex {
-    val shift: Complex = floor(p1 + 0.5)
+fun junction2ReplyPhase(a0: Double, a1: Double, p1: Double): Double {
+    val shift = floor(p1 + 0.5)
     return unTanner(a1 / a0 * tanner(p1 - shift)) + shift
 }
 
-fun junction3ReplyPhase(a0: Double, a1: Double, a2: Double, p1: Complex, p2: Complex): Complex {
-    val shift1: Complex = floor(p1 + 0.5)
-    val shift2: Complex = floor(p2 + 0.5)
+fun junction3ReplyPhase(a0: Double, a1: Double, a2: Double, p1: Double, p2: Double): Double {
+    val shift1 = floor(p1 + 0.5)
+    val shift2 = floor(p2 + 0.5)
     return unTanner(a1 / a0 * tanner(p1 - shift1) + a2 / a0 * tanner(p2 - shift2)) + shift1 + shift2
 }
 
@@ -154,13 +129,13 @@ fun holeLengthCorrection(holeDiameter: Double, boreDiameter: Double, closed: Boo
     return a * (innerCorrection + outerCorrection)
 }
 
-fun cornuYx(t: Double, mirror: Boolean): DoublePair {
+fun cornuYx(t: Double, mirror: Boolean): Pair<Double, Double> {
     // ph: Reparamaterize for constant absolute rate of turning
     val newT = sqrt(abs(t)) * (if (t > 0) 1 else -1)
     val (y, x) = evalCornu(newT)
     return if (mirror) {
-        DoublePair(-y, x)
+        Pair(-y, x)
     } else {
-        DoublePair(y, x)
+        Pair(y, x)
     }
 }

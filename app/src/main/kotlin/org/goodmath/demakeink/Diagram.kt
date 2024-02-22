@@ -2,6 +2,7 @@ package org.goodmath.demakeink
 
 import java.io.FileWriter
 import java.io.PrintWriter
+import java.nio.file.Path
 import kotlin.math.max
 import kotlin.math.min
 
@@ -35,12 +36,12 @@ val POSTAMBLE = """\
 
 class Diagram {
     private val commands = ArrayList<String>()
-    private var minX = 0.0
-    private var minY = 0.0
-    private var maxY = 0.0
-    private var maxX = 0.0
+    var minX = 0.0
+    var minY = 0.0
+    var maxY = 0.0
+    var maxX = 0.0
 
-    fun save(filename: String) {
+    fun save(filename: Path) {
         // ph: Assume 90dpi (inkscape default
         val scale = 90.0 / 25.4
         val pad = max(maxX - minX, maxY - minY) * 0.1
@@ -51,7 +52,7 @@ class Diagram {
         val negTransX = -transX
         val negTransY = -transY
 
-        val output = FileWriter(filename)
+        val output = FileWriter(filename.toFile())
         output.write(PREAMBLE.format(width, height, scale, transX, transY, negTransX, negTransY))
         commands.forEach { cmd ->
             output.write(cmd + "\n")

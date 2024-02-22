@@ -1,5 +1,6 @@
 package org.goodmath.demakeink
 
+import kotlinx.serialization.Serializable
 import org.kotlinmath.Complex
 import org.kotlinmath.R
 import kotlin.math.*
@@ -9,13 +10,51 @@ fun<T> ArrayList<T>.fromEnd(i: Int): T =
     this[this.size - i]
 
 
-// The actions are a *^&*^# mess. Ph just used functions with different
-// signatures will-nilly, like nothing matters. But we can't get away
-// with that, unfortunately.
-typealias Action = (complexValues: Map<String, Complex>,
-                    doubleValues: Map<String, Double>,
-                    doubleListValues: Map<String, DoubleList>,
-                    intValues: Map<String, Int>) -> Complex
+fun length(x: Double, y: Double): Double =
+    sqrt(x * x + y * y)
+
+fun log2(n: Double): Double {
+    return ln(n) / ln(2.0)
+}
+
+const val FourPi = PI * 4
+
+/**
+ * ph: frequency response of a tree of connected pipes depends on area.
+ */
+fun circleArea(diameter: Double): Double {
+    val radius = diameter / 2
+    return PI * radius * radius
+}
+
+const val SPEED_OF_SOUND = 346100.0
+
+data class ActionParameterException(val typeName: String, val name: String):
+    DemakeinException("Action expected a $typeName parameter named $name")
+
+@Serializable
+class ActionParams(val doubleParams: Map<String, Double>,
+    val doubleListParams: Map<String, ArrayList<Double>>,
+    val intParams: Map<String, Int>) {
+    fun double(name: String): Double =
+        doubleParams[name] ?: throw ActionParameterException("Double", name)
+
+    fun optDouble(name: String): Double? =
+        doubleParams[name]
+    fun doubleList(name: String): ArrayList<Double> =
+        doubleListParams[name] ?: throw ActionParameterException("List<Double>", name)
+
+    fun optDoubleList(name: String): ArrayList<Double>? =
+        doubleListParams[name]
+
+    fun int(name: String): Int =
+        intParams[name] ?: throw ActionParameterException("Int", name)
+
+    fun optInt(name: String): Int? =
+        intParams[name]
+}
+
+typealias Action = (ActionParams) -> Double
 data class Event(
     val position: Double,
     val descriptor: String,
@@ -126,13 +165,13 @@ open class Instrument() {
         events.forEach { event ->
             val updatedLength = event.position - position
             val eFunc: Action =
-                { complexValues: Map<String, Complex>, doubleValues: Map<String, Double>, doubleListValues: Map<String, DoubleList>,
-                  intValues: Map<String, Int> ->
-                    val replyParam = complexValues["reply"]!!
-                    val lengthParam = doubleValues["length"] ?: updatedLength
-                    val wavelengthParam = doubleValues["wavelength"]!!
-                    pipeReply(replyParam, lengthParam / wavelengthParam)
-
+                { params: ActionParams ->
+                    val replyParam = params.double("reply")
+                    val lengthParam = params.double("length") ?: updatedLength
+                    val wavelengthParam = params.double("wavelength")
+                    // TODO(markcc): the next line is severely fudged up. The correct content
+                    // drops the ".R" and ".absoluteValue()", but it seems unused?
+                    pipeReply(replyParam.R, lengthParam / wavelengthParam).absoluteValue()
                 }
             actions.add(eFunc)
             position = event.position
@@ -141,14 +180,11 @@ open class Instrument() {
                 val area1 = circleArea(diameter)
                 diameter = steppedInner.high[event.index]
                 val area = circleArea(diameter)
-                val act: Action = { complexValues: Map<String, Complex>,
-                                    doubleValues: Map<String, Double>,
-                                    doubleListValues: Map<String, DoubleList>,
-                                    intValues: Map<String, Int> ->
-                    val replyParam = complexValues["reply"]!!
-                    val emissionParam = doubleListValues["emission"]
-                    val areaParam = doubleValues["area"] ?: area
-                    val area1Param = doubleValues["area1"] ?: area1
+                val act: Action = { params ->
+                    val replyParam = params.double("reply")
+                    val emissionParam = params.optDoubleList("emission")
+                    val areaParam = params.optDouble("area") ?: area
+                    val area1Param = params.optDouble("area1") ?: area1
                     val (newReply, mag1) = junction2Reply(areaParam, area1Param, replyParam)
                     if (emissionParam != null) {
                         for (i in 0 until emissionParam.size) {
@@ -169,20 +205,17 @@ open class Instrument() {
                 val trueLength = holeLengths[event.index]
                 val openLength = trueLength + holeLengthCorrection(holeDiameter, diameter, false)
                 val closedLength = trueLength + holeLengthCorrection(holeDiameter, diameter, true)
-                val holeFunc: Action = { complexValues: Map<String, Complex>,
-                                         doubleValues: Map<String, Double>,
-                                         doubleListValues: Map<String, DoubleList>,
-                                         intValues: Map<String, Int> ->
-                    val replyParam = complexValues["reply"]!!
-                    val wavelengthParam = doubleValues["wavelength"]!!
-                    val fingersParam = doubleListValues["fingers"]!!
-                    val emissionParam = doubleListValues["emission"]
-                    val areaParam = doubleValues["area"] ?: area
-                    val holeAreaParam = doubleValues["holeArea"] ?: holeArea
-                    val openLengthParam = doubleValues["openLength"] ?: openLength
-                    val closedLengthParam = doubleValues["closedLength"] ?: closedLength
+                val holeFunc: Action = { params ->
+                    val replyParam = params.double("reply")
+                    val wavelengthParam = params.double("wavelength")
+                    val fingersParam = params.doubleList("fingers")
+                    val emissionParam = params.optDoubleList("emission")
+                    val areaParam = params.optDouble("area") ?: area
+                    val holeAreaParam = params.optDouble("holeArea") ?: holeArea
+                    val openLengthParam = params.optDouble("openLength") ?: openLength
+                    val closedLengthParam = params.optDouble("closedLength") ?: closedLength
 
-                    val indexParam = intValues["index"] ?: event.index
+                    val indexParam = params.optInt("index") ?: event.index
 
                     // Not sure about this condition...
                     val holeReply: Complex = if (fingersParam[indexParam] != 0.0) {
@@ -195,7 +228,7 @@ open class Instrument() {
                         areaParam,
                         holeAreaParam,
                         replyParam,
-                        holeReply
+                        holeReply.absoluteValue()
                     )
                     if (emissionParam != null) {
                         for (i in 0 until emissionParam.size) {
@@ -206,7 +239,6 @@ open class Instrument() {
                         }
                     }
                     newReply
-
                 }
                 actions.add(holeFunc)
             }
@@ -216,7 +248,7 @@ open class Instrument() {
 
     fun resonanceScore(w: Double, fingers: DoubleList, calcEmission: Boolean = false): Pair<Double, DoubleList?> {
         // ph: A score -1 <= score <= 1, zero if wavelength w resonates
-        var reply = (-1.0).R  // ph: open end
+        var reply = (-1.0)  // ph: open end
         val emission = if (calcEmission) {
             ArrayList<Double>()
         } else {
@@ -224,19 +256,17 @@ open class Instrument() {
         }
         if (!calcEmission) {
             for (action in actions) {
-                val complexParams = mapOf("reply" to reply)
-                val doubleParams = mapOf("wavelength" to w)
-                val doubleListParams = mapOf("fingers" to fingers)
-                reply = action(complexParams, doubleParams, doubleListParams, emptyMap())
+                //val complexParams = mapOf("reply" to reply)
+                val params = ActionParams(mapOf("reply" to reply, "wavelength" to w), mapOf("fingers" to fingers), emptyMap())
+                reply = action(params)
             }
         } else {
             emission!!.addAll(initialEmission)
             for (action in actions) {
-                val complexParams = mapOf("reply" to reply)
-                val doubleParams = mapOf("wavelength" to w)
-                val doubleListParams = mapOf("fingers" to fingers, "emission" to emission)
+                reply = action(ActionParams(mapOf("reply" to reply, "wavelength" to w),
+                    mapOf("fingers" to fingers, "emission" to emission),
+                    emptyMap()))
 
-                reply = action(complexParams, doubleParams, doubleListParams, emptyMap())
             }
             // ph: Scale by top area
             for (i in 0 until emission.size) {
@@ -246,7 +276,8 @@ open class Instrument() {
         if (!closedTop) {
             reply *= -1.0
         }
-        val angle = atan2(reply.im, reply.re)
+        //val angle = atan2(reply.im, reply.re)
+        val angle = atan(reply)
 
         val angle1 = angle % (PI * 2.0)
         val angle2 = angle1 - PI * 2.0
@@ -283,10 +314,10 @@ open class Instrument() {
             val index = ev.index
 
             val length = pos - position
-            val eFunc: Action = { complexValues, doubleValues, doubleListValues, intValues ->
-                val phase_end = complexValues["phase"]!!
-                val wavelength = doubleValues["wavelength"]!!
-                val evLength = doubleValues["length"] ?: length
+            val eFunc: Action = { params ->
+                val phase_end = params.double("phase")
+                val wavelength = params.double("wavelength")
+                val evLength = params.optDouble("length") ?: length
                 pipeReplyPhase(phase_end, evLength / wavelength)
             }
             actionsPhase.add(eFunc)
@@ -298,10 +329,10 @@ open class Instrument() {
                 diameter = steppedInner.high[index]
                 val area = circleArea(diameter)
 
-                val stepFunc: Action = { complexValues, doubleValues, _, _ ->
-                    val vPhase = complexValues["phase"]!!
-                    val vArea = doubleValues["area"] ?: area
-                    val vArea1 = doubleValues["area1"] ?: area1
+                val stepFunc: Action = { params ->
+                    val vPhase = params.double("phase")
+                    val vArea = params.optDouble("area") ?: area
+                    val vArea1 = params.optDouble("area1") ?: area1
                     junction2ReplyPhase(vArea, vArea1, vPhase)
                 }
                 actionsPhase.add(stepFunc)
@@ -315,20 +346,20 @@ open class Instrument() {
                 val trueLength = holeLengths[ev.index]
                 val openLength = trueLength + holeLengthCorrection(holeDiameter, diameter, false)
                 val closedLength = trueLength + holeLengthCorrection(holeDiameter, diameter, true)
-                val holeFunc: Action = { complexValues, doubleValues, doubleListValues, intValues ->
-                    val vPhase = complexValues["phase"]!!
-                    val vWavelength = doubleValues["wavelength"]!!
-                    val vFingers = doubleListValues["fingers"]!! // I don't want to add yet another type
+                val holeFunc: Action = { params ->
+                    val vPhase = params.double("phase")
+                    val vWavelength = params.double("wavelength")
+                    val vFingers = params.doubleList("fingers") // I don't want to add yet another type
                     // to action, so if fingers[i]== 0 then it's interpreted as false, otherwise true
-                    val vArea = doubleValues["area"] ?: area
-                    val vHoleArea = doubleValues["holeArea"] ?: holeArea
-                    val vOpenLength = doubleValues["openLength"] ?: openLength
-                    val vClosedLength = doubleValues["closedLength"] ?: closedLength
-                    val vIndex = intValues["index"] ?: index
+                    val vArea = params.optDouble("area") ?: area
+                    val vHoleArea = params.optDouble("holeArea") ?: holeArea
+                    val vOpenLength = params.optDouble("openLength") ?: openLength
+                    val vClosedLength = params.optDouble("closedLength") ?: closedLength
+                    val vIndex = params.optInt("index") ?: index
                     val holePhase = if (vFingers[vIndex] != 0.0) {
-                        pipeReplyPhase(0.0.R, vClosedLength / vWavelength)
+                        pipeReplyPhase(0.0, vClosedLength / vWavelength)
                     } else {
-                        pipeReplyPhase((-0.5).R, vOpenLength / vWavelength)
+                        pipeReplyPhase((-0.5), vOpenLength / vWavelength)
                     }
                     junction3ReplyPhase(vArea, vArea, vHoleArea, vPhase, holePhase)
                 }
@@ -338,16 +369,15 @@ open class Instrument() {
     }
 
     /**
-     * ph: score % 1 == 0 if wavelength w resonantes
+     * ph: score % 1 == 0 if wavelength w resonates
      *
      */
-    fun resonancePhase(wavelength: Double, fingers: DoubleList): Complex {
-        var phase = 0.5.R // ph: open end
+    fun resonancePhase(wavelength: Double, fingers: DoubleList): Double {
+        var phase = 0.5 // ph: open end
         for (action in actionsPhase) {
-            val complexValues = mapOf("phase" to phase)
             val doubleListValues = mapOf("fingers" to fingers)
-            val doubleValues = mapOf("wavelength" to wavelength)
-            phase = action(complexValues, doubleValues, doubleListValues, emptyMap())
+            val doubleValues = mapOf("phase" to phase, "wavelength" to wavelength)
+            phase = action(ActionParams(doubleValues, doubleListValues, emptyMap()))
         }
         if (!closedTop) {
             phase += 0.5
@@ -364,7 +394,7 @@ open class Instrument() {
     ): Double {
 
         fun scorer(probe: Double): Double =
-            ((resonancePhase(probe, fingers) + 0.5) % 1.0.R).im - 0.5
+            ((resonancePhase(probe, fingers) + 0.5) % 1.0) - 0.5
 
         var step = 2.0.pow(stepCents / 1200.0)
         val halfStep = sqrt(step)
@@ -434,7 +464,7 @@ open class Instrument() {
                               stepIncrease: Double = 1.5,
                               maxSteps: Int = 20): Double {
         fun scorer(probe: Double): Double {
-            return ((resonancePhase(probe, fingers) + 0.5) % 1.0.R).im - 0.5
+            return ((resonancePhase(probe, fingers) + 0.5) % 1.0) - 0.5
         }
 
         var step = 2.0.pow(stepCents / 1200.0)
@@ -503,7 +533,7 @@ fun<T> lowHighOpt(vec: List<Pair<T, T>?>): Pair<ArrayList<T?>, ArrayList<T?>> {
 /**
  * As with lowHigh, I'm saying it's just a pair.
  */
-fun describeLowHigh(item: DoublePair): String {
+fun describeLowHigh(item: Pair<Double, Double>): String {
     return if (item.first == item.second) {
         "%.1f".format(item.first)
     } else {

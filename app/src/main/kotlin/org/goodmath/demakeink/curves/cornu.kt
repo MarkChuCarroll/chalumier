@@ -1,6 +1,5 @@
 package org.goodmath.demakeink.curves
 
-import org.goodmath.demakeink.DoublePair
 import kotlin.math.*
 
 // ph: implementation adapted from cephes
@@ -104,6 +103,7 @@ val gd = listOf(
     1.00000000000000000000E0,
     1.47495759925128324529E0,
     3.37748989120019970451E-1,
+
     2.53603741420338795122E-2,
     8.14679107184306179049E-4,
     1.27545075667729118702E-5,
@@ -116,7 +116,7 @@ val gd = listOf(
 ).reversed()
 
 
-fun fresnel(xxa: Double): DoublePair {
+fun fresnel(xxa: Double): Pair<Double, Double> {
     var ss = 0.0
     var cc = 0.0
 
@@ -146,11 +146,11 @@ fun fresnel(xxa: Double): DoublePair {
         cc = -cc
         ss = -ss
     }
-    return DoublePair(ss, cc)
+    return Pair<Double, Double>(ss, cc)
 }
 
-fun evalCornu(t: Double): DoublePair {
+fun evalCornu(t: Double): Pair<Double, Double> {
     val spio2 = sqrt(PI * .5)
     val (s, c) = fresnel(t / spio2)
-    return DoublePair(s * spio2, c * spio2)
+    return Pair<Double, Double>(s * spio2, c * spio2)
 }

@@ -1,6 +1,7 @@
 package org.goodmath.demakeink
 
 import kotlin.math.pow
+import kotlin.math.round
 
 val semitoneName: ArrayList<String> = arrayListOf("C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B" )
 
@@ -39,3 +40,12 @@ fun frequency(noteName: String): Double {
     return 440.0 * 2.0.pow((semitone.toDouble() - 57.0) / 12.0) * mult
 }
 
+
+fun describe(wavelength: Double): String {
+    val f = SPEED_OF_SOUND / wavelength
+
+    val note = (round(log2(f / 440.0) * 12.0 + 57)).toInt()
+    val octave = note / 12
+    val semitone = note % 12
+    return "${semitoneName[semitone]}${octave}"
+}

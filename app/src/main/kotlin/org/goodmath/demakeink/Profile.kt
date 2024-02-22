@@ -1,5 +1,6 @@
 package org.goodmath.demakeink
 
+import kotlinx.serialization.Serializable
 import kotlin.math.*
 
 /*
@@ -49,29 +50,26 @@ fun DoubleList.bisect(target: Double): Int {
  * on an increasing curve, median means you should be evenly between your
  * neighbors, and "Here" means you should be in *this* exact position.
  */
-sealed class Angle(open val i: Int) {
+@Serializable
+sealed class Angle(open val i: Int, val dir: String, val v: Double?) {
     fun interpret(a: DoubleList): Double {
-        return when (this) {
-            is Mean ->
+        return when (dir) {
+            "Mean" ->
                 (a[i - 1] + a[i]) * 0.5
 
-            is Up ->
+            "Up" ->
                 a[i]
 
-            is Down ->
+            "Down" ->
                 a[i - 1]
 
-            is Here ->
-                v * PI / 180
+            "Here" ->
+                v!! * PI / 180
+            else ->
+                throw DemakeinException("Invalid angle direction ${dir}")
         }
     }
 }
-
-
-data class Mean(override val i: Int) : Angle(i)
-data class Up(override val i: Int) : Angle(i)
-data class Down(override val i: Int) : Angle(i)
-data class Here(override val i: Int, val v: Double) : Angle(i)
 
 /**
  * The solve function returns a three-tuple. Kotlin represents that
@@ -79,7 +77,8 @@ data class Here(override val i: Int, val v: Double) : Angle(i)
  */
 data class Solution(val t1: Double, val t2: Double, val mirror: Boolean)
 
-class Profile(val pos: DoubleList, val low: List<Double>, maybeHigh: List<Double>?) {
+@Serializable
+class Profile(val pos: DoubleList, val low: List<Double>, val maybeHigh: List<Double>? = null) {
     val high: List<Double> = maybeHigh ?: low
 
     operator fun invoke(otherPos: Double, useHigh: Boolean = false): Double {
@@ -242,10 +241,10 @@ class Profile(val pos: DoubleList, val low: List<Double>, maybeHigh: List<Double
             var step: Double = PI * n * 0.5
             while (step >= 1e-4) {
                 for ((newT1, newT2) in listOf(
-                    DoublePair(t1 + step, t2 + step),
-                    DoublePair(t1 - step, t2 - step),
-                    DoublePair(t1 - step, t2 + step),
-                    DoublePair(t1 + step, t2 - step)
+                    Pair<Double, Double>(t1 + step, t2 + step),
+                    Pair<Double, Double>(t1 - step, t2 - step),
+                    Pair<Double, Double>(t1 - step, t2 + step),
+                    Pair<Double, Double>(t1 + step, t2 - step)
                 )) {
                     val newS = score(newT1, newT2, mirror)
                     val t = s!!
