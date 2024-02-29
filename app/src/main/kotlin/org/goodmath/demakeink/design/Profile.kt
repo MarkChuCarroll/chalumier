@@ -1,6 +1,22 @@
-package org.goodmath.demakeink
+/*
+ * Copyright 2024 Mark C. Chu-Carroll
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.goodmath.demakeink.design
 
 import kotlinx.serialization.Serializable
+import org.goodmath.demakeink.errors.DemakeinException
 import kotlin.math.*
 
 /*
@@ -25,7 +41,7 @@ typealias DoubleList = ArrayList<Double>
  * it returns -(insertion_point+1). So we just need to invert that
  * into an insertion point.
  */
-fun DoubleList.bisect(target: Double): Int {
+fun List<Double>.bisect(target: Double): Int {
     val ind = this.binarySearch(target)
     if (ind >= 0) {
         return ind
@@ -34,39 +50,49 @@ fun DoubleList.bisect(target: Double): Int {
     }
 }
 
+enum class AngleDirection {
+    Here, Mean, Up, Down
+}
+
 /**
  * In some of the profile transformers, the code expects a
  * profile description that includes what I'm interpreting as
  * angles.
  *
- * In python, these "angle" specs have an integer value (which I think is
- * some kind of scaling factor?), and an interpretation string.
- * The interpretation string can be either empty (I'm calling that "Here"),
- * "Mean", "Up", or "Down". If it's here, then it also has a floating
- * point value.
+ * In python, these "angle" specs are characterized by:
+ * 1. an integer index which is their position in the list of angles that
+ *    make up the profile.
+ * 2. An interpretation string. The interpretation can be empty,
+ *    or it can have the value "Mean", "Up", or "Down".
+ * 3. If the interpretation string is empty, then it has a value
+ *    as a floating point number.
  *
  * My interpretation of this is that parts of the profile are allowed
  * to move as you compute the shape. A value of 'up' means that you're
- * on an increasing curve, median means you should be evenly between your
- * neighbors, and "Here" means you should be in *this* exact position.
+ * on an increasing curve, "Mean" means you should be evenly between your
+ * neighbors, and a number means you should be in *this* exact position.
+ *
+ * The index isn't included, because it's contextual - it's not a fixed value,
+ * but rather a connection to how the angle is placed into a list.
  */
-@Serializable
-sealed class Angle(open val i: Int, val dir: String, val v: Double?) {
-    fun interpret(a: DoubleList): Double {
+class Angle(val dir: AngleDirection?, val v: Double? = null) {
+    fun interpret(i: Int, a: DoubleList): Double {
         return when (dir) {
-            "Mean" ->
+            AngleDirection.Mean ->
                 (a[i - 1] + a[i]) * 0.5
 
-            "Up" ->
+            AngleDirection.Up ->
                 a[i]
 
-            "Down" ->
+            AngleDirection.Down ->
                 a[i - 1]
 
-            "Here" ->
-                v!! * PI / 180
-            else ->
-                throw DemakeinException("Invalid angle direction ${dir}")
+            null ->
+                if (v == null) {
+                    throw DemakeinException("Invalid angle: either direction or value must be non-null")
+                } else {
+                    v * PI / 180
+                }
         }
     }
 }
@@ -78,7 +104,7 @@ sealed class Angle(open val i: Int, val dir: String, val v: Double?) {
 data class Solution(val t1: Double, val t2: Double, val mirror: Boolean)
 
 @Serializable
-class Profile(val pos: DoubleList, val low: List<Double>, val maybeHigh: List<Double>? = null) {
+class Profile(val pos: List<Double>, val low: List<Double>, val maybeHigh: List<Double>? = null) {
     val high: List<Double> = maybeHigh ?: low
 
     operator fun invoke(otherPos: Double, useHigh: Boolean = false): Double {
@@ -262,10 +288,10 @@ class Profile(val pos: DoubleList, val low: List<Double>, val maybeHigh: List<Do
         }
 
         fun curvedProfile(
-            pos: DoubleList, low: DoubleList,
-            high: DoubleList, lowAngle: ArrayList<Angle?>,
-            highAngle: ArrayList<Angle?>,
-            quality: Int = 512
+                pos: DoubleList, low: DoubleList,
+                high: DoubleList, lowAngle: ArrayList<Angle?>,
+                highAngle: ArrayList<Angle?>,
+                quality: Int = 512
         ): Profile {
             val a = DoubleList()
             val n = pos.size
@@ -276,10 +302,10 @@ class Profile(val pos: DoubleList, val low: List<Double>, val maybeHigh: List<Do
                 val y2 = low[i + 1] * 0.5
                 a.add((atan2(y2 - y1, x2 - x1) + PI) % (PI * 2) - PI)
             }
-            val interpretedLowAngle = lowAngle.map { angle ->
-                angle?.interpret(a)
+            val interpretedLowAngle = lowAngle.mapIndexed { i, angle ->
+                angle?.interpret(i, a)
             }
-            val interpretedHighAngle = highAngle.map { angle -> angle?.interpret(a) }
+            val interpretedHighAngle = highAngle.mapIndexed { i, angle -> angle?.interpret(i, a) }
 
             val ppos = DoubleList()
             val plow = DoubleList()

@@ -27,6 +27,9 @@ dependencies {
     implementation("com.google.guava:guava:31.1-jre")
     implementation("org.kotlinmath:complex-numbers:1.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
+    // https://mvnrepository.com/artifact/eu.mihosoft.vrl.jcsg/jcsg
+    implementation("eu.mihosoft.vrl.jcsg:jcsg:0.5.7")
+
 
 }
 

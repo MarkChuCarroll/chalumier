@@ -1,21 +1,46 @@
-package org.goodmath.demakeink
+/*
+ * Copyright 2024 Mark C. Chu-Carroll
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.goodmath.demakeink.design
 
 import kotlinx.serialization.Serializable
+import org.goodmath.demakeink.errors.DemakeinException
+import org.goodmath.demakeink.errors.RequiredParameterException
 import org.kotlinmath.Complex
 import org.kotlinmath.R
 import kotlin.math.*
 
+/*
+ * This file is part of the kotlin translation of "demakein/design.py" from
+ * the original demakein code. I've tried to reproduce the functionality
+ * of the original code, but adding types to hopefully make it harder
+ * to screw things up.
+ *
+ * All the original comments from the Python are here, prefixed with "ph:".
+ */
 
 fun<T> ArrayList<T>.fromEnd(i: Int): T =
     this[this.size - i]
 
+interface Copyable<T> {
+    fun copy(): T
+}
 
 fun length(x: Double, y: Double): Double =
     sqrt(x * x + y * y)
 
-fun log2(n: Double): Double {
-    return ln(n) / ln(2.0)
-}
 
 const val FourPi = PI * 4
 
@@ -34,17 +59,17 @@ data class ActionParameterException(val typeName: String, val name: String):
 
 @Serializable
 class ActionParams(val doubleParams: Map<String, Double>,
-    val doubleListParams: Map<String, ArrayList<Double>>,
+    val doubleListParams: Map<String, List<Double>>,
     val intParams: Map<String, Int>) {
     fun double(name: String): Double =
         doubleParams[name] ?: throw ActionParameterException("Double", name)
 
     fun optDouble(name: String): Double? =
         doubleParams[name]
-    fun doubleList(name: String): ArrayList<Double> =
+    fun doubleList(name: String): List<Double> =
         doubleListParams[name] ?: throw ActionParameterException("List<Double>", name)
 
-    fun optDoubleList(name: String): ArrayList<Double>? =
+    fun optDoubleList(name: String): List<Double>? =
         doubleListParams[name]
 
     fun int(name: String): Int =
@@ -81,23 +106,31 @@ object EventComparator: Comparator<Event> {
  *
  * ph: Fill in:
  */
-open class Instrument() {
+abstract class Instrument<T: Instrument<T>>() {
+
+    abstract fun copy(): T
+
     //  ph: length
-    var length: Double by AssignableParameter { 0.0 }
+    open var length: Double by ConfigurationParameter("") { 0.0 }
+
+    open var trueLength: Double by ConfigurationParameter("trueLength") {
+        length
+    }
+
 
     // inner profile, diameters
-    var inner: Profile by AssignableParameter { throw RequiredParameterException("inner profile") }
+    open var inner: Profile by ConfigurationParameter("") { throw RequiredParameterException("inner profile") }
 
     // ph: outer profile, diameters
-    var outer: Profile by AssignableParameter { throw RequiredParameterException("outer profile") }
+    open var outer: Profile by ConfigurationParameter("") { throw RequiredParameterException("outer profile") }
 
-    var numberOfHoles: Int by AssignableParameter { throw RequiredParameterException("number of holes") }
+    open var numberOfHoles: Int by ConfigurationParameter("") { throw RequiredParameterException("number of holes") }
 
     // ph: hole positions on outside
-    var holePositions: DoubleList by AssignableParameter { throw RequiredParameterException("holePositions") }
+    open var holePositions: DoubleList by ConfigurationParameter("") { throw RequiredParameterException("holePositions") }
 
     // ph: angle of hole in degrees, up positive, down negative
-    var holeAngles: List<Double> by AssignableParameter<Instrument, List<Double>> {
+    open var holeAngles: List<Double> by ConfigurationParameter<Instrument<T>, List<Double>>( "") {
         ArrayList(it.numberOfHoles.repeat { 0.0 })
     }
 
@@ -105,30 +138,30 @@ open class Instrument() {
     // ph: hole positions in bore
     // In ph's code, if these weren't set, then they were auto-initialized to None.
     // But if you then called prepare, shit would explode.
-    var innerHolePositions: ArrayList<Double> by AssignableParameter {
+    open var innerHolePositions: ArrayList<Double> by ConfigurationParameter("") {
         // ph: roughly ArrayList(it.numberOfHoles.repeat { null })
         throw RequiredParameterException("innerHolePositions")
     }
 
     // ph: length of hole through instrument wall (perhaps plus an embouchure correction)
-    var holeLengths: ArrayList<Double> by AssignableParameter {
+    open var holeLengths: ArrayList<Double> by ConfigurationParameter("") {
         ArrayList(it.numberOfHoles.repeat { 0.0 })
     }
 
     // ph: hole diameters
-    var holeDiameters: DoubleList by AssignableParameter { throw RequiredParameterException("hole diameters") }
+    open var holeDiameters: DoubleList by ConfigurationParameter("") { throw RequiredParameterException("hole diameters") }
 
     // ph: is the mouthpiece closed (eg reed) or open (eg ney)
-    var closedTop: Boolean by AssignableParameter { false }
+    open var closedTop: Boolean by ConfigurationParameter("") { false }
 
     // ph: inner profile step size for conical segments of inner profile
-    var coneStep: Double by AssignableParameter { 0.125 }
+    open var coneStep: Double by ConfigurationParameter("") { 0.125 }
 
-    var innerKinks: ArrayList<Double> by AssignableParameter<Instrument, ArrayList<Double>> {
+    open var innerKinks: ArrayList<Double> by ConfigurationParameter<Instrument<T>, ArrayList<Double>>("") {
         throw RequiredParameterException("innerKinks")
     }
 
-    var outerKinks: ArrayList<Double> by AssignableParameter<Instrument, ArrayList<Double>> {
+    open var outerKinks: ArrayList<Double> by ConfigurationParameter<Instrument<T>, ArrayList<Double>>("") {
         throw RequiredParameterException("outerKinks")
     }
 
@@ -182,7 +215,7 @@ open class Instrument() {
                 val area = circleArea(diameter)
                 val act: Action = { params ->
                     val replyParam = params.double("reply")
-                    val emissionParam = params.optDoubleList("emission")
+                    val emissionParam = params.optDoubleList("emission")?.toMutableList()
                     val areaParam = params.optDouble("area") ?: area
                     val area1Param = params.optDouble("area1") ?: area1
                     val (newReply, mag1) = junction2Reply(areaParam, area1Param, replyParam)
@@ -209,7 +242,7 @@ open class Instrument() {
                     val replyParam = params.double("reply")
                     val wavelengthParam = params.double("wavelength")
                     val fingersParam = params.doubleList("fingers")
-                    val emissionParam = params.optDoubleList("emission")
+                    val emissionParam = params.optDoubleList("emission")?.toMutableList()
                     val areaParam = params.optDouble("area") ?: area
                     val holeAreaParam = params.optDouble("holeArea") ?: holeArea
                     val openLengthParam = params.optDouble("openLength") ?: openLength
@@ -246,7 +279,7 @@ open class Instrument() {
         emissionDivide = circleArea(diameter)
     }
 
-    fun resonanceScore(w: Double, fingers: DoubleList, calcEmission: Boolean = false): Pair<Double, DoubleList?> {
+    fun resonanceScore(w: Double, fingers: List<Double>, calcEmission: Boolean = false): Pair<Double, DoubleList?> {
         // ph: A score -1 <= score <= 1, zero if wavelength w resonates
         var reply = (-1.0)  // ph: open end
         val emission = if (calcEmission) {
@@ -372,7 +405,7 @@ open class Instrument() {
      * ph: score % 1 == 0 if wavelength w resonates
      *
      */
-    fun resonancePhase(wavelength: Double, fingers: DoubleList): Double {
+    fun resonancePhase(wavelength: Double, fingers: List<Double>): Double {
         var phase = 0.5 // ph: open end
         for (action in actionsPhase) {
             val doubleListValues = mapOf("fingers" to fingers)
@@ -386,11 +419,11 @@ open class Instrument() {
     }
 
     fun trueWavelengthNear(
-        wavelength: Double,
-        fingers: DoubleList,
-        stepCents: Double = 1.0,
-        stepIncrease: Double = 1.05,
-        maxSteps: Int = 100
+            wavelength: Double,
+            fingers: List<Double>,
+            stepCents: Double = 1.0,
+            stepIncrease: Double = 1.05,
+            maxSteps: Int = 100
     ): Double {
 
         fun scorer(probe: Double): Double =
@@ -458,7 +491,7 @@ open class Instrument() {
     }
 
     fun trueNthWavelengthNear(wavelength: Double,
-                              fingers: DoubleList,
+                              fingers: List<Double>,
                               _n: Double,
                               stepCents: Double = 1.0,
                               stepIncrease: Double = 1.5,
@@ -504,6 +537,7 @@ open class Instrument() {
             return probes[0]
         }
     }
+
 }
 
 /**
@@ -541,7 +575,7 @@ fun describeLowHigh(item: Pair<Double, Double>): String {
     }
 }
 
-fun scaler(inst: Instrument, values: List<Double?>): List<Double?> =
+fun<T: Instrument<T>> scaler(inst: T, values: List<Double?>): List<Double?> =
     values.map {
         if (it != null) {
             it * inst.scale
@@ -550,8 +584,8 @@ fun scaler(inst: Instrument, values: List<Double?>): List<Double?> =
         }
     }
 
-fun sqrtScaler(inst: Instrument, values: List<Double?>): List<Double?> {
-    val scaleFactor = inst.scale.pow(0.5)
+fun<T: Instrument<T>> sqrtScaler(values: List<Double?>): List<Double?> {
+    val scaleFactor = scale.pow(0.5)
     return values.map {
         if (it != null) {
             it * scaleFactor
@@ -561,7 +595,7 @@ fun sqrtScaler(inst: Instrument, values: List<Double?>): List<Double?> {
     }
 }
 
-fun powerScaler(inst: Instrument, power: Double, values: List<Double?>) :List<Double?> {
+fun<T: Instrument<T>> powerScaler(inst: T, power: Double, values: List<Double?>) :List<Double?> {
     val scaleFactor = inst.scale.pow(power)
     return values.map {
         if (it != null) {

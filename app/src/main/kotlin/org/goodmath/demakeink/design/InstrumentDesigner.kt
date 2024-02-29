@@ -1,4 +1,19 @@
-package org.goodmath.demakeink
+/*
+ * Copyright 2024 Mark C. Chu-Carroll
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.goodmath.demakeink.design
 
 import java.io.FileWriter
 import java.lang.Math.log
@@ -7,50 +22,68 @@ import kotlin.io.path.div
 import kotlin.math.*
 import kotlinx.serialization.*
 import kotlinx.serialization.json.*
+import org.goodmath.demakeink.diagram.Diagram
+import org.goodmath.demakeink.errors.DemakeinException
+import org.goodmath.demakeink.errors.RequiredParameterException
+import org.goodmath.demakeink.errors.dAssert
 import kotlin.io.path.createDirectory
 import kotlin.io.path.exists
 
-interface InstrumentGenerator<T : Instrument> {
+interface InstrumentGenerator<T: Instrument<T>> {
   fun create(): T
-}
-
-private fun dAssert(v: Boolean, msg: String) {
-  if (!v) {
-    throw AssertionException(msg)
-  }
 }
 
 fun <T> Int.repeat(f: (i: Int) -> T): List<T> {
   return (0 until this).map { f(it) }
 }
 
-open class DemakeinException(msg: String, cause: Throwable? = null) : Exception(msg, cause)
-
-class RequiredParameterException(name: String, msg: String = "is a required parameter") :
-    DemakeinException("${name} ${msg}")
-
-class AssertionException(msg: String) : DemakeinException(msg)
-
 @Serializable
 data class Fingering(
-    val noteName: String,
-    val fingers: ArrayList<Double>,
-    val nth: Double? = null
+        val noteName: String,
+        val fingers: List<Double>,
+        val nth: Double? = null
 ) {
   fun wavelength(transpose: Int): Double {
-    val w = SPEED_OF_SOUND / frequency(noteName)
-    return w / (2.0.pow(transpose.toDouble() / 12.0))
+    return wavelength(noteName, transpose)
   }
 }
 
-@Serializable
-open class InstrumentDesignerConfigurator<T : Instrument>(val gen: InstrumentGenerator<T>) {
 
-  private val fingeringList: ArrayList<Fingering> = ArrayList()
 
-  fun addFingering(f: Fingering) {
-    fingeringList.add(f)
+fun wavelength(noteName: String, transpose: Int = 0): Double {
+  val w = SPEED_OF_SOUND / frequency(noteName)
+  return w / (2.0.pow(transpose.toDouble() / 12.0))
+}
+
+
+
+/**
+ * MC: I've refactored this quite a bit, by moving all of the configurables up to be constructor
+ * parameters, instead of things randomly initialized into class variables.
+ */
+open class InstrumentDesigner<T : Instrument<T>>(open val gen: InstrumentGenerator<T>)  {
+
+  /**
+   * All of the validations scattered in ph's code are moved here, and called before anything gets
+   * filled in in the instrument designer.
+   */
+  fun validate() {
+    dAssert(initialHoleFractions.size == numberOfHoles, "initialHoleFractions has wrong length")
+    dAssert(
+            initialHoleDiameterFractions.size == numberOfHoles,
+            "initialHoleDiameterFractions has wrong length"
+    )
+    dAssert(
+            initialInnerFractions.size == innerDiameters.size - 2,
+            "initialInnerFractions has wrong length"
+    )
+    dAssert(
+            initialOuterFractions.size == outerDiameters.size - 2,
+            "initialOuterFractions has wrong length"
+    )
+    checkFingeringHoles(fingerings)
   }
+
 
   private fun checkFingeringHoles(fingerings: List<Fingering>): Int {
     val count = fingerings[0].fingers.size
@@ -60,198 +93,125 @@ open class InstrumentDesignerConfigurator<T : Instrument>(val gen: InstrumentGen
     return count
   }
 
-  val fingerings: ArrayList<Fingering>
-    get() {
-      checkFingeringHoles(fingeringList)
-      return fingeringList
-    }
+  open var fingerings: List<Fingering> by ConfigurationParameter("list of specifications of fingerings and the notes they should produce") {
+    throw RequiredParameterException("fingerings")
+  }
 
-  var length: Double by AssignableParameter { it.initialLength * it.scale }
+  open var length: Double by ConfigurationParameter("the length of the instrument") { it.initialLength * it.scale }
 
-  var closedTop: Boolean by AssignableParameter { false }
+  open var maxLength: Double? by ConfigurationParameter("The maximum length that the design should make the instrument when modelling") { null }
 
-  val initialLength: Double by
-      AssignableParameter<InstrumentDesignerConfigurator<T>, Double> {
-        throw RequiredParameterException("initialLength")
-      }
+  open var closedTop: Boolean by ConfigurationParameter("Is this a closed top instrument?") { false }
+
+  open var initialLength: Double by ConfigurationParameter<InstrumentDesigner<T>, Double>("the initial length of the instrument before modeling") {
+    throw RequiredParameterException("initialLength")
+  }
 
   // ph; diameters of inner bore: first is diam at bottom, last is diam at top
-  val innerDiameters: List<Pair<Double, Double>> by
-      AssignableParameter<InstrumentDesignerConfigurator<T>, List<Pair<Double, Double>>>() {
-        throw RequiredParameterException("innerDiameters")
-      }
+  open var innerDiameters: List<Pair<Double, Double>> by ConfigurationParameter<InstrumentDesigner<T>, List<Pair<Double, Double>>>("innerDiameters") {
+    throw RequiredParameterException("innerDiameters")
+  }
 
-  var outerDiameters: List<Pair<Double, Double>> by
-      AssignableParameter<InstrumentDesignerConfigurator<T>, List<Pair<Double, Double>>> {
-        throw RequiredParameterException("outerDiameters", "must have at least two elements")
-      }
+  open var outerDiameters: List<Pair<Double, Double>> by
+  ConfigurationParameter<InstrumentDesigner<T>, List<Pair<Double, Double>>>( "outerDiameters") {
+    throw RequiredParameterException("outerDiameters", "must have at least two elements")
+  }
 
-  var transpose: Int by AssignableParameter { 0 }
+  open var transpose: Int by ConfigurationParameter("transpose") { 0 }
 
   /**
    * Experimental. Add a term to the optimization to try to make instrument louder, possibly
    * sacrificing being-in-tune-ness.
    */
-  var tweakEmissions: Double by AssignableParameter { 0.0 }
+  open var tweakEmissions: Double by ConfigurationParameter("tweakEmissions") { 0.0 }
 
-  var innerAngles: List<Pair<Angle, Angle>?> by AssignableParameter { c ->
+  open var innerAngles: List<Pair<Angle, Angle>?> by ConfigurationParameter("innerAngles") { c ->
     c.innerDiameters.map { null }
   }
 
-  var outerAngles: List<Pair<Angle, Angle>?> by AssignableParameter { c ->
+  open var outerAngles: List<Pair<Angle, Angle>?> by ConfigurationParameter("outerAngles") { c ->
     c.outerDiameters.map { null }
   }
 
-  var numberOfHoles: Int by AssignableParameter { c -> c.maxHoleDiameters.size }
+  open var coneStep: Double by ConfigurationParameter("coneStep") { 0.125 }
 
-  var minHoleDiameters: List<Double> by AssignableParameter { c -> c.numberOfHoles.repeat { 0.5 } }
+  open var numberOfHoles: Int by ConfigurationParameter("numberOfHoles") { c -> c.maxHoleDiameters.size }
 
-  var maxHoleDiameters: List<Double> by AssignableParameter {
+  open var minHoleDiameters: List<Double> by ConfigurationParameter("minHoleDiameters") { c -> c.numberOfHoles.repeat { 0.5 } }
+
+  open var maxHoleDiameters: List<Double> by ConfigurationParameter("maxHoleDiameters") {
     throw RequiredParameterException("maxHoleDiameters")
   }
 
-  var outerAdd: Boolean by AssignableParameter { false }
+  open var outerAdd: Boolean by ConfigurationParameter("outerAdd") { false }
 
-  var topClearanceFraction: Double by AssignableParameter { 0.0 }
+  open var topClearanceFraction: Double by ConfigurationParameter("topClearanceFraction") { 0.0 }
 
-  var bottomClearanceFraction: Double by AssignableParameter { 0.0 }
+  open var bottomClearanceFraction: Double by ConfigurationParameter("bottomClearanceFraction") { 0.0 }
 
-  var scale: Double by AssignableParameter { 1.0 }
+  open var scale: Double by ConfigurationParameter("scale") { 1.0 }
 
-  val minHoleSpacing: List<Double?> by AssignableParameter { it.numberOfHoles.repeat { 0.0 } }
+  open var minHoleSpacing: List<Double?> by ConfigurationParameter ("a list of values specifying the minimum distance between pairs of holes"){ it.numberOfHoles.repeat { 0.0 } }
 
-  val maxHoleSpacing: List<Double?> by AssignableParameter { c ->
+  open var maxHoleSpacing: List<Double?> by ConfigurationParameter("maxHoleSpacing") { c ->
     c.numberOfHoles.repeat { c.initialLength }
   }
 
-  val balance: List<Double?> by AssignableParameter { c -> (c.numberOfHoles - 2).repeat { null } }
-  val holeAngles: List<Double> by AssignableParameter { it.numberOfHoles.repeat { 0.0 } }
+  open var balance: List<Double?> by ConfigurationParameter("balance") { c -> (c.numberOfHoles - 2).repeat { null } }
+  open var holeAngles: List<Double> by ConfigurationParameter("holeAngles") { it.numberOfHoles.repeat { 0.0 } }
 
-  val initialInnerFractions: List<Double?> by AssignableParameter { c ->
+  open var initialInnerFractions: List<Double?> by ConfigurationParameter("initialInnerFractions") { c ->
     (c.innerDiameters.size - 2).repeat { (it + 1.0) / (c.innerDiameters.size - 1) }
   }
 
-  val minInnerFractionSep: List<Double> by AssignableParameter {
+  open var minInnerFractionSep: List<Double> by ConfigurationParameter("minInnerFractionSep") {
     (it.innerDiameters.size - 1).repeat { 0.0 }
   }
-  val maxInnerFractionSep: List<Double> by AssignableParameter {
+  open var maxInnerFractionSep: List<Double> by ConfigurationParameter("maxInnerFractionSep") {
     (it.innerDiameters.size - 1).repeat { 1.0 }
   }
 
-  val minInnerSep: List<Double?> by AssignableParameter {
+  open var minInnerSep: List<Double?> by ConfigurationParameter("minInnerSep") {
     (it.innerDiameters.size - 1).repeat { null }
   }
 
-  val maxInnerSep: List<Double?> by AssignableParameter {
+  open var maxInnerSep: List<Double?> by ConfigurationParameter("maxInnerSep") {
     (it.innerDiameters.size - 1).repeat { null }
   }
-  val initialOuterFractions: List<Double?> by AssignableParameter { c ->
+  open var initialOuterFractions: List<Double?> by ConfigurationParameter("initialOuterFractions") { c ->
     (c.outerDiameters.size - 2).repeat { (it + 1.0) / (c.outerDiameters.size - 1) }
   }
 
-  val minOuterFractionSep: List<Double> by AssignableParameter { c ->
+  open var minOuterFractionSep: List<Double> by ConfigurationParameter("minOuterFractionSep") { c ->
     (c.outerDiameters.size - 1).repeat { 0.0 }
   }
 
-  val maxOuterFractionSep: List<Double> by AssignableParameter {
+  open var maxOuterFractionSep: List<Double> by ConfigurationParameter("maxOuterFractionSep") {
     (it.outerDiameters.size - 2).repeat { 1.0 }
   }
 
-  val initialHoleFractions: List<Double?> by AssignableParameter { c ->
+  open var initialHoleFractions: List<Double?> by ConfigurationParameter("initialHoleFractions") { c ->
     c.numberOfHoles.repeat { (it + 3.0) / (c.numberOfHoles + 2) * 0.5 }
   }
-  val initialHoleDiameterFractions: List<Double?> by AssignableParameter {
+
+  open var initialHoleDiameterFractions: List<Double?> by ConfigurationParameter("initialHoleDiameterFractions") {
     it.numberOfHoles.repeat { 0.75 }
   }
 
-  val coneStep: Double by AssignableParameter { 0.125 }
 
-  val maxLength: Double? by AssignableParameter { null }
-
-  /* equivalent code in python commented out by ph
-  val holeExtraHeightByDiameter: List<Double?>
-      get() = getDoubleList("holeExtraHeightByDiameter") ?: numberOfHoles.repeat { 0.0 }
-
-
-  state_vars = [
-      'length',
-      'holeFractions',
-      'outerFractions',
-      'innerFractions',
-      'innerDiameters',
-      'outerDiameters',
-      ]
-  ...
-  */
-
-  /**
-   * All of the validations scattered in ph's code are moved here, and called before anything gets
-   * filled in in the instrument designer.
-   */
-  fun validate() {
-    dAssert(initialHoleFractions.size == numberOfHoles, "initialHoleFractions has wrong length")
-    dAssert(
-        initialHoleDiameterFractions.size == numberOfHoles,
-        "initialHoleDiameterFractions has wrong length"
-    )
-    dAssert(
-        initialInnerFractions.size == innerDiameters.size - 2,
-        "initialInnerFractions has wrong length"
-    )
-    dAssert(
-        initialOuterFractions.size == outerDiameters.size - 2,
-        "initialOuterFractions has wrong length"
-    )
-    checkFingeringHoles(fingerings)
-  }
-}
-
-/**
- * MC: I've refactored this quite a bit, by moving all of the configurables up to be constructor
- * parameters, instead of things randomly initialized into class variables.
- */
-@Serializable
-open class InstrumentDesigner<T : Instrument>(val cfg: InstrumentDesignerConfigurator<T>) {
-
-  companion object {
-    fun <T : Instrument> create(cfg: InstrumentDesignerConfigurator<T>): InstrumentDesigner<T> {
-      cfg.validate()
-      return InstrumentDesigner<T>(cfg)
-    }
+  open var holeHorizAngles: List<Double> by ConfigurationParameter("holeHorizAngles") {
+    (0 until numberOfHoles).map { 0.0 }
   }
 
-  val fingerings = cfg.fingerings
-  val initialLength = cfg.initialLength
-  val innerDiameters = cfg.innerDiameters
-  val outerDiameters = cfg.outerDiameters
-  val transpose = cfg.transpose
-  val tweakEmissions = cfg.tweakEmissions
-  val innerAngles = cfg.innerAngles
-  val outerAngles = cfg.outerAngles
-  val numberOfHoles = cfg.numberOfHoles
-  val minHoleDiameters = cfg.minHoleDiameters
-  val maxHoleDiameters = cfg.maxHoleDiameters
-  val outerAdd = cfg.outerAdd
-  val topClearanceFraction = cfg.topClearanceFraction
-  val bottomClearanceFraction = cfg.bottomClearanceFraction
-  val scale = cfg.scale
-  val minHoleSpacing = cfg.minHoleSpacing
-  val maxHoleSpacing = cfg.maxHoleSpacing
-  val balance = cfg.balance
-  val holeAngles = cfg.holeAngles
-  val initialInnerFractions = cfg.initialInnerFractions
-  val minInnerFractionSep = cfg.minInnerFractionSep
-  val maxInnerFractionSep = cfg.maxInnerFractionSep
-  val minInnerSep = cfg.minInnerSep
-  val maxInnerSep = cfg.maxInnerSep
-  val initialOuterFractions = cfg.initialOuterFractions
-  val minOuterFractionSep = cfg.minOuterFractionSep
-  val maxOuterFractionSep = cfg.maxOuterFractionSep
-  val initialHoleFractions = cfg.initialHoleFractions
-  val initialHoleDiameterFractions = cfg.initialHoleDiameterFractions
-  val coneStep = cfg.coneStep
-  val closedTop = cfg.closedTop
-  val maxLength = cfg.maxLength
+
+  open var divisions: List<List<Pair<Int, Double>>> by ConfigurationParameter("divisions") {
+    listOf(listOf(Pair(5, 0.0)),
+            listOf(Pair(2, 0.0), Pair(5, 0.333)),
+            listOf(Pair(-1, 0.9), Pair(2, 0.0), Pair(5, 0.333)),
+            listOf(Pair(-1, 0.9), Pair(2, 0.0), Pair(5, 0.0), Pair(5, 0.7)))
+  }
+
+
 
   val initialStateVec: ArrayList<Double?>
     get() {
@@ -271,7 +231,7 @@ open class InstrumentDesigner<T : Instrument>(val cfg: InstrumentDesignerConfigu
     val (innerAngleLow, innerAngleHigh) = lowHighOpt(innerAngles)
     val (outerAngleLow, outerAngleHigh) = lowHighOpt(outerAngles)
 
-    val inst = cfg.gen.create()
+    val inst = gen.create()
     var p = 0
     inst.length = (stateVec[0] ?: 1.0) * initialLength * scale
     p += 1
@@ -298,22 +258,22 @@ open class InstrumentDesigner<T : Instrument>(val cfg: InstrumentDesignerConfigu
     dAssert(p == stateVec.size, "Invalid state vec; expected size ${p}, but found ${stateVec.size}")
 
     inst.inner =
-      Profile.curvedProfile(
-        ArrayList(listOf(0.0) + innerKinks + listOf(inst.length)),
-        innerLow,
-        innerHigh,
-        innerAngleLow,
-        innerAngleHigh
-      )
+            Profile.curvedProfile(
+                    ArrayList(listOf(0.0) + innerKinks + listOf(inst.length)),
+                    innerLow,
+                    innerHigh,
+                    innerAngleLow,
+                    innerAngleHigh
+            )
 
     inst.outer =
-      Profile.curvedProfile(
-        ArrayList(listOf(0.0) + outerKinks + listOf(inst.length)),
-        outerLow,
-        outerHigh,
-        outerAngleLow,
-        outerAngleHigh
-      )
+            Profile.curvedProfile(
+                    ArrayList(listOf(0.0) + outerKinks + listOf(inst.length)),
+                    outerLow,
+                    outerHigh,
+                    outerAngleLow,
+                    outerAngleHigh
+            )
 
     if (outerAdd) {
       inst.outer += inst.inner
@@ -343,12 +303,12 @@ open class InstrumentDesigner<T : Instrument>(val cfg: InstrumentDesignerConfigu
     return inst
   }
 
-  fun constraintScore(inst: Instrument): Double {
+  fun constraintScore(inst: Instrument<T>): Double {
     val scores = ArrayList<Double>()
     scores.add(inst.length)
 
     if (maxLength != null) {
-      scores.add(maxLength * scale - inst.length)
+      scores.add(maxLength!! * scale - inst.length)
     }
     val inners = ArrayList(listOf(0.0) + inst.innerKinks + listOf(inst.length))
     for (i in 0 until inners.size - 1) {
@@ -411,7 +371,7 @@ open class InstrumentDesigner<T : Instrument>(val cfg: InstrumentDesignerConfigu
   }
 
   /** ph: Hook to modify instrument before scoring. */
-  open fun patchInstrument(inst: Instrument): Instrument {
+  open fun patchInstrument(inst: T): T {
     return inst
   }
 
@@ -420,11 +380,11 @@ open class InstrumentDesigner<T : Instrument>(val cfg: InstrumentDesignerConfigu
    *
    * Lets Flute_designer rate emission relative to embouchure hole.
    */
-  fun calcEmission(emission: ArrayList<Double>, fingers: ArrayList<Double>): Double {
+  open fun calcEmission(emission: List<Double>, fingers: List<Double>): Double {
     return sqrt(emission.sumOf { e -> e * e })
   }
 
-  fun score(i: Instrument): Double {
+  fun score(i: T): Double {
     val inst = patchInstrument(i)
     var score = 0.0
     var div = 0.0
@@ -444,7 +404,7 @@ open class InstrumentDesigner<T : Instrument>(val cfg: InstrumentDesignerConfigu
         if (item.nth == null) {
           inst.trueWavelengthNear(w1, fingers)
         } else {
-          inst.trueNthWavelengthNear(w1, fingers, item.nth!!)
+          inst.trueNthWavelengthNear(w1, fingers, item.nth)
         }
       val diff = abs(log(w1) - log(w2)) * s
       // ph: weight = w1
@@ -492,10 +452,10 @@ open class InstrumentDesigner<T : Instrument>(val cfg: InstrumentDesignerConfigu
   }
 
   fun _draw(
-    diagram: Diagram,
-    stateVec: ArrayList<Double?>,
-    color: String = "#000000",
-    redColor: String = "#ff0000"
+          diagram: Diagram,
+          stateVec: ArrayList<Double?>,
+          color: String = "#000000",
+          redColor: String = "#ff0000"
   ) {
     val instrument = unpack(stateVec)
     instrument.prepare()
@@ -585,7 +545,7 @@ open class InstrumentDesigner<T : Instrument>(val cfg: InstrumentDesignerConfigu
     val inst = instrument!!
     for (i in 0 until numberOfHoles) {
       var thisY = min(textY, -inst.holePositions[i])
-      var textY = diagram.text(textX, thisY.toDouble(), "%.1fmm".format(inst.holeDiameters[i]))
+      textY = diagram.text(textX, thisY.toDouble(), "%.1fmm".format(inst.holeDiameters[i]))
       diagram.text(textX + 90.0, thisY, " at %.1fmm".format(instrument!!.holePositions[i]))
 
       if (i < numberOfHoles - 1) {
@@ -739,13 +699,28 @@ open class InstrumentDesigner<T : Instrument>(val cfg: InstrumentDesignerConfigu
       outputDir.createDirectory()
     }
     var stateVec = initialStateVec
-    stateVec = optimize.improve("/bin/zsh", constrainer, scorer, stateVec, monitor = saver)
+//    stateVec = optimize.improve("/bin/zsh", constrainer, scorer, stateVec, monitor = saver)
 
     save(outputDir, stateVec, emptyList())
 
     // ph: #print(self._opt_score(state_vec))
 
   }
+
+  open fun scaler(values: List<Double?>): List<Double?> {
+    return values.map {
+      if (it != null) { it * scale }
+      else { null }
+    }
+  }
+
+
+
+  companion object {
+    val O = 0.0
+    val X = 1.0
+  }
+
 }
 
 /* ph:
@@ -757,12 +732,14 @@ def bore_scaler(value, maximum=1e30):
     return func
 
  */
+
 /**
  * @param boreScale Bore diameter is scaled as the square root of the instrument size times this amount.
 */
-class InstrumentDesignerWithBoreScale<T: Instrument>(val boreScale: Double = 1.0,
-  cfg: InstrumentDesignerConfigurator<T>): InstrumentDesigner<T>(cfg) {
-  fun boreScaler(value: ArrayList<Double?>, maximum: Double = 1e30): ArrayList<Double?> {
+open class InstrumentDesignerWithBoreScale<T: Instrument<T>>( gen: InstrumentGenerator<T>):
+        InstrumentDesigner<T>(gen) {
+
+  open fun boreScaler(value: List<Double?>, maximum: Double = 1e30): ArrayList<Double?> {
     val scale = sqrt(scale) * boreScale
     return ArrayList(value.map { i ->
       if (i != null) {
@@ -773,6 +750,17 @@ class InstrumentDesignerWithBoreScale<T: Instrument>(val boreScale: Double = 1.0
     })
   }
 
+  open fun boreScaler(value: List<Double>, maximum: Double = 1e30): List<Double> {
+    val scale = sqrt(scale) * boreScale
+    return ArrayList(value.map { i ->
+      if (i != null) {
+        min(i * scale, maximum)
+      } else {
+        null
+      }
+    })
+  }
 
+  open val boreScale: Double by ConfigurationParameter { 1.0 }
 }
 
