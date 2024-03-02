@@ -20,6 +20,29 @@ import org.goodmath.chalumier.errors.ConfigurationParameterException
 import java.io.FileWriter
 import java.nio.file.Path
 
+/**
+ * The base for an object with configuration parameters.
+ *
+ * The idea behind this is that we have objects with lots
+ * of configuration parameters, and we need to be able to save
+ * and load copies of those objects. But those objects may also have
+ * a large amount of transient state data that we don't want to save.
+ *
+ * In addition, these configuration parameters have standard
+ * defaults that are computed from the values of other configuration
+ * parameters.
+ *
+ * The way that I chose to handle that is to set up this system
+ * of field delegates. Each field provides a function to generate
+ * its default value, and an object called a Kind, which provides
+ * the capability to test values, and to serialize and deserialize
+ * values that it owns.
+ *
+ * With all of this, what we get is: a bunch of fields in
+ * our objects that to normal Kotlin code behave exactly like normal
+ * kotlin vars, but which have this infrastructure backing them.
+ *
+ */
 abstract class Configurable<T: Configurable<T>>(open val name: String) {
     val configParameters = HashMap<String, ConfigParameter<T, *>>()
     fun listConfigParameters(): List<Pair<String, String>> {
@@ -57,12 +80,12 @@ abstract class Configurable<T: Configurable<T>>(open val name: String) {
 
     fun writeParametersToFile(path: Path) {
         val f = FileWriter(path.toFile())
-        val json = renderParameters()
+        val json = toJson()
         f.write(json.toString())
         f.close()
     }
 
-    fun renderParameters(): JsonObject {
+    open fun toJson(): JsonObject {
         val me: T = this as T
         return buildJsonObject {
             put("typeName", me.name)
@@ -81,7 +104,7 @@ abstract class Configurable<T: Configurable<T>>(open val name: String) {
         }
     }
 
-    fun loadParameters(jsonParams: JsonObject) {
+    open fun fromJson(jsonParams: JsonObject) {
         val paramsName = jsonParams["typeName"]?.let {
             if (it is JsonPrimitive) {
                 it.content

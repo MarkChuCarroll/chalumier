@@ -84,7 +84,7 @@ class ConfigParameterTest {
         v.two = ArrayList(v.two + listOf(1.2, 2.3))
         v.three = 314
 
-        val rendered = v.renderParameters()
+        val rendered = v.toJson()
         assertEquals(
             "{\"typeName\":\"multi-test\",\"parameters\":[" +
                     "{\"name\":\"one\",\"kind\":\"Double\",\"value\":3.141592653589793}," +
@@ -101,7 +101,7 @@ class ConfigParameterTest {
         v.two = ArrayList(v.two + listOf(1.2, 2.3))
         v.three = 314
 
-        val rendered = v.renderParameters()
+        val rendered = v.toJson()
         assertEquals(
             "{\"typeName\":\"multi-test-nullable\",\"parameters\":[" +
                     "{\"name\":\"four\",\"kind\":\"Int?\",\"value\":null}," +
@@ -120,11 +120,11 @@ class ConfigParameterTest {
         v.two = ArrayList(v.two + listOf(1.2, 2.3))
         v.three = 314
 
-        val rendered = v.renderParameters()
+        val rendered = v.toJson()
 
 
         val w = MultiFieldTest()
-        w.loadParameters(rendered)
+        w.fromJson(rendered)
         assertEquals(PI, w.one)
         assertEquals(arrayListOf(21.0, 1.0, 2.0, 3.5, 1.2, 2.3), w.two)
         assertEquals(314, w.three)
@@ -140,11 +140,11 @@ class ConfigParameterTest {
         v.four = 3
         v.five = arrayListOf(2.0, null, 3.0, null, 48.0)
 
-        val rendered = v.renderParameters()
+        val rendered = v.toJson()
 
 
         val w = MultiFieldTestWithNulls()
-        w.loadParameters(rendered)
+        w.fromJson(rendered)
         assertEquals(PI, w.one)
         assertEquals(arrayListOf(21.0, 1.0, 2.0, 3.5, 1.2, 2.3), w.two)
         assertEquals(314, w.three)
