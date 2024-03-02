@@ -1,6 +1,8 @@
-# demakein-k
+# Chalumier
 
-A kotlin port of demakein.
+## WTF is this?
+
+Chalumier started as a Kotlin port of Demakin.
 
 Demakein (DEsign and MAke INstruments) is a software package originally
 written by Paul Harrison (pfh@logarithmic.net). It's a pretty impressive
@@ -47,5 +49,28 @@ painful conversion, because you need to be able to run tests of the
 existing code in Python2, and tests of the new in Python3.
 
 I ended up deciding on Kotlin just because I happen to enjoy programming
-in it. 
+in it. And as I got into the process, I kept getting really annoyed. Demakein
+is a crazy creation of incredible brilliance intermixed with utter
+bugf*ck crazy sloppiness.
 
+So I haven't just been slavishly copying code and translating into Kotlin;
+I've been trying to wrestle this code into something I can feel proud of.
+
+## Why Chalumier?
+
+I hate the name demakein. It's not evocative, it's got no style, and you
+wouldn't ever guess that it's something to do with musical instruments based
+on its name.
+
+What it does is design and make musical instruments - specifically woodwinds. So what's
+a person who make woodwinds called?
+
+There's a word for someone who makes stringed instruments: they're called
+a luthier. But there isn't a word for someone who makes woodwinds! But I found
+a [reddit thread](https://www.reddit.com/r/fantasywriters/comments/1e69c2/whats_a_cool_sounding_word_for_a_maker_of_musical/)
+about that, where someone proposed the name "chalumier". I immediately loved it.
+
+I'm a clarinetist, and my eventual goal is to be able to use this
+software to help design a modern 3d-printable basset horn. The precursor
+to the entire clarinet family is called a chalumeau - so chalumier just
+feels perfect.
