@@ -66,18 +66,18 @@ object AngleParameterKind: ParameterKind<Angle> {
 val ListOfAngleKind = ListParameterKind(AngleParameterKind)
 
 fun<T: Configurable<T>> AngleParameter(help: String = "", gen: (T) -> Angle): ConfigParameter<T, Angle> {
-    return ConfigParameter(AngleParameterKind, help, gen)
+    return ConfigParameter(AngleParameterKind, help, gen=gen)
 }
 
 val PairOfAnglesParameterKind = PairParameterKind(AngleParameterKind, AngleParameterKind)
 val ListOfOptAnglePairsKind = ListOfOptParameterKind(opt(PairOfAnglesParameterKind))
 fun<T: Configurable<T>> PairOfAnglesParameter(help: String = "", gen: (T) -> Pair<Angle, Angle>): ConfigParameter<T, Pair<Angle, Angle>> {
-    return ConfigParameter(PairOfAnglesParameterKind, help, gen)
+    return ConfigParameter(PairOfAnglesParameterKind, help, gen=gen)
 }
 
 fun<T: Configurable<T>> ListOfOptAnglePairsParameter(help: String = "", gen: (T) -> List<Pair<Angle, Angle>?>): ConfigParameter<T, ArrayList<Pair<Angle, Angle>?>> {
     val mutGen = { t: T -> ArrayList(gen(t))}
-    return ConfigParameter(ListOfOptAnglePairsKind, help, mutGen)
+    return ConfigParameter(ListOfOptAnglePairsKind, help, gen=mutGen)
 }
 
 

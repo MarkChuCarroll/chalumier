@@ -72,5 +72,5 @@ object DoublePairListParameterKind: ParameterKind<List<Pair<Double, Double>>> {
 
 fun<T: Configurable<T>> ListOfDoublePairParameter(
     help: String = "", gen: (T) -> List<Pair<Double, Double>>): ConfigParameter<T, List<Pair<Double, Double>>> {
-        return ConfigParameter<T, List<Pair<Double, Double>>>(DoublePairListParameterKind, help, gen)
+        return ConfigParameter<T, List<Pair<Double, Double>>>(DoublePairListParameterKind, help, gen=gen)
 }

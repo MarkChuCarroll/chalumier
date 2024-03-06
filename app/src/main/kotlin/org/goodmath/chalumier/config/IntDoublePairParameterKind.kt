@@ -51,5 +51,5 @@ fun<T: Configurable<T>> ListOfListOfIntDoublePairParam(help: String = "", gen: (
     val mutGen: (T) -> ArrayList<ArrayList<Pair<Int, Double>>> = { target ->
         ArrayList(gen(target).map { ArrayList(it) })
     }
-    return ConfigParameter(ListOfListOfIntDoublePairKind, help, mutGen)
+    return ConfigParameter(ListOfListOfIntDoublePairKind, help, gen=mutGen)
 }

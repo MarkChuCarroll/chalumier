@@ -24,7 +24,7 @@ import org.goodmath.chalumier.errors.ChalumierException
 import kotlin.math.*
 
 /*
- * This file is a kotlin translation of "demakein/profile.py" from
+ * This file is based on "demakein/profile.py" from
  * the original demakein code. I've tried to reproduce the functionality
  * of the original code, but adding types to hopefully make it harder
  * to screw things up.
@@ -33,7 +33,7 @@ import kotlin.math.*
  * doing. The original code is pretty impenetrable, and I'm just slavishly
  * translating it.
  *
- * All the original comments from the Python are here, prefixed with "ph:".
+ * Where relevant, the original comments from the Python are here, prefixed with "ph:".
  */
 typealias DoubleList = ArrayList<Double>
 
@@ -47,10 +47,10 @@ typealias DoubleList = ArrayList<Double>
  */
 fun List<Double>.bisect(target: Double): Int {
     val ind = this.binarySearch(target)
-    if (ind >= 0) {
-        return ind
+    return if (ind >= 0) {
+        ind
     } else {
-        return (-ind) - 1
+        (-ind) - 1
     }
 }
 
@@ -104,8 +104,7 @@ class Angle(val dir: AngleDirection, val v: Double? = null) {
 data class Solution(val t1: Double, val t2: Double, val mirror: Boolean)
 
 @Serializable
-class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val maybeHigh: ArrayList<Double>? = null) {
-    val high: ArrayList<Double> = maybeHigh ?: low
+data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val high: ArrayList<Double> = low) {
 
     operator fun invoke(otherPos: Double, useHigh: Boolean = false): Double {
         if (otherPos < pos[0]) {
@@ -133,6 +132,8 @@ class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val maybeH
 
     /**
      * ph: Fairly dumb way to combine profiles. Won't work perfectly for min, max.
+     * MarkCC: I have no idea why we would want to marph from a profile to
+     * something which isn't a profile, so I've left that out.
      */
     fun morph(other: Profile, op: (Double, Double) -> Double): Profile {
         // pn:
@@ -207,8 +208,8 @@ class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val maybeH
             }
         }
         newPos.add(pos.last())
-        val diams = (0 until (pos.size - 1)).map { i ->
-            this(0.5 * (pos[i] + pos[i + 1]))
+        val diams = (0 until (newPos.size - 1)).map { i ->
+            this(0.5 * (newPos[i] + newPos[i + 1]))
         }
         val newLow = ArrayList(listOf(diams[0]) + diams)
         val newHigh = ArrayList(diams + listOf(diams.last()))

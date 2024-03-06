@@ -45,19 +45,21 @@ import java.nio.file.Path
  */
 abstract class Configurable<T: Configurable<T>>(open val name: String) {
     val configParameters = HashMap<String, ConfigParameter<T, *>>()
+
+    val myNum: Int = getNextNum()
+
     fun listConfigParameters(): List<Pair<String, String>> {
         return configParameters.map { (k, v) ->
             Pair(k, v.kind.name)
         }
     }
 
+
     fun getConfigParameterByName(name: String): ConfigParameter<T, *>? {
-        println("Getting '${name}' from '${configParameters.keys}")
         return configParameters[name]
     }
 
     fun <V> addConfigParameter(name: String, option: ConfigParameter<T, V>) {
-        println("Adding config parameter ${name} with kind ${option.kind}")
         configParameters[name] = option
     }
 
@@ -91,7 +93,6 @@ abstract class Configurable<T: Configurable<T>>(open val name: String) {
             put("typeName", me.name)
             putJsonArray("parameters") {
                 for ((name, param) in configParameters) {
-                    println("Rendering param $name of type $param")
                     addJsonObject {
                         put("name", name)
                         put("kind", param.kind.name)
@@ -115,9 +116,7 @@ abstract class Configurable<T: Configurable<T>>(open val name: String) {
         }
         val params = jsonParams["parameters"]
         if (params is JsonArray) {
-            println("Params: ${params}")
             params.forEach {el ->
-                println("Processing element: ${el}")
                 if (el is JsonObject) {
                     val elName = el["name"]?.let {
                         if (it is JsonPrimitive) {
@@ -139,4 +138,12 @@ abstract class Configurable<T: Configurable<T>>(open val name: String) {
             throw ConfigurationParameterException("Expected an array of parameter list entries, but found '$params'")
         }
     }
+
+    var num: Int = 0
+    fun getNextNum(): Int {
+        num++
+        return num
+    }
+
+
 }

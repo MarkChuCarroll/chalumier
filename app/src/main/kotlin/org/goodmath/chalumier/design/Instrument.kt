@@ -17,6 +17,7 @@ package org.goodmath.chalumier.design
 
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.errors.RequiredParameterException
+import org.goodmath.chalumier.util.repeat
 import org.kotlinmath.Complex
 import org.kotlinmath.R
 import kotlin.math.*
@@ -61,35 +62,26 @@ const val SPEED_OF_SOUND = 346100.0
  * I'm cleaning that mess up.
  */
 
-typealias ActionFunction = (reply: Double, wavelength: Double, fingers: List<Double>, emission: ArrayList<Double>?) -> Double
+typealias ActionFunction = (reply: Complex, wavelength: Double, fingers: List<Double>, emission: ArrayList<Double>?) -> Complex
 typealias PhaseActionFunction = (phase: Double, wavelength: Double, fingers: List<Double>) -> Double
 
 data class Event(
     val position: Double, val descriptor: String, val index: Int = 0
 )
 
-object EventComparator : Comparator<Event> {
-    override fun compare(o1: Event?, o2: Event?): Int {
-        return when {
-            o1 == null && o2 == null -> 0
-            o1 == null && o2 != null -> -1
-            o1 != null && o2 == null -> 1
-            o1!!.position == o2!!.position -> 0
-            o1.position > o2.position -> 1
-            else -> -1
-        }
+
+
+abstract class Instrument<T: Instrument<T>>(override val name: String): Configurable<Instrument<T>>(name) {
+    abstract val gen: () -> Instrument<T>
+
+    fun copy(): Instrument<T> {
+        val newInst = gen()
+        val dumped = toJson()
+        newInst.fromJson(dumped)
+        return newInst
     }
-}
 
-
-/**
- * Comments on the constructor parameters are all ph:
- *
- * ph: Fill in:
- */
-abstract class Instrument<T : Instrument<T>>(override val name: String): Configurable<Instrument<T>>(name) {
-
-    abstract fun copy(): T
+    var designState: DesignState? = null
 
     //  ph: length
     open var length: Double by DoubleParameter { 0.0 }
@@ -116,7 +108,7 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
 
 
     // ph: hole positions in bore
-    // In ph's code, if these weren't set, then they were auto-initialized to None.
+    // markcc: In ph's code, if these weren't set, then they were auto-initialized to None.
     // But if you then called prepare, shit would explode.
     open var innerHolePositions by ListOfDoubleParameter {
         // ph: roughly ArrayList(it.numberOfHoles.repeat { null })
@@ -160,6 +152,7 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
     open var scale by DoubleParameter { 1.0  }
 
     fun prepare() {
+        steppedInner = inner.asStepped(coneStep)
         val events = arrayListOf(
             Event(length, "end")
         )
@@ -171,7 +164,8 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
         innerHolePositions.forEachIndexed { i, p ->
             events.add(Event(p, "hole", i))
         }
-        events.sortWith(EventComparator)
+        events.sortBy { it.position }
+
         var position = -endFlangeLengthCorrection(
             outer(0.0, true), steppedInner(0.0, true)
         )
@@ -180,21 +174,18 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
 
         events.forEach { event ->
             val updatedLength = event.position - position
-            val eFunc: ActionFunction = { reply, wavelength, fingers, emission ->
-
-                // TODO(markcc): the next line is severely fudged up. The correct content
-                // drops the ".R" and ".absoluteValue()", but it seems unused?
-                pipeReply(reply.R, updatedLength / wavelength).absoluteValue()
+            val eFunc: ActionFunction = { reply, wavelength, _, _ ->
+                pipeReply(reply, updatedLength / wavelength)
             }
             actions.add(eFunc)
             position = event.position
             if (event.descriptor == "step") {
                 assert(diameter == steppedInner.low[event.index])
-                val area1 = circleArea(diameter)
+                val lowArea = circleArea(diameter)
                 diameter = steppedInner.high[event.index]
-                val area = circleArea(diameter)
-                val act: ActionFunction = { reply, wavelength, fingers, emission ->
-                    val (newReply, mag1) = junction2Reply(area, area1, reply)
+                val highArea = circleArea(diameter)
+                val act: ActionFunction = { reply, _, _, emission ->
+                    val (newReply, mag1) = junction2Reply(highArea, lowArea, reply)
                     if (emission != null) {
                         for (i in 0 until emission.size) {
                             emission[i] *= mag1
@@ -217,15 +208,14 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
                 val holeFunc: ActionFunction = { reply, wavelength, fingers, emission ->
                     val index = event.index
 
-                    // Not sure about this condition...
+                    // TODO: again, with the complex. Not sure what I'm supposedto do with this yet...
                     val holeReply: Complex = if (fingers[index] != 0.0) {
                         pipeReply(1.0.R, closedLength / wavelength)
                     } else {
                         pipeReply((-1.0).R, openLength / wavelength)
                     }
-                    val (newReply, mag1, mag2) = junction3Reply(
-                        area, area, holeArea, reply, holeReply.absoluteValue()
-                    )
+                    val (newReply, mag1, mag2) = junction3Reply(area, area, holeArea, reply, holeReply)
+
                     if (emission != null) {
                         for (i in 0 until emission.size) {
                             emission[i] *= mag1
@@ -242,9 +232,9 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
         emissionDivide = circleArea(diameter)
     }
 
-    fun resonanceScore(w: Double, fingers: List<Double>, calcEmission: Boolean = false): Pair<Double, DoubleList?> {
+    fun resonanceScore(wavelength: Double, fingers: List<Double>, calcEmission: Boolean = false): Pair<Double, ArrayList<Double>?> {
         // ph: A score -1 <= score <= 1, zero if wavelength w resonates
-        var reply = (-1.0)  // ph: open end
+        var reply = (-1.0).R  // ph: open end
         val emission = if (calcEmission) {
             ArrayList<Double>()
         } else {
@@ -252,12 +242,12 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
         }
         if (!calcEmission) {
             for (action in actions) {
-                reply = action(reply, w, fingers, null)
+                reply = action(reply, wavelength, fingers, null)
             }
         } else {
             emission!!.addAll(initialEmission)
             for (action in actions) {
-                reply = action(reply, w, fingers, emission)
+                reply = action(reply, wavelength, fingers, emission)
             }
             // ph: Scale by top area
             for (i in 0 until emission.size) {
@@ -267,8 +257,8 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
         if (!closedTop) {
             reply *= -1.0
         }
-        //val angle = atan2(reply.im, reply.re)
-        val angle = atan(reply)
+        val angle = atan2(reply.im, reply.re)
+
 
         val angle1 = angle % (PI * 2.0)
         val angle2 = angle1 - PI * 2.0
@@ -277,7 +267,7 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
         } else {
             angle2 / PI
         }
-        return Pair(result, null)
+        return Pair(result, emission)
     }
 
 
@@ -294,7 +284,7 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
         innerHolePositions.forEachIndexed { i, pos ->
             events.add(Event(pos, "hole", i))
         }
-        events.sortWith(EventComparator)
+        events.sortBy { it.position }
         var position = -endFlangeLengthCorrection(
             outer(0.0, true), steppedInner(0.0, true)
         )
@@ -344,9 +334,8 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
         }
     }
 
-    /**
+    /*
      * ph: score % 1 == 0 if wavelength w resonates
-     *
      */
     fun resonancePhase(wavelength: Double, fingers: List<Double>): Double {
         var phase = 0.5 // ph: open end
@@ -381,11 +370,12 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
             val x2 = probes[i + 1]
             val m = (y2 - y1) / (x2 - x1)
             val c = y1 - m * x1
-            val intercept = -c / m/*ph:
+            val intercept = -c / m
+            /*ph:
              grad = -m*intercept
              if grad > max_grad: return None
              assert x1 <= intercept <= x2, '%f %f %f' % (x1,intercept,x2)
-             */
+            */
             return intercept
         }
 
@@ -408,25 +398,6 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
         } else {
             probes[0]
         }
-        /* ph:
-          y = mx + c
-
-          step = pow(2.0, max_cents/((n_probes-1)*0.5*1200.0))
-          low = w * pow(step, -(n_probes-1)/2.0)
-          probes = [ low * pow(step,i) for i in range(n_probes) ]
-
-          scores = [ abs(self.resonance_score(probe, fingers)) for probe in probes ]
-
-          best = min(range(n_probes), key=lambda i: scores[i])
-
-          if best == 0 or best == n_probes-1:
-            return probes[best]
-
-          c = scores[best]
-          b = 0.5*(scores[best+1]-scores[best-1])
-          a = scores[best+1]-c-b
-          return low*pow(step, best-b*0.5/a)
-         */
     }
 
     fun trueNthWavelengthNear(
@@ -509,15 +480,13 @@ abstract class Instrument<T : Instrument<T>>(override val name: String): Configu
             }
         }
     }
-
-
 }
 
 /**
  * the original ph code took a list of what could be pairs of doubles,
  * lists of doubles of length 2, or single doubles. I'm... not going
  * to reproduce that. This takes a list of pairs, and returns
- * a pair of lists. I'll fix it at the call site.
+a * a pair of lists. The config parameters now must be pairs.
  */
 fun <T> lowHigh(vec: List<Pair<T, T>>): Pair<ArrayList<T>, ArrayList<T>> {
     val low = ArrayList<T>()

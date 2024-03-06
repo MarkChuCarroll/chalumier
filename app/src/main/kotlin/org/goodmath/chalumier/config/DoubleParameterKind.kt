@@ -47,23 +47,23 @@ object DoubleParameterKind: ParameterKind<Double> {
     }
 }
 
-
 val OptDoubleParameterKind = opt(DoubleParameterKind)
 val ListOfDoubleParameterKind = ListParameterKind(DoubleParameterKind)
 val ListOfOptDoubleParameterKind = ListOfOptParameterKind(OptDoubleParameterKind)
 
 fun<T: Configurable<T>> DoubleParameter(help: String = "", gen: (T) -> Double): ConfigParameter<T, Double> =
-    ConfigParameter<T, Double>(DoubleParameterKind, help, gen)
+    ConfigParameter<T, Double>(DoubleParameterKind, help, gen=gen)
 
 fun<T: Configurable<T>> OptDoubleParameter(help: String = "", gen: (T) -> Double?): ConfigParameter<T, Double?> =
-    ConfigParameter<T, Double?>(OptDoubleParameterKind, help, gen)
+    ConfigParameter<T, Double?>(OptDoubleParameterKind, help, gen=gen)
 
 fun<T: Configurable<T>> ListOfDoubleParameter(help: String = "", gen: (T) -> List<Double>): ConfigParameter<T, ArrayList<Double>> {
     val genMutable = { target: T -> ArrayList(gen(target)) }
-    return ConfigParameter<T, ArrayList<Double>>(ListOfDoubleParameterKind, help, genMutable)
+    return ConfigParameter<T, ArrayList<Double>>(ListOfDoubleParameterKind, help, gen=genMutable)
 }
 
 fun<T: Configurable<T>> ListOfOptDoubleParameter(help: String = "", gen: (T) -> List<Double?>): ConfigParameter<T, ArrayList<Double?>> {
     val genMutable = { target: T -> ArrayList(gen(target)) }
-    return ConfigParameter<T, ArrayList<Double?>>(ListOfOptDoubleParameterKind, help, genMutable)
+    return ConfigParameter<T, ArrayList<Double?>>(ListOfOptDoubleParameterKind, help, gen=genMutable)
 }
+

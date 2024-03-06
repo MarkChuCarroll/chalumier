@@ -17,7 +17,7 @@ package org.goodmath.chalumier.geom
 
 
 /**
- * ph: f(t) = a0*(1-t)+a1*t ""
+ * ph: f(t) = a0*(1-t)+a1*t
  */
 open class Linear<T>(val a0: T, val a1: T, val math: Math<T>) {
 

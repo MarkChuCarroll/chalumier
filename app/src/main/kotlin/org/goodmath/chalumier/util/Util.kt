@@ -25,4 +25,8 @@ fun <T> List<T>.repeat(i: Int): List<T> {
     return (0 until i).flatMap { this }
 }
 
+fun <T> Int.repeat(f: (i: Int) -> T): List<T> {
+    return (0 until this).map { f(it) }
+}
+
 

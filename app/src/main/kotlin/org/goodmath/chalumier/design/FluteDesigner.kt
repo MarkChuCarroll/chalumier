@@ -18,25 +18,23 @@ package org.goodmath.chalumier.design
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.util.fromEnd
 import org.goodmath.chalumier.util.repeat
+import java.nio.file.Path
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-open class Flute<T: Flute<T>>(override val name: String) : Instrument<T>(name) {
+abstract class Flute<T: Flute<T>>(override val name: String) : Instrument<T>(name) {
 
-    override fun copy(): T {
-        TODO("Not yet implemented")
-    }
 }
 
-open class FluteDesigner<T : Flute<T>>(override val name: String, gen: InstrumentGenerator<T>) : InstrumentDesigner<T>(name, gen) {
+open class FluteDesigner<T : Flute<T>>(override val name: String, protoInst: Flute<T>, outputDir: Path) : InstrumentDesigner<T>(name, protoInst, outputDir) {
 
     /* ph:
-    # 2.5/8 = 0.3    ~ 20 cents flat
-    # 5/8 = 0.6      ~ too high
-    # 0.45 (sop_flute_5)   ~ a tiny bit low
-    # 0.53 (sop_flute_8)   ~ a tiny bit low?, needed to push cork in 1.5mm
-    #                        + perfect, printed plastic sop flute
-    # 0.56                 ~ definitely high, printed plastic sop flute
+      2.5/8 = 0.3    ~ 20 cents flat
+      5/8 = 0.6      ~ too high
+      0.45 (sop_flute_5)   ~ a tiny bit low
+      0.53 (sop_flute_8)   ~ a tiny bit low?, needed to push cork in 1.5mm
+                             + perfect, printed plastic sop flute
+      0.56                 ~ definitely high, printed plastic sop flute
     */
     open var embExtra: Double by ConfigParameter(DoubleParameterKind,
         "Constant controlling extra effective height of the embouchure hole due to lips, etc.\n" + "Small adjustments of this value will change the angle at which the flute needs to be blown\n" + "in order to be in tune."
@@ -46,21 +44,21 @@ open class FluteDesigner<T : Flute<T>>(override val name: String, gen: Instrumen
 
     override var initialLength by DoubleParameter { wavelength("D4") * 0.5 }
 
-    override var numberOfHoles by IntParameter { 7 }
 
-    override fun patchInstrument(inst: T): T {
+    override fun patchInstrument(inst: Instrument<T>): Instrument<T> {
         val newInst = inst.copy()
         newInst.holeLengths[inst.holeLengths.size - 1] += (inst.holeDiameters.fromEnd(1) * embExtra)
         return newInst
     }
 
-    override fun calcEmission(emission: List<Double>, fingers: List<Double>): Double {/* ph:  Emission is relative to embouchure hole, ie we assume the amplitude at the
+    override fun calcEmission(emission: List<Double>, fingers: List<Double>): Double {
+        /* ph:  Emission is relative to embouchure hole, ie we assume the amplitude at the
          * embouchure hole is fixed
          */
         return sqrt(emission.subList(0, emission.size - 1).map { it * it }.sum() / emission.fromEnd(-1))
     }
 
-    override var initialHoleFractions by ListOfOptDoubleParameter() { it ->
+    override var initialHoleFractions by ListOfDoubleParameter() { it ->
         val l = ArrayList((0 until numberOfHoles - 1).map { i -> 0.175 + 0.5 * i / (numberOfHoles - 1) })
         l.add(0.97)
         l.toMutableList()
@@ -142,7 +140,7 @@ open class FluteDesigner<T : Flute<T>>(override val name: String, gen: Instrumen
             Fingering("G5", arrayListOf(O, O, O, X, X, X)),
             Fingering("A5", arrayListOf(O, O, O, O, X, X)),
             Fingering("B5", arrayListOf(O, O, O, O, O, X)),
-            // ph: #Fingering("C#6", arrayListOf(X,X,X,O,O,O)),
+            // ph: Fingering("C#6", arrayListOf(X,X,X,O,O,O)),
             Fingering("C#6", arrayListOf(O, O, O, O, O, O)),
             Fingering("D6", arrayListOf(X, X, X, X, X, O)),
 
@@ -151,13 +149,13 @@ open class FluteDesigner<T : Flute<T>>(override val name: String, gen: Instrumen
             // ph:  Fingering("F#4*3", arrayListOf(O,O,X,X,X,X)),
             // ph:  Fingering("G4*3", arrayListOf(O,O,O,X,X,X)),
             // ph:  Fingering("A4*3", arrayListOf(O,O,O,O,X,X)),
-            // ph:Fingering("B4*3", arrayListOf(O,O,O,O,O,X)),
-            // ph:Fingering("C#5*3", arrayListOf(O,O,O,O,O,O)),
+            // ph:  Fingering("B4*3", arrayListOf(O,O,O,O,O,X)),
+            // ph:  Fingering("C#5*3", arrayListOf(O,O,O,O,O,O)),
 
-            // ph:Fingering("E6", arrayListOf(O,X,X,X,X,X)),
-            // ph:Fingering("F6", arrayListOf(X,O,X,X,X,X)),
-            // ph:Fingering("G6", arrayListOf(X,O,O,X,X,X)),
-            // ph:Fingering("A6", arrayListOf(O,X,X,X,X,O)), #?
+            // ph:  Fingering("E6", arrayListOf(O,X,X,X,X,X)),
+            // ph:  Fingering("F6", arrayListOf(X,O,X,X,X,X)),
+            // ph:  Fingering("G6", arrayListOf(X,O,O,X,X,X)),
+            // ph:  Fingering("A6", arrayListOf(O,X,X,X,X,O)), #?
         )
 
         val dorianFingerings = listOf(
@@ -190,10 +188,14 @@ open class FluteDesigner<T : Flute<T>>(override val name: String, gen: Instrumen
     }
 }
 
-open class TaperedFluteDesigner<T : Flute<T>>(override val name: String, gen: InstrumentGenerator<T>) : FluteDesigner<T>(name, gen) {
+open class TaperedFluteDesigner(override val name: String,
+    protoInst: Flute<TaperedFlute>, dir: Path
+) : FluteDesigner<TaperedFlute>(name, protoInst, dir) {
     open var innerTaper: Double by ConfigParameter(DoubleParameterKind, "Amount of tapering of bore. Smaller = more tapered.") {
         0.75
     }
+
+    override var numberOfHoles by IntParameter { protoInst.numberOfHoles  }
 
     open var outerTaper: Double by ConfigParameter(DoubleParameterKind, "Amount of tapering of exterior. Smaller = more tapered.") {
         0.85
@@ -217,7 +219,7 @@ open class TaperedFluteDesigner<T : Flute<T>>(override val name: String, gen: In
     // ph: initial_inner_fractions = [ 0.25, 0.75 ]
     // ph: min_inner_fraction_sep = [ 0.0, 0.0, 0.0 ]
 
-    override var initialInnerFractions by ListOfOptDoubleParameter() {
+    override var initialInnerFractions by ListOfDoubleParameter() {
         mutableListOf(0.25, 0.3, 0.7, 0.8, 0.81, 0.9)
     }
 
@@ -231,39 +233,35 @@ open class TaperedFluteDesigner<T : Flute<T>>(override val name: String, gen: In
         val scale = this.scale.pow(1.0 / 2.0)
         listOf(
             29.0 * outerTaper * scale, 29.0 * outerTaper * scale, 29.0 * scale, 29.0 * scale
-            // ph: #30.0 * scale,
-            // ph: #30.0 * scale,
-            // ph: #32.0 * scale,
-            // ph: #29.0 * scale,
+            // ph: 30.0 * scale,
+            // ph: 30.0 * scale,
+            // ph: 32.0 * scale,
+            // ph: 29.0 * scale,
         ).map { d: Double -> Pair(d, d) }
     }
 
-    override var initialOuterFractions by ListOfOptDoubleParameter() {
+    override var initialOuterFractions by ListOfDoubleParameter() {
         mutableListOf(0.01, 0.666)
     }
 
     override var minOuterFractionSep by ListOfDoubleParameter() {
         mutableListOf(0.0, 0.5, 0.0) // ph: Looks and feels nicer
     }
+
 }
 
 class TaperedFlute(override val name: String): Flute<TaperedFlute>(name) {
-
-    companion object {
-        val generator = object: InstrumentGenerator<TaperedFlute> {
-            override fun create(name: String): TaperedFlute {
-                return TaperedFlute(name)
-            }
-        }
-    }
+    override val gen = { TaperedFlute(name) }
+    override var numberOfHoles by IntParameter { 7 }
 }
 
 
 /**
  * Design a flute with a recorder-like fingering system.
  */
-fun pFluteDesigner(): TaperedFluteDesigner<TaperedFlute> {
-    val flute = TaperedFluteDesigner("pFlute", TaperedFlute.generator)
+fun pFluteDesigner(outputDir: Path): TaperedFluteDesigner {
+    val flute = TaperedFluteDesigner("pFlute", TaperedFlute("pFlute"), outputDir)
+
     flute.fingerings = FluteDesigner.fingeringsWithEmbouchure(FluteDesigner.pFluteFingers)
     flute.balance = arrayListOf(0.1, null, null, 0.05)
     // ph: hole_angles = [ -30.0, -30.0, 30.0, -30.0, 30.0, -30.0, 0.0 ]
@@ -277,8 +275,11 @@ fun pFluteDesigner(): TaperedFluteDesigner<TaperedFlute> {
 /**
  * Design a flute with a pennywhistle-like fingering system.
  */
-fun folkFluteDesigner(): TaperedFluteDesigner<TaperedFlute> {
-    val flute = TaperedFluteDesigner("FolkFlute", TaperedFlute.generator)
+fun folkFluteDesigner(outputDir: Path): TaperedFluteDesigner {
+    val flute = TaperedFluteDesigner("FolkFlute",
+        TaperedFlute("FolkFlute"),
+        outputDir)
+    flute.numberOfHoles = 7
     flute.fingerings = FluteDesigner.fingeringsWithEmbouchure(FluteDesigner.folkFingerings)
     flute.balance = arrayListOf(0.1, null, null, 0.1)
     // ph: hole_angles = [ -30.0, -30.0, 30.0, -30.0, 30.0, -30.0, 0.0 ]

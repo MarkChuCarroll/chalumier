@@ -17,16 +17,15 @@ package org.goodmath.chalumier.design
 
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.util.repeat
+import java.nio.file.Path
 
-open class Shawm<T : Shawm<T>>(override val name: String): Instrument<T>(name) {
-
-  override fun copy(): T {
-    TODO("Not yet implemented")
-  }
+abstract class ReededInstrument<T : ReededInstrument<T>>(override val name: String): Instrument<T>(name) {
 }
 
-open class ReedInstrumentDesigner<T : Shawm<T>>(override val name: String, gen: InstrumentGenerator<T>) :
-    InstrumentDesigner<T>(name, gen) {
+open class ReedInstrumentDesigner<T : ReededInstrument<T>>(override val name: String,
+                                                           protoInst: Instrument<T>,
+                                                           outputDir: Path):
+    InstrumentDesigner<T>(name, protoInst, outputDir) {
 
   open val boreBaseline = 4.0
 
@@ -47,7 +46,7 @@ open class ReedInstrumentDesigner<T : Shawm<T>>(override val name: String, gen: 
   override var transpose by IntParameter() { 0 }
   override var closedTop by BooleanParameter() { true }
 
-  override fun patchInstrument(origInst: T): T {
+  override fun patchInstrument(origInst: Instrument<T>): Instrument<T> {
     val inst = origInst.copy()
     // MarkCC: ph originally had a "true_length" and "true_inner" defined
     // here. But "true_inner" was never used, so I dropped it. True_length
@@ -83,18 +82,14 @@ open class ReedInstrumentDesigner<T : Shawm<T>>(override val name: String, gen: 
   }
 }
 
-class ReedDrone(override val name: String) : Shawm<ReedDrone>(name) {
-  companion object {
-    val gen =
-        object : InstrumentGenerator<ReedDrone> {
-          override fun create(name: String): ReedDrone {
-            return ReedDrone(name)
-          }
-        }
-  }
+class ReedDrone(override val name: String) : ReededInstrument<ReedDrone>(name) {
+    override val gen = { ReedDrone(name) }
+
 }
 
-class ReedDroneDesigner(override val name: String) : ReedInstrumentDesigner<ReedDrone>(name, ReedDrone.gen) {
+class ReedDroneDesigner(override val name: String,
+    outputDir: Path) : ReedInstrumentDesigner<ReedDrone>(name, ReedDrone(name), outputDir) {
+
   override var initialLength by DoubleParameter { wavelength("C4") * 0.25 }
   override var innerDiameters by
       ListOfDoublePairParameter() {
@@ -117,10 +112,12 @@ class ReedDroneDesigner(override val name: String) : ReedInstrumentDesigner<Reed
   override var divisions by ListOfListOfIntDoublePairParam { emptyList() }
 }
 
-class ReedPipe<T : ReedPipe<T>> (override val name: String): Shawm<T>(name)
+class ReedPipe(override val name: String): ReededInstrument<ReedPipe>(name) {
+    override val gen = { ReedPipe(name) }
+}
 
-open class ReedpipeDesigner<T : ReedPipe<T>>(override val name: String, gen: InstrumentGenerator<T>) :
-    ReedInstrumentDesigner<T>(name, gen) {
+open class ReedpipeDesigner(override val name: String, outputDir: Path):
+    ReedInstrumentDesigner<ReedPipe>(name, ReedPipe(name), outputDir) {
   override var innerDiameters by
       ListOfDoublePairParameter() {
         boreScaler(listOf(4.0, 4.0)).map { Pair(it, it) }.toMutableList()
@@ -176,23 +173,29 @@ open class ReedpipeDesigner<T : ReedPipe<T>>(override val name: String, gen: Ins
       }
 }
 
-abstract class AbstractShawmDesigner<Inst : Shawm<Inst>>(override val name: String, gen: InstrumentGenerator<Inst>) :
-    ReedInstrumentDesigner<Inst>(name, gen) {
+abstract class AbstractShawmDesigner<Inst : ReededInstrument<Inst>>(override val name: String,
+                                                                    protoInst: Instrument<Inst>,
+                                                                    outputDir: Path):
+    ReedInstrumentDesigner<Inst>(name, protoInst, outputDir) {
   override var innerDiameters: List<Pair<Double, Double>> by ListOfDoublePairParameter() {
     boreScaler(fullRange(16.0, 4.0, 10)).map { Pair(it, it) }
     // ph:arrayListOf(  16.0, 14.0, 12.0, 10.0, 8.0, 6.0, 4.0, 1.5 )
   }
-  override var initialInnerFractions by ListOfOptDoubleParameter() { fullRange(0.2, 0.9, 8) as MutableList<Double?> }
+  override var initialInnerFractions by ListOfDoubleParameter() { fullRange(0.2, 0.9, 8) }
   override var minInnerFractionSep by ListOfDoubleParameter() { ArrayList(listOf(0.02).repeat(9)) }
   override var outerDiameters by ListOfDoublePairParameter() {
     boreScaler(listOf(70.0, 25.0, 25.0)).map { Pair(it, it) }
   }
   override var minOuterFractionSep by ListOfDoubleParameter() { arrayListOf(0.19, 0.8) }
-  override var initialOuterFractions by ListOfOptDoubleParameter() {arrayListOf(0.19) }
+  override var initialOuterFractions by ListOfDoubleParameter() {arrayListOf(0.19) }
   override var outerAngles by ListOfOptAnglePairsParameter() {
       ArrayList(listOf(Angle(AngleDirection.Here, -35.0), Angle(AngleDirection.Up), Angle(AngleDirection.Down))
         .map { Pair(it, it) })
   }
+}
+
+class Shawm(name: String): ReededInstrument<Shawm>(name) {
+    override val gen = { Shawm(name) }
 }
 
 /**
@@ -200,8 +203,10 @@ abstract class AbstractShawmDesigner<Inst : Shawm<Inst>>(override val name: Stri
  *
  * The flare at the end is purely decorative.
  */
-open class ShawmDesigner<T : Shawm<T>>(override val name: String, gen: InstrumentGenerator<T>) :
-    AbstractShawmDesigner<T>(name, gen) {
+open class ShawmDesigner(override val name: String,
+                         protoInst: ReededInstrument<Shawm>,
+                         outputDir: Path):
+    AbstractShawmDesigner<Shawm>(name, protoInst, outputDir) {
 
   override var minHoleDiameters by ListOfDoubleParameter() {
     boreScaler(listOf(2.0).repeat(9))
@@ -212,11 +217,11 @@ open class ShawmDesigner<T : Shawm<T>>(override val name: String, gen: Instrumen
     boreScaler(listOf(6.0).repeat(9))
   }
 
-  override var initialHoleDiameterFractions by ListOfOptDoubleParameter() {
+  override var initialHoleDiameterFractions by ListOfDoubleParameter() {
       ArrayList(listOf(0.5).repeat(9))
   }
 
-  override var initialHoleFractions by ListOfOptDoubleParameter() {
+  override var initialHoleFractions by ListOfDoubleParameter() {
    ArrayList(arrayListOf(7, 6, 5, 4, 3, 2, 1, 0, 0).map { i -> 0.5 - (0.6 * i.toDouble()) })
   }
 
@@ -292,8 +297,10 @@ open class ShawmDesigner<T : Shawm<T>>(override val name: String, gen: Instrumen
  * Designer for a shawm/haut-bois/oboe/bombard with a simple fingering system and compact hole
  * placement. The flare at the end is purely decorative.
  */
-class FolkShawmDesigner<Inst : Shawm<Inst>>(override val name: String, gen: InstrumentGenerator<Inst>) :
-    AbstractShawmDesigner<Inst>(name, gen) {
+class FolkShawmDesigner<Inst : ReededInstrument<Inst>>(override val name: String,
+                                                       protoInst: Instrument<Inst>,
+                                                       outputDir: Path
+): AbstractShawmDesigner<Inst>(name, protoInst, outputDir) {
 
   override var minHoleDiameters by ListOfDoubleParameter() {
     boreScaler(listOf(12.0).repeat(7))
@@ -303,11 +310,11 @@ class FolkShawmDesigner<Inst : Shawm<Inst>>(override val name: String, gen: Inst
     boreScaler(listOf(12.0).repeat(7))
   }
 
-  override var initialHoleDiameterFractions by ListOfOptDoubleParameter {
-    inRange(1.0, 0.5, 7) as MutableList<Double?>
+  override var initialHoleDiameterFractions by ListOfDoubleParameter {
+    inRange(1.0, 0.5, 7)
   }
 
-  override var initialHoleFractions by ListOfOptDoubleParameter() {
+  override var initialHoleFractions by ListOfDoubleParameter() {
    listOf(6, 5, 4, 3, 2, 1, 0).map { i -> 0.75 - 0.1 * i.toDouble() }
   }
 

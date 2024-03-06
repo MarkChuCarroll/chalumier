@@ -26,9 +26,12 @@ dependencies {
     // This dependency is used by the application.
     implementation("com.google.guava:guava:31.1-jre")
     implementation("org.kotlinmath:complex-numbers:1.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     // https://mvnrepository.com/artifact/eu.mihosoft.vrl.jcsg/jcsg
     implementation("eu.mihosoft.vrl.jcsg:jcsg:0.5.7")
+    implementation("com.github.ajalt.clikt:clikt:4.2.2")
+
 
 
 }

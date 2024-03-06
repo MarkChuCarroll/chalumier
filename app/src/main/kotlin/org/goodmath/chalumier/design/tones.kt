@@ -19,11 +19,21 @@ import kotlin.math.log2
 import kotlin.math.pow
 import kotlin.math.round
 
+/*
+ * Utility functions for converting between string names for tones,
+ * and the frequency of those tones.
+ */
+
 val semitoneName: ArrayList<String> = arrayListOf("C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B")
 
 val semitone: Map<Char, Int> = mapOf(
     'C' to 0, 'D' to 2, 'E' to 4, 'F' to 5, 'G' to 7, 'A' to 9, 'B' to 11
 )
+
+fun wavelength(noteName: String, transpose: Int = 0): Double {
+    val w = SPEED_OF_SOUND / frequency(noteName)
+    return w / (2.0.pow(transpose.toDouble() / 12.0))
+}
 
 fun frequency(noteName: String): Double {
     var note = noteName

@@ -17,14 +17,21 @@ package org.goodmath.chalumier.design
 
 import org.goodmath.chalumier.design.curves.evalCornu
 import org.kotlinmath.Complex
+import org.kotlinmath.R
 import org.kotlinmath.complex
 import org.kotlinmath.times
 import kotlin.math.*
 
 /*
- * This file is a load of phase utility functions from demakein.
- * I've tried to reproduce the functionality of the original code, and
- * all the original comments from the Python are here, prefixed with "ph:".
+ * This file contains phase utility functions from demakein.
+ * I've tried to reproduce the functionality of the original code.
+ * When relevant, I've kept the original comments from the Python,
+ * prefixed with "ph:".
+ *
+ * A lot of this actually seems, in retrospect, to be irrelevant.
+ * I originally thought that ph was using complex numbers to represent
+ * magnitudes with phase. But it looks like that was just a remnant of
+ * an earlier version of the code.
  */
 
 /**
@@ -35,16 +42,18 @@ fun Complex.absoluteValue(): Double = mod
 
 
 /*
+ * MarkCC: I have no idea what this comment is supposed to relate to,
+ * but it seems like it might be important?
  * ph: Unit magnitude complex number represent phase
  */
 
 /**
- * mcc: As far as I can figure out, this is only used by "resonanceScore",
+ * MarkCC: As far as I can figure out, this is only used by "resonanceScore",
  * which is completely unused.
  */
-fun pipeReply(reply: Complex, lengthOnWavelength: Double): Complex {
+fun pipeReply(replyEnd: Complex, lengthOnWavelength: Double): Complex {
     val angle = FourPi * lengthOnWavelength
-    return complex(cos(angle), sin(angle)) * reply
+    return complex(cos(angle), sin(angle)) * replyEnd
 }
 
 /**
@@ -53,11 +62,11 @@ fun pipeReply(reply: Complex, lengthOnWavelength: Double): Complex {
  * and pipe 1 relative phase reply r1.
  *
  */
-fun junction2Reply(a0: Double, a1: Double, r1: Double): Pair<Double, Double> {
-    val ca0 = a0
-    val ca1 = a1
+fun junction2Reply(a0: Double, a1: Double, r1: Complex): Pair<Complex, Double> {
+    val ca0 = a0.R
+    val ca1 = a1.R
     val pJunc = 2.0 * ca0 / (ca0 - ca1 * ((r1 - 1.0) / (r1 + 1.0)))
-    val mag1 = (pJunc / (r1 + 1.0)).absoluteValue
+    val mag1 = (pJunc / (r1 + 1.0)).mod
     return Pair(pJunc - 1.0, mag1)
 }
 
@@ -66,14 +75,14 @@ fun junction2Reply(a0: Double, a1: Double, r1: Double): Pair<Double, Double> {
  * with pipe cross section areas a0, a1 and a2
  * and relative phase replies r1 and r2.
  */
-fun junction3Reply(a0: Double, a1: Double, a2: Double, r1: Double, r2: Double): Triple<Double, Double, Double> {
-    val ca0 = a0
-    val ca1 = a1
-    val ca2 = a2
+fun junction3Reply(a0: Double, a1: Double, a2: Double, r1: Complex, r2: Complex): Triple<Complex, Double, Double> {
+    val ca0 = a0.R
+    val ca1 = a1.R
+    val ca2 = a2.R
 
     val pjunc = 2.0 * ca0 / (ca0 - ca1 * ((r1 - 1.0) / (r1 + 1.0)) - ca2 * ((r2 - 1.0) / (r2 + 1.0)))
-    val mag1 = (pjunc / (r1 + 1.0)).absoluteValue
-    val mag2 = (pjunc / (r2 + 1.0)).absoluteValue
+    val mag1 = (pjunc / (r1 + 1.0)).mod
+    val mag2 = (pjunc / (r2 + 1.0)).mod
     return Triple(pjunc - 1.0, mag1, mag2)
 }
 
@@ -91,13 +100,13 @@ fun floor(c: Complex): Complex = complex(floor(c.re), floor(c.im))
 
 fun ceil(c: Complex): Complex = complex(ceil(c.re), ceil(c.im))
 
-fun signed_sqrt(x: Double) = sqrt(abs(x)) * (x.sign)
+fun signedSqrt(x: Double) = sqrt(abs(x)) * (x.sign)
 
 operator fun Complex.rem(n: Complex): Complex {
     // According to python2.7, if x and y are complex, then
     // x // y = floor((x/y).re)
     // x % y = x - (x//y)*y
-    // THis is the behavior that ph seemed to be depending on.
+    // This is the behavior that ph seemed to be depending on.
 
     val floored = floor(this / n).re
     return this - (floored * n)

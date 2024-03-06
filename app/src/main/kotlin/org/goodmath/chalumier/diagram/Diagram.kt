@@ -28,19 +28,20 @@ import kotlin.math.min
 // $5=transX
 // $6=negTransX
 // $7=negTransY
-val PREAMBLE = """
+fun PREAMBLE(width: Double, height: Double, scale: Double, transX: Double,
+             transY: Double, negTransX: Double, negTransY: Double): String = """
 <?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
 "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
 
 <svg
-    width="%(width)fmm"
-    height="%(height)fmm"
-    viewbox="0 0 %(width)fmm %(height)fmm"
+    width="${width}mm"
+    height="${height}mm"
+    viewbox="0 0 ${width}mm ${height}mm"
     version="1.1"
     xmlns="http://www.w3.org/2000/svg">
-<g transform="scale(%(scale)f,%(scale)f) translate(%(transX)f,%(transY)f)">
-<rect x="%(neg_transX)f" y="%(neg_transY)f" width="%(width)f" height="%(height)f" style="fill:#ffffff"/>
+<g transform="scale(${scale}, ${scale}) translate(${transX}, ${transY})">
+<rect x="${negTransX}" y="${negTransY}" width="${width}" height="${height}" style="fill:#ffffff"/>
 """
 
 
@@ -67,7 +68,7 @@ class Diagram {
         val negTransY = -transY
 
         val output = FileWriter(filename.toFile())
-        output.write(PREAMBLE.format(width, height, scale, transX, transY, negTransX, negTransY))
+        output.write(PREAMBLE(width, height, scale, transX, transY, negTransX, negTransY))
         commands.forEach { cmd ->
             output.write(cmd + "\n")
         }
@@ -127,7 +128,7 @@ class Diagram {
         require(x, yy - fontHeight)
         require(x + text.length * fontHeight * 0.8, yy)
         commands.add(
-            "<text x=\"${x}\" y=\"${yy}\" fill=\"${color}s\" font-size=\"10\" font-family=\"monospace\" xml:space=\"preserve\">${text}/text>"
+            "<text x=\"${x}\" y=\"${yy}\" fill=\"${color}s\" font-size=\"10\" font-family=\"monospace\" xml:space=\"preserve\">${text}</text>"
         )
         return y - fontHeight
     }

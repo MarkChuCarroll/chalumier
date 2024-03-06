@@ -15,105 +15,71 @@
  */
 package org.goodmath.chalumier.design
 
-import kotlinx.serialization.*
-import kotlinx.serialization.json.*
+import kotlinx.coroutines.runBlocking
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.diagram.Diagram
-import org.goodmath.chalumier.errors.ChalumierException
 import org.goodmath.chalumier.errors.RequiredParameterException
 import org.goodmath.chalumier.errors.dAssert
-import java.io.FileWriter
+import org.goodmath.chalumier.optimize.Optimizer
+import org.goodmath.chalumier.optimize.Score
+import org.goodmath.chalumier.util.repeat
 import java.lang.Math.log
 import java.nio.file.Path
-import kotlin.io.path.createDirectory
-import kotlin.io.path.div
-import kotlin.io.path.exists
+import java.util.*
+import kotlin.collections.ArrayList
+import kotlin.io.path.*
 import kotlin.math.*
-
-interface InstrumentGenerator<T : Instrument<T>> {
-    fun create(name: String): T
-}
-
-fun <T> Int.repeat(f: (i: Int) -> T): List<T> {
-    return (0 until this).map { f(it) }
-}
-
-
-
-
-fun wavelength(noteName: String, transpose: Int = 0): Double {
-    val w = SPEED_OF_SOUND / frequency(noteName)
-    return w / (2.0.pow(transpose.toDouble() / 12.0))
-}
 
 
 /**
- * MC: I've refactored this quite a bit, by moving all of the configurables up to be constructor
- * parameters, instead of things randomly initialized into class variables.
+ * MarkCC: I've refactored this quite a bit from demakein.
+ *
+ * Everything configurable is now build using configurable parameters,
+ * and they're all set up up front. Serialization is done into a human
+ * readable JSON using the configurable parameters.
+ *
+ * State vectors have been replaced by a data class, to make it
+ * a little easier to understand what's going on, and to interpret
+ * new states.
  */
-open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open val gen: InstrumentGenerator<T>): Configurable<InstrumentDesigner<T>>(name) {
+abstract class InstrumentDesigner<T : Instrument<T>>(
+    override val name: String,
+    val protoInst: Instrument<T>,
+    val outputDir: Path): Configurable<InstrumentDesigner<T>>(name) {
 
-    /**
-     * All of the validations scattered in ph's code are moved here, and called before anything gets
-     * filled in in the instrument designer.
+    /*
+     * Start off with the configurable parameters that describe
+     * our instrument.
      */
-    fun validate() {
-        dAssert(initialHoleFractions.size == numberOfHoles, "initialHoleFractions has wrong length")
-        dAssert(
-            initialHoleDiameterFractions.size == numberOfHoles, "initialHoleDiameterFractions has wrong length"
-        )
-        dAssert(
-            initialInnerFractions.size == innerDiameters.size - 2, "initialInnerFractions has wrong length"
-        )
-        dAssert(
-            initialOuterFractions.size == outerDiameters.size - 2, "initialOuterFractions has wrong length"
-        )
-        checkFingeringHoles(fingerings)
-    }
-
-
-    private fun checkFingeringHoles(fingerings: List<Fingering>): Int {
-        val count = fingerings[0].fingers.size
-        if (!fingerings.all { it.fingers.size != count }) {
-            throw ChalumierException("All fingerings must have the same number of holes")
-        }
-        return count
-    }
 
     open var fingerings by ConfigParameter(ListOfFingeringsKind,"list of specifications of fingerings and the notes they should produce") {
         throw RequiredParameterException("fingerings")
     }
 
-    open var length by DoubleParameter("the length of the instrument",) { it.initialLength * it.scale }
+    open var length by DoubleParameter("the length of the instrument") { it.initialLength * it.scale }
 
     open var maxLength by OptDoubleParameter(
         "The maximum length that the design should make the instrument when modelling",) {
         null
     }
 
-    open var closedTop by ConfigParameter(BooleanParameterKind, "Is this a closed top instrument?") { false }
+    open var closedTop by BooleanParameter("Is this a closed top instrument?") { false }
 
     open var initialLength by DoubleParameter("the initial length of the instrument before modeling") {
         throw RequiredParameterException("initialLength")
     }
 
-    // ph; diameters of inner bore: first is diam at bottom, last is diam at top
-    open var innerDiameters by ConfigParameter(DoublePairListParameterKind) {
+    open var innerDiameters by ListOfDoublePairParameter("the diameters of the inner bore from bottom to top") {
         throw RequiredParameterException("innerDiameters")
     }
 
-    open var outerDiameters by ConfigParameter(DoublePairListParameterKind
-    ) {
+    open var outerDiameters by ListOfDoublePairParameter("the diameters of the outer body, from bottom to top") {
         throw RequiredParameterException("outerDiameters", "must have at least two elements")
     }
 
-    open var transpose by IntParameter() { 0 }
+    open var transpose by IntParameter("an optional transposition, in chromatic steps, to apply to the instrument specification") { 0 }
 
-    /**
-     * Experimental. Add a term to the optimization to try to make instrument louder, possibly
-     * sacrificing being-in-tune-ness.
-     */
-    open var tweakEmissions by DoubleParameter { 0.0 }
+    open var tweakEmissions by DoubleParameter("Experimental term added to the optimization to try to make instrument louder, possibly at the cost of intonation") {  0.0 }
 
     open var innerAngles by ListOfOptAnglePairsParameter {
         innerDiameters.map { null }.toMutableList()
@@ -123,23 +89,23 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
         outerDiameters.map { null }.toMutableList()
     }
 
-    open var coneStep by DoubleParameter() { 0.125 }
+    open var coneStep by DoubleParameter("The size of the step used when translating conic sections into curves") { 0.125 }
 
     open var numberOfHoles by IntParameter("the number of holes, including embouchure") { c -> c.maxHoleDiameters.size }
 
-    open var minHoleDiameters by ListOfDoubleParameter { c -> c.numberOfHoles.repeat { 0.5 }.toMutableList() }
+    open var minHoleDiameters by ListOfDoubleParameter("the minimum acceptable diameters of holes") { c -> c.numberOfHoles.repeat { 0.5 }.toMutableList() }
 
-    open var maxHoleDiameters by ListOfDoubleParameter {
+    open var maxHoleDiameters by ListOfDoubleParameter("the maximum acceptable diameter of holes") {
         throw RequiredParameterException("maxHoleDiameters")
     }
 
     open var outerAdd by ConfigParameter(BooleanParameterKind, "Should the body thickness be automatically increased?") { false }
 
-    open var topClearanceFraction by DoubleParameter() { 0.0 }
+    open var topClearanceFraction by DoubleParameter( "how close to the top are finger holes allowed to be placed?") { 0.0 }
 
-    open var bottomClearanceFraction by DoubleParameter() { 0.0 }
+    open var bottomClearanceFraction by DoubleParameter("how close to the bottom are finger holes allowed to be placed?") { 0.0 }
 
-    open var scale: Double by DoubleParameter() { 1.0 }
+    open var scale: Double by DoubleParameter("Scaling factor to apply to the instrument specification") { 1.0 }
 
     open var minHoleSpacing by ListOfOptDoubleParameter(
         "a list of values specifying the minimum distance between pairs of holes") {
@@ -153,7 +119,7 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
     open var balance by ListOfOptDoubleParameter { c -> (c.numberOfHoles - 2).repeat { null }.toMutableList() }
     open var holeAngles by ListOfDoubleParameter { it.numberOfHoles.repeat { 0.0 }.toMutableList() }
 
-    open var initialInnerFractions by ListOfOptDoubleParameter { c ->
+    open var initialInnerFractions by ListOfDoubleParameter { c ->
         (c.innerDiameters.size - 2).repeat { (it + 1.0) / (c.innerDiameters.size - 1) }.toMutableList()
     }
 
@@ -171,7 +137,7 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
     open var maxInnerSep by ListOfOptDoubleParameter {
         (it.innerDiameters.size - 1).repeat { null }.toMutableList()
     }
-    open var initialOuterFractions by ListOfOptDoubleParameter { c ->
+    open var initialOuterFractions by ListOfDoubleParameter { c ->
         (c.outerDiameters.size - 2).repeat { (it + 1.0) / (c.outerDiameters.size - 1) }.toMutableList()
     }
 
@@ -180,14 +146,14 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
     }
 
     open var maxOuterFractionSep by ListOfDoubleParameter {
-        (it.outerDiameters.size - 2).repeat { 1.0 }.toMutableList()
+        (it.outerDiameters.size - 1).repeat { 1.0 }.toMutableList()
     }
 
-    open var initialHoleFractions by ListOfOptDoubleParameter { c ->
+    open var initialHoleFractions by ListOfDoubleParameter { c ->
         c.numberOfHoles.repeat { (it + 3.0) / (c.numberOfHoles + 2) * 0.5 }.toMutableList()
     }
 
-    open var initialHoleDiameterFractions by ListOfOptDoubleParameter {
+    open var initialHoleDiameterFractions by ListOfDoubleParameter {
         it.numberOfHoles.repeat { 0.75 }.toMutableList()
     }
 
@@ -206,42 +172,67 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
         )
     }
 
+    /**
+     * All the validations scattered in ph's code are moved here, and called before anything gets
+     * filled in the instrument designer.
+     */
+    fun validate() {
+        dAssert(initialHoleFractions.size == numberOfHoles, "initialHoleFractions has wrong length")
+        dAssert(
+            initialHoleDiameterFractions.size == numberOfHoles, "initialHoleDiameterFractions has wrong length"
+        )
+        dAssert(
+            initialInnerFractions.size == innerDiameters.size - 2, "initialInnerFractions has wrong length"
+        )
+        dAssert(
+            initialOuterFractions.size == outerDiameters.size - 2, "initialOuterFractions has wrong length"
+        )
+        // check that all the fingerings have the same number of holes
+        val count = fingerings[0].fingers.size
+        dAssert(fingerings.all { it.fingers.size == count },
+            "All fingerings must have the same number of holes")
+    }
 
-    val initialStateVec: ArrayList<Double?>
+
+
+    /**
+     * The instrument designer and the template instrument define the basic
+     * parameters of the instrument we're going to produce. In order to
+     * optimize the design, we need to be able to convert them to a state
+     * object which can be manipulated by the optimizer. We do this once
+     * to produce the initial state - from there, the optimizer will be
+     * generating variations on it.
+     */
+    val initialDesignState: DesignState
         get() {
-            val result = ArrayList<Double?>()
-            result.add(1.0)
-            result.addAll(initialHoleFractions)
-            result.addAll(initialHoleFractions)
-            result.addAll(initialHoleDiameterFractions.map { i -> i?.let { it * it } })
-            result.addAll(initialInnerFractions)
-            result.addAll(initialOuterFractions)
-            return result
+            validate()
+            return DesignState(length, initialHoleFractions, initialHoleDiameterFractions, initialInnerFractions, initialOuterFractions)
+
         }
 
-    fun unpack(stateVec: List<Double?>): T {
+    /**
+     * When the optimizer changes a state, we need to be able to take that
+     * altered state vector and convert it back into an instrument for testing
+     * and evaluation.
+     */
+    fun makeInstrumentFromState(from: DesignState): Instrument<T> {
         val (innerLow, innerHigh) = lowHigh(innerDiameters)
         val (outerLow, outerHigh) = lowHigh(outerDiameters)
         val (innerAngleLow, innerAngleHigh) = lowHighOpt(innerAngles)
         val (outerAngleLow, outerAngleHigh) = lowHighOpt(outerAngles)
-
-        val inst = gen.create(name)
-        var p = 0
-        inst.length = (stateVec[0] ?: 1.0) * initialLength * scale
-        p += 1
-        inst.holePositions = ArrayList(stateVec.slice(p until p + numberOfHoles).map { it!! * inst.length })
-        p += inst.numberOfHoles
-        inst.holeDiameters = ArrayList(stateVec.slice(p until p + numberOfHoles).mapIndexed { i, item ->
-            minHoleDiameters[i] + signed_sqrt(item ?: 0.0) * (maxHoleDiameters[i] - minHoleDiameters[i])
+        val inst = protoInst.gen()
+        inst.designState = from
+        inst.length = from.length
+        inst.holePositions = ArrayList(from.holePositions.map {
+            it * inst.length
         })
-        p += numberOfHoles
-        val innerKinks =
-            ArrayList(stateVec.slice(p until p + innerDiameters.size - 2).map { item -> item!! * inst.length })
-        p += (innerDiameters.size - 2)
-        val outerKinks = ArrayList(stateVec.slice(p until p + outerDiameters.size - 2).map { it!! * inst.length })
-        p += (outerDiameters.size - 2)
+        inst.holeDiameters = ArrayList(from.holeAreas.mapIndexed { idx, area ->
+            minHoleDiameters[idx] + signedSqrt(area) * (maxHoleDiameters[idx] - minHoleDiameters[idx])
+        })
 
-        dAssert(p == stateVec.size, "Invalid state vec; expected size ${p}, but found ${stateVec.size}")
+        // TODO: figure out what the deal is with pair values here.
+        val innerKinks = ArrayList(from.innerKinks.map {  it *inst.length })
+        val outerKinks = ArrayList(from.outerKinks.map { it * inst.length })
 
         inst.inner = Profile.curvedProfile(
             ArrayList(listOf(0.0) + innerKinks + listOf(inst.length)),
@@ -274,9 +265,8 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
             val shift = sin(radians) * thickness
 
             inst.innerHolePositions[i] = inst.holePositions[i] + shift
-            inst.holeLengths[i] = (sqrt(thickness * thickness + shift * shift)
-                    // ph: #+ self.hole_extra_height_by_diameter[i] * inst.hole_diameters[i]
-                    )
+            inst.holeLengths[i] = (sqrt(thickness * thickness + shift * shift))
+            // ph: #+ self.hole_extra_height_by_diameter[i] * inst.hole_diameters[i]
             inst.innerKinks = innerKinks
             inst.outerKinks = outerKinks
 
@@ -286,20 +276,26 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
         return inst
     }
 
+    /**
+     * Compute a constraint score for the instrument, which describes how
+     * well the instrument matches its requirements. If the constraint score is 0,
+     * then it's a perfect match.
+     */
     fun constraintScore(inst: Instrument<T>): Double {
         val scores = ArrayList<Double>()
         scores.add(inst.length)
 
-        if (maxLength != null) {
-            scores.add(maxLength!! * scale - inst.length)
+        val ml = maxLength
+        if (ml != null) {
+            scores.add(ml * scale - inst.length)
         }
+
+        // Check that the inner kinks are within their bounds.
         val inners = ArrayList(listOf(0.0) + inst.innerKinks + listOf(inst.length))
         for (i in 0 until inners.size - 1) {
             val sep = inners[i + 1] - inners[i]
-            val minCheck = sep - minInnerFractionSep[i] * inst.length
-            scores.add(minCheck)
-            val maxCheck = maxInnerFractionSep[i] * inst.length - sep
-            scores.add(maxCheck)
+            scores.add(sep - minInnerFractionSep[i] * inst.length)
+            scores.add(maxInnerFractionSep[i] * inst.length - sep)
             if (minInnerSep[i] != null) {
                 scores.add(sep - minInnerSep[i]!! * scale)
             }
@@ -307,134 +303,133 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
                 scores.add(maxInnerSep[i]!! * scale - sep)
             }
         }
+
+        // Check that the other kinks are within their bounds.
         val outers = ArrayList(listOf(0.0) + inst.outerKinks + listOf(inst.length))
         for (i in 0 until outers.size - 1) {
             val sep = outers[i + 1] - outers[i]
-            val minCheck = sep - minOuterFractionSep[i] * inst.length
-            scores.add(minCheck)
-            val maxCheck = maxOuterFractionSep[i] * inst.length - sep
-            scores.add(maxCheck)
+            scores.add(sep - minOuterFractionSep[i] * inst.length)
+            scores.add(maxOuterFractionSep[i] * inst.length - sep)
         }
-        val bottomCheck = inst.holePositions[0] - bottomClearanceFraction * inst.length
-        scores.add(bottomCheck)
-        val topCheck = (1.0 - topClearanceFraction) * inst.length - inst.holePositions.last()
-        scores.add(topCheck)
-        minHoleSpacing.forEachIndexed { i, value ->
-            if (value != null) {
-                val check = (inst.holePositions[i + 1] - inst.holePositions[i]) - value
-                scores.add(check)
+
+        // Check that the bottom hole is outside the bottom clearance fraction.
+        scores.add(inst.holePositions[0] - bottomClearanceFraction * inst.length)
+
+        // CHeck that the top hole is outside the top clearance fraction.
+        scores.add((1.0 - topClearanceFraction) * inst.length - inst.holePositions.last())
+
+        // Check that the holes are within their min and max separation bounds.
+        for (idx in 0 until inst.holePositions.size - 1) {
+            val minSpacing = minHoleSpacing[idx]
+            if (minSpacing != null) {
+                scores.add((inst.holePositions[idx + 1] - inst.holePositions[idx]) - minSpacing)
             }
         }
-        maxHoleSpacing.forEachIndexed { i, value ->
-            if (value != null) {
-                val check = value - (inst.holePositions[i + 1] - inst.holePositions[i])
-                scores.add(check)
+        for (i in 0 until maxHoleSpacing.size) {
+            val spacing = maxHoleSpacing[i]
+            if (spacing != null) {
+                scores.add(spacing - (inst.holePositions[i + 1] - inst.holePositions[i]))
             }
         }
+
+        // Check that the hole diameters are within their min and max bounds.
         minHoleDiameters.forEachIndexed { i, value ->
-            val check = inst.holeDiameters[i] - value
-            scores.add(check)
+            scores.add(inst.holeDiameters[i] - value)
         }
         maxHoleDiameters.forEachIndexed { i, value ->
-            val check = value - inst.holeDiameters[i]
-            scores.add(check)
+            scores.add(value - inst.holeDiameters[i])
         }
-        balance.forEachIndexed { i, value ->
-            if (value != null) {
-                val check = value * 0.5 * (inst.holePositions[i + 2] - inst.holePositions[i]) - abs(
-                    0.5 * inst.holePositions[i] + 0.5 * inst.holePositions[i + 2] - inst.holePositions[i + 1]
-                )
-                scores.add(check)
+
+        // Check the balance.
+        balance.forEachIndexed { i, balanceConstraint ->
+            if (balanceConstraint != null) {
+                scores.add((balanceConstraint * 0.5) * (inst.holePositions[i + 2] - inst.holePositions[i]) -
+                        abs(0.5 * inst.holePositions[i] + 0.5 * inst.holePositions[i + 2] - inst.holePositions[i + 1]
+                        ))
             }
         }
-        return scores.map { x -> -x }.sum()
+        return scores.sumOf { x -> -x }
     }
 
     /** ph: Hook to modify instrument before scoring. */
-    open fun patchInstrument(inst: T): T {
+    open fun patchInstrument(inst: Instrument<T>): Instrument<T> {
         return inst
     }
 
     /**
      * ph: Hook for how to calculate emission.
      *
-     * Lets Flute_designer rate emission relative to embouchure hole.
+     * Let-s Flute_designer rate emission relative to embouchure hole.
      */
     open fun calcEmission(emission: List<Double>, fingers: List<Double>): Double {
         return sqrt(emission.sumOf { e -> e * e })
     }
 
-    fun score(i: T): Double {
+    /**
+     * Compute an evaluation score for the instruments intonation and emission.
+     */
+    fun score(i: Instrument<T>): Double {
         val inst = patchInstrument(i)
         var score = 0.0
         var div = 0.0
 
         var emissionScore = 0.0
-        // ph: var emission_score2 = 0.0
         var emissionDiv = 0.0
         if (tweakEmissions != 0.0) {
             inst.prepare()
         }
         inst.preparePhase()
+
+        // I think that this is a normalizer. We're going to compute
+        // the difference between the actual wavelength of a position
+        // with the desired, and then express tha difference in cents.
+        // This is a conversion factor for doing that.
         val s = 1200.0 / ln(2.0)
         for (item in fingerings) {
             val fingers = item.fingers
-            val w1 = item.wavelength(transpose)
-            val w2 = if (item.nth == null) {
-                inst.trueWavelengthNear(w1, fingers)
+            val desiredWavelength = item.wavelength(transpose)
+            val actualWavelength = if (item.nth == null) {
+                inst.trueWavelengthNear(desiredWavelength, fingers)
             } else {
-                inst.trueNthWavelengthNear(w1, fingers, item.nth)
+                inst.trueNthWavelengthNear(desiredWavelength, fingers, item.nth)
             }
-            val diff = abs(log(w1) - log(w2)) * s
-            // ph: weight = w1
+            val diff = abs(ln(desiredWavelength) - ln(actualWavelength)) * s
             val weight = 1.0
-            // ph: score += weight * diff**3 / (1.0 + (diff/20.0)**2)
             score += weight * diff.pow(3)
-            div += weight/* ph:
-      score += (max(0.0,inst.resonance_score(w2/2.0, fingers)) * 1000.0)**3
-      diff += max(0.0,inst.resonance_score(w2/3.0, fingers)) * 100.0
-      diff += max(0.0,inst.resonance_score(w2/4.0, fingers)) * 100.0
-      if inst.resonance_score(w2/3.0, fingers) < 0.0:
-          diff += 100.0
-      if inst.resonance_score(w2/4.0, fingers) < 0.0:
-          diff += 100.0
-       */
+            div += weight
             if (tweakEmissions != 0.0) {
-                val emissionWeight = 1.0 // ph: w1
+                val emissionWeight = 1.0
                 emissionDiv += emissionWeight
-                val (_, emission) = inst.resonanceScore(w2, fingers, true)
-                val rms = calcEmission(emission!!, fingers)
-                // ph: math.sqrt(sum(item*item for item in emission))
+                val (_, emission) = inst.resonanceScore(actualWavelength, fingers, true)
+                emission as ArrayList<Double>
+                val rms = calcEmission(emission, fingers)
                 val x = log(rms)
                 emissionScore += emissionWeight * x
-                // ph: emission_score2 += emission_weight * x * x
             }
         }
         var result = (score / div).pow(1.0 / 3.0)
         if (tweakEmissions != 0.0) {
             val x = emissionScore / emissionDiv
-            // ph: #x2 = emission_score2 / emission_div
-            // ph: #var = x2-x*x
-            result += (tweakEmissions * -x) // ph: #math.sqrt(var)/x
+            result += (tweakEmissions * -x)
         }
         return result
-        // ph: #return ( (score/scale) ** (1.0/2) )*100.0
     }
 
-    val constrainer: (stateVec: ArrayList<Double?>) -> Double = {
-        constraintScore(unpack(it))
+    val constrainer: (DesignState) -> Double = {
+        constraintScore(makeInstrumentFromState(it))
     }
 
-    val scorer: (stateVec: ArrayList<Double?>) -> Double = {
-        score(unpack(it))
+    var scorer: (DesignState) -> Double = {
+        score(makeInstrumentFromState(it))
     }
 
-    fun _draw(
-        diagram: Diagram, stateVec: ArrayList<Double?>, color: String = "#000000", redColor: String = "#ff0000"
+    private fun drawInstrumentOntoDiagram(
+        diagram: Diagram,
+        instrument: Instrument<T>,
+        color: String = "#000000",
+        redColor: String = "#ff0000"
     ) {
-        val instrument = unpack(stateVec)
         instrument.prepare()
-
         (0 until numberOfHoles).forEach { i ->
             diagram.circle(0.0, -instrument.innerHolePositions[i], instrument.holeDiameters[i], redColor)
             diagram.circle(0.0, -instrument.holePositions[i], instrument.holeDiameters[i], color)
@@ -464,84 +459,66 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
         }
     }
 
-    var stateVec: ArrayList<Double?>? = null
-    var instrument: T? = null
+    /**
+     * Set up a value to make it easy to pass the save function as
+     * a parameter for the optimizer.
+     */
+    val saver = { score: Score, designState: DesignState,
+                  others: List<DesignState> -> save(score, designState, others) }
 
-    val saver: (outputDir: Path, stateVec: ArrayList<Double?>, otherVecs: List<ArrayList<Double?>>) -> Unit =
-        { outputDir, stateVec, otherVecs ->
-            save(outputDir, stateVec, otherVecs)
+
+    fun twiddleFiles(path: Path) {
+        if (path.exists()) {
+            val dir = path.parent
+            val name = path.name
+            val backup = dir / ("$name.bak")
+            if (backup.exists()) {
+                backup.deleteExisting()
+            }
+            path.moveTo(backup)
         }
+    }
 
-    fun save(outputDir: Path, stateVec: ArrayList<Double?>, otherVecs: List<ArrayList<Double?>>) {
-        this.stateVec = stateVec
-        instrument = unpack(stateVec)
-        val output = FileWriter((outputDir / "data.json").toFile())
-        output.write(Json.encodeToString(this))
-        val patchedInstrument = patchInstrument(instrument!!)
+    fun save(score: Score,
+             designState: DesignState,
+             others: List<DesignState> = emptyList()) {
+        twiddleFiles(outputDir / "data.json")
+        writeParametersToFile(outputDir / "data.json")
+        val instrument = makeInstrumentFromState(designState)
+        val patchedInstrument = patchInstrument(instrument)
         patchedInstrument.prepare()
-        patchedInstrument.preparePhase()/*ph:
-    #  #any_extra = any( item != 0.0 for item in self.hole_extra_height_by_diameter )
-    #  #if any_extra:
-    #  #TODO: implement embextra using patch_instrument
-    #  mod_instrument = self.unpack( state_vec )
-    #  #mod_instrument.hole_extra_height_by_diameter = [ 0.0 ] * len(self.hole_extra_height_by_diameter)
-    #  mod_instrument.hole_lengths = [
-    #      (mod_instrument.outer(mod_instrument.hole_positions[i])
-    #       - mod_instrument.inner(mod_instrument.hole_positions[i])) * 0.5
-    #      for i in range(self.n_holes)
-    #  ]
-    #  mod_instrument.prepare()
-    */
+        patchedInstrument.preparePhase()
 
         val diagram = Diagram()
-        otherVecs.shuffled()
-        for (i in 0 until min(20, otherVecs.size)) {
-            _draw(diagram, otherVecs[i], "#aaaaaa", "#ffaaaa")
-        }
-        _draw(diagram, stateVec)/* ph:
+        drawInstrumentOntoDiagram(diagram, instrument)
 
-    #for i in range(self.n_holes):
-    #    diagram.circle(0.0, -self.instrument.inner_hole_positions[i], self.instrument.hole_diameters[i],
-    #                   '#ff0000')
-    #    diagram.circle(0.0, -self.instrument.hole_positions[i], self.instrument.hole_diameters[i])
-    #diagram.profile(self.instrument.outer)
-    #diagram.profile(self.instrument.stepped_inner)
-    #
-    #if self.closed_top:
-    #    d = self.instrument.stepped_inner(self.instrument.length)
-    #    diagram.line([(-0.5*d,-self.instrument.length),(0.5*d,-self.instrument.length)])
-
-     */
-        var textX: Double = diagram.maxX
-        var textY: Double = 0.0
-        val inst = instrument!!
+        var textX: Double = diagram.maxX * 1.25
+        var textY = 0.0
         for (i in 0 until numberOfHoles) {
-            var thisY = min(textY, -inst.holePositions[i])
-            textY = diagram.text(textX, thisY.toDouble(), "%.1fmm".format(inst.holeDiameters[i]))
-            diagram.text(textX + 90.0, thisY, " at %.1fmm".format(instrument!!.holePositions[i]))
+            var thisY = min(textY, -instrument.holePositions[i])
+            textY = diagram.text(textX, thisY, "%.1fmm".format(instrument.holeDiameters[i]))
+            diagram.text(textX + 90.0, thisY, " at %.1fmm".format(instrument.holePositions[i]))
 
             if (i < numberOfHoles - 1) {
-                thisY = min(textY, (-0.5 * (instrument!!.holePositions[i] + instrument!!.holePositions[i + 1])))
-                // ph: #text_y =
+                thisY = min(textY, (-0.5 * (instrument.holePositions[i] + instrument.holePositions[i + 1])))
                 diagram.text(
                     textX + 45.0,
                     thisY,
-                    "%.1fmm".format(instrument!!.holePositions[i + 1] - instrument!!.holePositions[i])
+                    "%.1fmm".format(instrument.holePositions[i + 1] - instrument.holePositions[i])
                 )
             }
         }
         diagram.text(
-            textX + 90.0, min(textY, -instrument!!.length), "%.1fmm".format(instrument!!.length)
+            textX + 90.0, min(textY, -instrument.length), "%.1fmm".format(instrument.length)
         )
         textX = diagram.maxX
         val graphX = textX + 200
         val emitX = graphX + 220
         textY = 0.0
         fingerings.map { item ->
-            val note = item.noteName
             val fingers = item.fingers
             val w1 = item.wavelength(transpose)
-            var w2: Double = if (item.nth != 0.0) {
+            val w2: Double = if (item.nth != 0.0) {
                 patchedInstrument.trueWavelengthNear(w1, fingers)
             } else {
                 patchedInstrument.trueNthWavelengthNear(w1, fingers, item.nth)
@@ -552,15 +529,10 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
             val width = 200
             val step = 0.5.pow(maxCents / ((nProbes - 1) * 0.5 * 1200.0))
             val low = w1 * step.pow(-(nProbes - 1) / 2.0)
-            val probes = (0 until nProbes).map { i -> low * step.pow(i) }/* phd:
-       patched_instrument.resonance_score(probe, fingers) for probe in probes ]
-      #
-      #points = [ (graph_x+i*width/n_probes,text_y-score*7.0)
-      #           for i,score in enumerate(scores) ]
-      #for i in range(len(probes)-1):
-      #    if scores[i] > 0 and scores[i+1] < 0: continue
-      #    diagram.line(points[i:i+2], '#000000', 0.2)
-       */
+            val probes = (0 until nProbes).map { i ->
+                low * step.pow(i)
+            }
+
             val scores = probes.map { probe -> patchedInstrument.resonancePhase(probe, fingers) }
 
             val points = scores.mapIndexed { i, score ->
@@ -596,38 +568,19 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
                         "sharp"
                     }, abs(cents)
                 )
-            )/* ph:
-      #_, emission = patched_instrument.resonance_score(w2,fingers,True)
-      #diagram.text(emit_x, text_y,
-      #     ', '.join('%.2f' % item for item in emission)
-      #     )
-      */
+            )
             val phase = patchedInstrument.resonancePhase(w2, fingers)
-            diagram.text(emitX, textY, "${phase}")/* ph:
-      #if any_extra:
-      #w3 = mod_instrument.true_wavelength_near(w1, fingers)
-      #cents3 = int(round( log2(w3/w1) * 1200.0 ))
-      #diagram.text(graph_x + width, text_y,
-      #      '%s %-4d cents grad=%.1f diff=%d' % ('     ' if cents3 == 0 else ' flat' if cents3 > 0 else 'sharp', abs(cents3), grad3, cents3-cents)
-      #)
-      */
-
+            diagram.text(emitX, textY, "${phase}")
             textY -= 25
         }
 
         diagram.text(
             graphX, textY - 10, "Nearby resonances:", color = "#000000"
-        )/*
-    #diagram.text(emit_x, text_y - 20,
-        #    'Volume of sound emission from\n'
-        #    'instrument end and open holes:',
-        #    color='#000000',
-        #    )
-     */
+        )
         textY -= 50.0 + 10.0 * max(innerDiameters.size, outerDiameters.size)
 
         diagram.text(graphX - 150.0, textY, "Outer diameters:", color = "#000000")
-        val outerKinks = listOf(0.0) + inst.outerKinks + listOf(inst.length)
+        val outerKinks = listOf(0.0) + instrument.outerKinks + listOf(instrument.length)
         outerDiameters.forEachIndexed { i, item ->
             diagram.text(
                 graphX - 150.0,
@@ -637,14 +590,15 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
         }
 
         diagram.text(graphX, textY, "Inner diameters:", color = "#000000")
-        val innerKinks = listOf(0.0) + inst.innerKinks + listOf(inst.length)
+        val innerKinks = listOf(0.0) + instrument.innerKinks + listOf(instrument.length)
         innerDiameters.forEachIndexed { i, item ->
             diagram.text(
                 graphX,
                 textY + 10.0 + (innerDiameters.size - i) * 10.0,
-                describeLowHigh(item) + "mm at %.1fmm".format(outerKinks[i])
+                describeLowHigh(item) + "mm at %.1fmm".format(innerKinks[i])
             )
         }
+        twiddleFiles(outputDir / "diagram.svg")
         diagram.save(outputDir / "diagram.svg")
     }
 
@@ -652,13 +606,10 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
         if (!outputDir.exists()) {
             outputDir.createDirectory()
         }
-        var stateVec = initialStateVec
-//    stateVec = optimize.improve("/bin/zsh", constrainer, scorer, stateVec, monitor = saver)
-
-        save(outputDir, stateVec, emptyList())
-
-        // ph: #print(self._opt_score(state_vec))
-
+        val initialInstrument = protoInst.gen()
+        initialInstrument.designState = initialDesignState
+        val newInstrument = improve( constrainer, scorer, makeInstrumentFromState(initialDesignState), monitor = saver)
+        save(Score(Double.NaN, Double.NaN), newInstrument.designState!!)
     }
 
     open fun scaler(values: List<Double?>): ArrayList<Double?> {
@@ -693,6 +644,18 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
         }
     }
 
+    fun improve(constrainer: (DesignState) -> Double,
+                scorer: (DesignState) -> Double,
+                instrument: Instrument<T>,
+                monitor: (Score, DesignState, List<DesignState>) -> Unit): Instrument<T> {
+        val optimizer = Optimizer(this)
+        val designer = this
+        return runBlocking {
+            optimizer.improve("comment", designer, constrainer, scorer, instrument, monitor=monitor)
+        }
+    }
+
+
     companion object {
         val O = 0.0
         val X = 1.0
@@ -700,21 +663,10 @@ open class InstrumentDesigner<T : Instrument<T>>(override val name: String, open
 
 }
 
-/* ph:
-def bore_scaler(value, maximum=1e30):
-    @property
-    def func(self):
-        scale = math.sqrt(self.scale) * self.bore_scale
-        return [ min(item*scale, maximum) if item is not None else None for item in value ]
-    return func
-
- */
-
-/**
- * @param boreScale Bore diameter is scaled as the square root of the instrument size times this amount.
- */
-open class InstrumentDesignerWithBoreScale<T : Instrument<T>>(override val name: String, gen: InstrumentGenerator<T>) :
-    InstrumentDesigner<T>(name, gen) {
+abstract class InstrumentDesignerWithBoreScale<T : Instrument<T>>(override val name: String,
+                                                                   protoInst: Instrument<T>,
+                                                                   outputDir: Path):
+    InstrumentDesigner<T>(name, protoInst, outputDir) {
 
     open fun boreScaler(value: List<Double?>, maximum: Double = 1e30): ArrayList<Double?> {
         val scale = sqrt(scale) * boreScale
@@ -735,5 +687,135 @@ open class InstrumentDesignerWithBoreScale<T : Instrument<T>>(override val name:
     }
 
     open val boreScale: Double by DoubleParameter() { 1.0 }
+}
+
+
+/**
+ * The design state represents the current state of the mutable parameters
+ * that can be varied by the design optimizer. Each of these values
+ * is, in some form, normalized relative to the size of the instrument.
+ * For example, the holePositions are stored in the state as fractions
+ * of the instrument's body length.
+ */
+data class DesignState(
+    var length: Double,
+    var holePositions: ArrayList<Double>,
+    var holeAreas: ArrayList<Double>,
+    var innerKinks: ArrayList<Double>,
+    var outerKinks: ArrayList<Double>) {
+
+    val size: Int
+        get() = (1 + holePositions.size + holeAreas.size + innerKinks.size + outerKinks.size)
+
+    // Get and set methods are provided to make it easier to actually
+    // perform the mutations during optimization. In order to make it
+    // easier to implement those, it's useful to have these guidepoints
+    // for the beginning of each block.
+    val holePositionsStart = 1
+    val holeAreasStart = holePositionsStart + holePositions.size
+    val innerKinksStart = holeAreasStart + holeAreas.size
+    val outerKinksStart = innerKinksStart + innerKinks.size
+
+    operator fun get(idx: Int): Double {
+        return when(idx) {
+            0 -> length
+            in (holePositionsStart until holePositions.size + holePositionsStart) ->
+                holePositions[idx - holePositionsStart]
+            in (holeAreasStart until holeAreas.size + holeAreasStart) ->
+                holeAreas[idx - holeAreasStart]
+            in (innerKinksStart until innerKinks.size + innerKinksStart) ->
+                innerKinks[idx - innerKinksStart]
+            in (outerKinksStart until outerKinks.size + outerKinksStart) ->
+                outerKinks[idx - outerKinksStart]
+
+            else ->
+                throw Exception("Should be impossible")
+
+        }
+    }
+
+    operator fun set(idx: Int, value: Double) {
+        when(idx) {
+            0 -> length = value
+            in (holePositionsStart until holePositions.size + holePositionsStart) ->
+                holePositions[idx - holePositionsStart] = value
+            in (holeAreasStart until holeAreas.size + holeAreasStart) ->
+                holeAreas[idx - holeAreasStart] =  value
+            in (innerKinksStart until innerKinks.size + innerKinksStart) ->
+                innerKinks[idx - innerKinksStart] = value
+            in (outerKinksStart until outerKinks.size + outerKinksStart) ->
+                outerKinks[idx - outerKinksStart] = value
+
+            else ->
+                throw Exception("Should be impossible")
+
+        }
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this===other) { return true }
+        if (javaClass != other?.javaClass) { return false }
+
+        other as DesignState
+        return (length == other.length) &&
+                (holePositions.zip(other.holePositions).all{ (x, y) -> x == y }) &&
+                (holeAreas.zip(other.holeAreas).all { (x, y) -> x == y }) &&
+                (innerKinks.zip(other.innerKinks).all { (x, y) -> x == y}) &&
+                (outerKinks.zip(other.outerKinks).all { (x, y) -> x == y})
+    }
+
+    override fun hashCode(): Int {
+        var result = 0
+        for (i in 0 until size) {
+            result = 31 * result + this[i].hashCode()
+        }
+        result = 31 * result + holePositions.sumOf { it.hashCode() }
+        result = 31 * result + holeAreas.sumOf { it.hashCode() }
+        result = 31 * result + innerKinks.sumOf { it.hashCode() }
+        result = 31 * result + outerKinks.sumOf { it.hashCode() }
+        return result
+    }
+
+    companion object {
+        val random = Random()
+        fun generateNewDesignState(designStates: List<DesignState>, initialAccuracy: Double, doNoiseOpt: Boolean): DesignState {
+            val doNoise = doNoiseOpt || random.nextDouble() < 0.1
+            val numberOfStates = designStates.size
+
+            // Calculate the weights that we'll use for the different input states
+            // to update our instrument.  We're going to try for a gaussian distribution of
+            // weights, so we'll start by setting a threshold for the stddev.
+            val weightStdDev = (1.0 + 2.0 * random.nextDouble()) / (numberOfStates.toDouble().pow(0.5))
+            val randomWeights = (0 until numberOfStates).map { random.nextGaussian(0.0, weightStdDev) }.toList()
+            // We're looking for the weights to be distributed around zero, so we compute the
+            // mean, and then subtract it from each weight.
+            val offset = randomWeights.average()
+            val weights = ArrayList(randomWeights.map { weight -> weight - offset })
+            // TODO: I'm not sure why ph added another random number.
+            weights.add(random.nextDouble())
+            // Randomly pick one state and increase it's weight?
+            weights[random.nextInt(numberOfStates)] += 1.0
+            // Maybe inject extra noise.
+            val noise = if (doNoise) { random.nextDouble() + initialAccuracy} else { 0.0 }
+            return mergeStates(designStates, weights, noise)
+        }
+        fun mergeStates(designStates: List<DesignState>, weights: List<Double>,
+                        noise: Double): DesignState {
+            val newState = designStates[0].copy()
+            for (i in (0 until newState.size)) {
+                newState[i] = designStates.indices.sumOf { stateIdx ->
+                    designStates[stateIdx][i] * weights[stateIdx]
+                }
+            }
+            if (noise != 0.0) {
+                for (i in 0 until newState.size) {
+                    newState[i] += random.nextGaussian(0.0, noise)
+                }
+            }
+
+            return newState
+        }
+
+    }
 }
 

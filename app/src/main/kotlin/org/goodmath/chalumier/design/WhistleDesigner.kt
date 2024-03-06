@@ -20,6 +20,7 @@ import org.goodmath.chalumier.design.InstrumentDesigner.Companion.O
 import org.goodmath.chalumier.design.InstrumentDesigner.Companion.X
 import org.goodmath.chalumier.util.fromEnd
 import org.goodmath.chalumier.util.repeat
+import java.nio.file.Path
 
 
 class WhistleHeadMaker<T : Whistle<T>>(bore: Pair<Double, Double>, outside: Pair<Double, Double>) {
@@ -40,13 +41,14 @@ abstract class Whistle<T : Whistle<T>> (override val name: String): Instrument<T
 
 }
 
-abstract class AbstractWhistleDesigner<Whist : Whistle<Whist>>(override val name: String, gen: InstrumentGenerator<Whist>) :
-    InstrumentDesignerWithBoreScale<Whist>(name, gen) {
+abstract class AbstractWhistleDesigner<Whist : Whistle<Whist>>(override val name: String, protoInst: Whistle<Whist>,
+                                                               outputDir: Path):
+    InstrumentDesignerWithBoreScale<Whist>(name, protoInst, outputDir) {
     // ph: From 2014-15-whistle-tweaking
     open var tweakGapExtra by DoubleParameter {
         0.6
     }
-    open var tweakBoreless: Double by DoubleParameter {
+    open var tweakBoreLess: Double by DoubleParameter {
         0.3
 
     }
@@ -90,14 +92,15 @@ abstract class AbstractWhistleDesigner<Whist : Whistle<Whist>>(override val name
         0.0
     }
 
-    override fun patchInstrument(origInst: Whist): Whist {
-        val inst = origInst.copy()
-        inst.trueLength = inst.length
-        inst.trueInner = inst.inner
+    override fun patchInstrument(inst: Instrument<Whist>): Instrument<Whist> {
+        val patchedInst = inst.copy() as Whist
+        patchedInst.trueLength = patchedInst.length
 
-        val boreDiameter = inst.inner(inst.length)
-        inst.length -= (boreDiameter * tweakBoreless)
-        inst.inner = inst.inner.clipped(0.0, inst.length)
+        patchedInst.trueInner = patchedInst.inner
+
+        val boreDiameter = patchedInst.inner(patchedInst.length)
+        patchedInst.length -= (boreDiameter * tweakBoreLess)
+        patchedInst.inner = patchedInst.inner.clipped(0.0, patchedInst.length)
 
         // ph: #bulge_pos1 = self.tweak_bulgepos1 * inst.length
         // ph: #bulge_pos2 = self.tweak_bulgepos2 * inst.length
@@ -116,32 +119,24 @@ abstract class AbstractWhistleDesigner<Whist : Whistle<Whist>>(override val name
         // ph:         ^ The gap is this high on one side and a blade on the other side
         // ph:           split the difference.
 
-        inst.inner = Profile(
-            ArrayList(inst.inner.pos + listOf(inst.length + length)),
-            ArrayList(inst.inner.low + listOf(diameter)),
-            ArrayList(inst.inner.high.slice(0 until inst.inner.high.size - 1) + listOf(diameter, diameter))
+        patchedInst.inner = Profile(
+            ArrayList(patchedInst.inner.pos + listOf(patchedInst.length + length)),
+            ArrayList(patchedInst.inner.low + listOf(diameter)),
+            ArrayList(patchedInst.inner.high.slice(0 until patchedInst.inner.high.size - 1) + listOf(diameter, diameter))
         )
-        inst.length += length
-        return inst
+        patchedInst.length += length
+        return patchedInst
     }
 }
 
 class SixHoleWhistle(override val name: String) : Whistle<SixHoleWhistle>(name) {
-    override fun copy(): SixHoleWhistle {
-        TODO("Not yet implemented")
-    }
 
-    companion object {
-        val generator: InstrumentGenerator<SixHoleWhistle> = object : InstrumentGenerator<SixHoleWhistle> {
-            override fun create(name: String): SixHoleWhistle {
-                return SixHoleWhistle(name)
-            }
-
-        }
-    }
+    override val gen = { SixHoleWhistle(name) }
 }
 
-class SixHoleWhistleDesigner(override val name: String) : AbstractWhistleDesigner<SixHoleWhistle>(name, SixHoleWhistle.generator) {
+class SixHoleWhistleDesigner(override val name: String,
+    protoInst: SixHoleWhistle,
+    outputDir: Path) : AbstractWhistleDesigner<SixHoleWhistle>(name, protoInst, outputDir) {
     override var transpose: Int by IntParameter { 12 }
 
     override var divisions by ListOfListOfIntDoublePairParam {
@@ -181,7 +176,7 @@ class SixHoleWhistleDesigner(override val name: String) : AbstractWhistleDesigne
         boreScaler(listOf(14.0, 14.0, 20.0, 22.0, 22.0, 20.0, 20.0)).map { Pair(it, it) }
     }
 
-    override var initialInnerFractions by ListOfOptDoubleParameter {
+    override var initialInnerFractions by ListOfDoubleParameter {
         listOf(0.2, 0.6, 0.65, 0.7, 0.75)
     }
 
@@ -198,7 +193,7 @@ class SixHoleWhistleDesigner(override val name: String) : AbstractWhistleDesigne
         ).map { angle -> angle?.let { Pair(it, it) } }
     }
 
-    override var initialOuterFractions by ListOfOptDoubleParameter {
+    override var initialOuterFractions by ListOfDoubleParameter {
         listOf(0.15, 0.5, 0.85)
     }
 
@@ -207,8 +202,8 @@ class SixHoleWhistleDesigner(override val name: String) : AbstractWhistleDesigne
     }
 }
 
-fun folkWhistleDesigner(): SixHoleWhistleDesigner {
-    val result = SixHoleWhistleDesigner("FolkWhistle")
+fun folkWhistleDesigner(outputDir: Path): SixHoleWhistleDesigner {
+    val result = SixHoleWhistleDesigner("FolkWhistle", SixHoleWhistle("FolkWhistle"), outputDir)
     result.initialLength = wavelength("D4") * 0.5
     result.fingerings = arrayListOf(
         Fingering("D4", listOf(X, X, X, X, X, X)),
@@ -232,8 +227,8 @@ fun folkWhistleDesigner(): SixHoleWhistleDesigner {
     return result
 }
 
-fun dorianWhistleDesigner(): SixHoleWhistleDesigner {
-    val result = SixHoleWhistleDesigner("DorianWhistle")
+fun dorianWhistleDesigner(outputDir: Path): SixHoleWhistleDesigner {
+    val result = SixHoleWhistleDesigner("DorianWhistle", SixHoleWhistle("DorianWhistle"), outputDir)
     result.initialLength = wavelength("D4") * 0.5
     result.fingerings = arrayListOf(
         Fingering("D4", listOf(X, X, X, X, X, X)),
@@ -256,21 +251,17 @@ fun dorianWhistleDesigner(): SixHoleWhistleDesigner {
     return result
 }
 
-class Recorder(override val name: String) : Whistle<Recorder>(name) {
-    override fun copy(): Recorder {
-        TODO("Not yet implemented")
-    }
+class Recorder(override val name: String): Whistle<Recorder>(name) {
 
-    companion object {
-        val generator = object : InstrumentGenerator<Recorder> {
-            override fun create(name: String): Recorder {
-                return Recorder(name)
-            }
-        }
-    }
+    override val gen = { Recorder(name) }
+
 }
 
-class RecorderDesigner(override val name: String) : AbstractWhistleDesigner<Recorder>(name, Recorder.generator) {
+class RecorderDesigner(override val name: String,
+                       outputDir: Path
+) : AbstractWhistleDesigner<Recorder>(name, Recorder(name), outputDir) {
+
+
     override var initialLength by DoubleParameter {
         wavelength("C4") * 0.5
     }
@@ -315,7 +306,7 @@ class RecorderDesigner(override val name: String) : AbstractWhistleDesigner<Reco
         boreScaler(listOf(20.0, 20.0, 19.0, 23.0, 23.0, 20.0, 20.0)).map { Pair(it, it) }
     }
 
-    override var initialInnerFractions by ListOfOptDoubleParameter {
+    override var initialInnerFractions by ListOfDoubleParameter {
         listOf(0.6, 0.65, 0.7, 0.75, 0.8)
     }
 
@@ -327,7 +318,7 @@ class RecorderDesigner(override val name: String) : AbstractWhistleDesigner<Reco
         boreScaler(listOf(40.0, 28.0, 28.0, 32.0, 32.0)).map { Pair(it, it) }
     }
 
-    override var initialOuterFractions by ListOfOptDoubleParameter {
+    override var initialOuterFractions by ListOfDoubleParameter {
         listOf(0.15, 0.6, 0.85)
     }
 

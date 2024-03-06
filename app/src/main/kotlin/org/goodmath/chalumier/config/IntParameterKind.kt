@@ -47,10 +47,10 @@ object IntParameterKind: ParameterKind<Int> {
 val OptIntParameterKind = opt(IntParameterKind)
 
 fun<T: Configurable<T>> IntParameter(help: String="", gen: (T) -> Int): ConfigParameter<T,Int> {
-    return ConfigParameter<T, Int>(IntParameterKind, help, gen)
+    return ConfigParameter<T, Int>(IntParameterKind, help, gen=gen)
 }
 
 
 fun<T: Configurable<T>> OptIntParameter(help: String="", gen: (T) -> Int?): ConfigParameter<T,Int?> {
-    return ConfigParameter<T, Int?>(opt(IntParameterKind), help, gen)
+    return ConfigParameter<T, Int?>(opt(IntParameterKind), help, gen=gen)
 }

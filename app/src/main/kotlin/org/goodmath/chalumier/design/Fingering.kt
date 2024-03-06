@@ -66,5 +66,5 @@ fun<T: Configurable<T>> ListOfFingeringsParam(help: String = "", gen: (T) -> Lis
     val mutGen: (T) -> ArrayList<Fingering> = { target ->
         ArrayList(gen(target))
     }
-    return ConfigParameter(ListOfFingeringsKind, help, mutGen)
+    return ConfigParameter(ListOfFingeringsKind, help, gen=mutGen)
 }

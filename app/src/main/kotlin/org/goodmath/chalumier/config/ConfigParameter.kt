@@ -19,6 +19,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlin.reflect.KProperty
 
+
 /**
  * A helpful utility class for managing parameters in a system with a large
  * number of configurable parameters.
@@ -26,53 +27,33 @@ import kotlin.reflect.KProperty
  * This works as a property delegate in a Kotlin class, allowing you to provide
  * a default value for the parameter based on other values. If the parameter is
  * never assigned, it will use the default value.
-
+ *
+ * The parameter is also registered into its class configurable parameters table,
+ * which will make is serializable as part of its class.
  */
-
-interface ParameterKind<T> {
-    val name: String
-    fun checkValue(v: Any?): Boolean
-    fun dump(t: T?): JsonElement
-
-    fun<C: Configurable<C>> dumpByName(c: C, paramName: String): JsonElement? {
-        val v = c.getConfigParameterValue<T>(paramName)
-        return dump(v)
-    }
-
-    fun load(t: JsonElement): T?
-}
-
-fun<T> opt(pk: ParameterKind<T>): ParameterKind<T?> {
-    return object: ParameterKind<T?> {
-        override val name: String = "${pk.name}?"
-
-        override fun checkValue(v: Any?): Boolean {
-            return pk.checkValue(v) || v == null
-        }
-
-        override fun load(t: JsonElement): T? {
-            return pk.load(t)
-        }
-
-        override fun dump(t: T?): JsonElement {
-            return if (t == null) { JsonNull }
-            else { pk.dump(t) }
-        }
-    }
-}
-
 open class ConfigParameter<T: Configurable<T>, V>(
     val kind: ParameterKind<V>,
     val help: String = "",
-    val gen: (T) -> V
-) {
+    var num: Int = -1,
+    var gen: (T) -> V) {
+
+
     var v: V? = null
     operator fun provideDelegate(
         thisRef: T,
         prop: KProperty<*>
     ): ConfigParameter<T, V> {
-        thisRef.addConfigParameter(prop.name, this)
-        return this
+        this.num = thisRef.myNum
+        val p = thisRef.getConfigParameterByName(prop.name)
+        if (p != null) {
+            val toOverwrite = p as ConfigParameter<T, V>
+            toOverwrite.gen = gen
+            toOverwrite.v = null
+            return toOverwrite
+        } else {
+            thisRef.addConfigParameter(prop.name, this)
+            return this
+        }
     }
 
     fun get(thisRef: T): V {

@@ -51,9 +51,9 @@ object BooleanParameterKind: ParameterKind<Boolean> {
 val OptBooleanParameterKind: ParameterKind<Boolean?> = opt(BooleanParameterKind)
 
 fun<T: Configurable<T>> BooleanParameter(help: String = "", gen: (T) -> Boolean): ConfigParameter<T, Boolean> {
-    return ConfigParameter(BooleanParameterKind, help, gen)
+    return ConfigParameter(BooleanParameterKind, help, gen=gen)
 }
 
 fun<T: Configurable<T>> OptBooleanParameter(help: String = "", gen: (T) -> Boolean?): ConfigParameter<T, Boolean?> {
-    return ConfigParameter(OptBooleanParameterKind, help, gen)
+    return ConfigParameter(OptBooleanParameterKind, help, gen=gen)
 }
