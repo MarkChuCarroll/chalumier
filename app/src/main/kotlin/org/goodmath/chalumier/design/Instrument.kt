@@ -81,7 +81,7 @@ abstract class Instrument<T: Instrument<T>>(override val name: String): Configur
         return newInst
     }
 
-    var designState: DesignState? = null
+    var designParameters: DesignParameters? = null
 
     //  ph: length
     open var length: Double by DoubleParameter { 0.0 }

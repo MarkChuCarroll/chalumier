@@ -198,30 +198,30 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
     /**
      * The instrument designer and the template instrument define the basic
      * parameters of the instrument we're going to produce. In order to
-     * optimize the design, we need to be able to convert them to a state
+     * optimize the design, we need to be able to convert them to a parameter
      * object which can be manipulated by the optimizer. We do this once
-     * to produce the initial state - from there, the optimizer will be
+     * to produce the initial parameters - from there, the optimizer will be
      * generating variations on it.
      */
-    val initialDesignState: DesignState
+    val initialDesignParameters: DesignParameters
         get() {
             validate()
-            return DesignState(length, initialHoleFractions, initialHoleDiameterFractions, initialInnerFractions, initialOuterFractions)
+            return DesignParameters(length, initialHoleFractions, initialHoleDiameterFractions, initialInnerFractions, initialOuterFractions)
 
         }
 
     /**
-     * When the optimizer changes a state, we need to be able to take that
+     * When the optimizer changes a parameter set, we need to be able to take that
      * altered state vector and convert it back into an instrument for testing
      * and evaluation.
      */
-    fun makeInstrumentFromState(from: DesignState): Instrument<T> {
+    fun makeInstrumentFromParameters(from: DesignParameters): Instrument<T> {
         val (innerLow, innerHigh) = lowHigh(innerDiameters)
         val (outerLow, outerHigh) = lowHigh(outerDiameters)
         val (innerAngleLow, innerAngleHigh) = lowHighOpt(innerAngles)
         val (outerAngleLow, outerAngleHigh) = lowHighOpt(outerAngles)
         val inst = protoInst.gen()
-        inst.designState = from
+        inst.designParameters = from
         inst.length = from.length
         inst.holePositions = ArrayList(from.holePositions.map {
             it * inst.length
@@ -415,12 +415,12 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
         return result
     }
 
-    val constrainer: (DesignState) -> Double = {
-        constraintScore(makeInstrumentFromState(it))
+    val constrainer: (DesignParameters) -> Double = {
+        constraintScore(makeInstrumentFromParameters(it))
     }
 
-    var scorer: (DesignState) -> Double = {
-        score(makeInstrumentFromState(it))
+    var scorer: (DesignParameters) -> Double = {
+        score(makeInstrumentFromParameters(it))
     }
 
     private fun drawInstrumentOntoDiagram(
@@ -463,8 +463,8 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
      * Set up a value to make it easy to pass the save function as
      * a parameter for the optimizer.
      */
-    val saver = { score: Score, designState: DesignState,
-                  others: List<DesignState> -> save(score, designState, others) }
+    val saver = { score: Score, designParameters: DesignParameters,
+                  others: List<DesignParameters> -> save(score, designParameters, others) }
 
 
     fun twiddleFiles(path: Path) {
@@ -480,11 +480,11 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
     }
 
     fun save(score: Score,
-             designState: DesignState,
-             others: List<DesignState> = emptyList()) {
+             designParameters: DesignParameters,
+             others: List<DesignParameters> = emptyList()) {
         twiddleFiles(outputDir / "data.json")
         writeParametersToFile(outputDir / "data.json")
-        val instrument = makeInstrumentFromState(designState)
+        val instrument = makeInstrumentFromParameters(designParameters)
         val patchedInstrument = patchInstrument(instrument)
         patchedInstrument.prepare()
         patchedInstrument.preparePhase()
@@ -607,9 +607,9 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
             outputDir.createDirectory()
         }
         val initialInstrument = protoInst.gen()
-        initialInstrument.designState = initialDesignState
-        val newInstrument = improve( constrainer, scorer, makeInstrumentFromState(initialDesignState), monitor = saver)
-        save(Score(Double.NaN, Double.NaN), newInstrument.designState!!)
+        initialInstrument.designParameters = initialDesignParameters
+        val newInstrument = improve( constrainer, scorer, makeInstrumentFromParameters(initialDesignParameters), monitor = saver)
+        save(Score(Double.NaN, Double.NaN), newInstrument.designParameters!!)
     }
 
     open fun scaler(values: List<Double?>): ArrayList<Double?> {
@@ -644,14 +644,14 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
         }
     }
 
-    fun improve(constrainer: (DesignState) -> Double,
-                scorer: (DesignState) -> Double,
+    fun improve(constrainer: (DesignParameters) -> Double,
+                scorer: (DesignParameters) -> Double,
                 instrument: Instrument<T>,
-                monitor: (Score, DesignState, List<DesignState>) -> Unit): Instrument<T> {
+                monitor: (Score, DesignParameters, List<DesignParameters>) -> Unit): Instrument<T> {
         val optimizer = Optimizer(this)
         val designer = this
         return runBlocking {
-            optimizer.improve("comment", designer, constrainer, scorer, instrument, monitor=monitor)
+            optimizer.improve("comment", designer, constrainer, scorer, monitor=monitor)
         }
     }
 
@@ -691,13 +691,13 @@ abstract class InstrumentDesignerWithBoreScale<T : Instrument<T>>(override val n
 
 
 /**
- * The design state represents the current state of the mutable parameters
+ * The design parameters represent the current state of the mutable parameters
  * that can be varied by the design optimizer. Each of these values
  * is, in some form, normalized relative to the size of the instrument.
- * For example, the holePositions are stored in the state as fractions
+ * For example, the holePositions are stored in the design parameters as fractions
  * of the instrument's body length.
  */
-data class DesignState(
+data class DesignParameters(
     var length: Double,
     var holePositions: ArrayList<Double>,
     var holeAreas: ArrayList<Double>,
@@ -756,7 +756,7 @@ data class DesignState(
         if (this===other) { return true }
         if (javaClass != other?.javaClass) { return false }
 
-        other as DesignState
+        other as DesignParameters
         return (length == other.length) &&
                 (holePositions.zip(other.holePositions).all{ (x, y) -> x == y }) &&
                 (holeAreas.zip(other.holeAreas).all { (x, y) -> x == y }) &&
@@ -778,9 +778,9 @@ data class DesignState(
 
     companion object {
         val random = Random()
-        fun generateNewDesignState(designStates: List<DesignState>, initialAccuracy: Double, doNoiseOpt: Boolean): DesignState {
+        fun generateNewDesign(designParameters: List<DesignParameters>, initialAccuracy: Double, doNoiseOpt: Boolean): DesignParameters {
             val doNoise = doNoiseOpt || random.nextDouble() < 0.1
-            val numberOfStates = designStates.size
+            val numberOfStates = designParameters.size
 
             // Calculate the weights that we'll use for the different input states
             // to update our instrument.  We're going to try for a gaussian distribution of
@@ -797,23 +797,23 @@ data class DesignState(
             weights[random.nextInt(numberOfStates)] += 1.0
             // Maybe inject extra noise.
             val noise = if (doNoise) { random.nextDouble() + initialAccuracy} else { 0.0 }
-            return mergeStates(designStates, weights, noise)
+            return mergeDesigns(designParameters, weights, noise)
         }
-        fun mergeStates(designStates: List<DesignState>, weights: List<Double>,
-                        noise: Double): DesignState {
-            val newState = designStates[0].copy()
-            for (i in (0 until newState.size)) {
-                newState[i] = designStates.indices.sumOf { stateIdx ->
-                    designStates[stateIdx][i] * weights[stateIdx]
+        fun mergeDesigns(designParameters: List<DesignParameters>, weights: List<Double>,
+                         noise: Double): DesignParameters {
+            val newDesign = designParameters[0].copy()
+            for (i in (0 until newDesign.size)) {
+                newDesign[i] = designParameters.indices.sumOf { stateIdx ->
+                    designParameters[stateIdx][i] * weights[stateIdx]
                 }
             }
             if (noise != 0.0) {
-                for (i in 0 until newState.size) {
-                    newState[i] += random.nextGaussian(0.0, noise)
+                for (i in 0 until newDesign.size) {
+                    newDesign[i] += random.nextGaussian(0.0, noise)
                 }
             }
 
-            return newState
+            return newDesign
         }
 
     }

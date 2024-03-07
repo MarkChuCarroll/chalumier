@@ -3,7 +3,7 @@ package org.goodmath.chalumier.optimize
 import kotlinx.coroutines.*
 import org.goodmath.chalumier.design.Instrument
 import org.goodmath.chalumier.design.InstrumentDesigner
-import org.goodmath.chalumier.design.DesignState
+import org.goodmath.chalumier.design.DesignParameters
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
@@ -13,18 +13,23 @@ import kotlin.concurrent.thread
  *
  * @See docs/demakein-and-nesoni.md for my notes from reverse-engineering/spelunking
  *   nesoni and how demakein uses it for parallelism.
+ *
+ * Or... Maybe not so hairy. Demakein made this look really hard,
+ * when what it actually implemented was a pretty bog-standard worker
+ * pool computation. I did it the simplest way that I could using
+ * threading in Kotlin. It could probably be made even a bit simpler/cleaner
+ * using coroutines with a threadpool.
  */
 
 
-data class WorkerResult(val designState: DesignState,
-                        val score: Double)
+data class ScoreResult(val designParameters: DesignParameters,
+                       val frequencyScore: Double)
 
-class Driver<T: Instrument<T>>(val poolSize: Int, val instrumentDesigner: InstrumentDesigner<T>) {
-
+class ScoringPool<T: Instrument<T>>(val poolSize: Int, val instrumentDesigner: InstrumentDesigner<T>) {
     private var done: Boolean = false
     private val workerThreads = ArrayList<Thread>()
-    private val tasks = ArrayDeque<DesignState>()
-    private val results = ArrayDeque<WorkerResult>()
+    private val tasks = ArrayDeque<DesignParameters>()
+    private val results = ArrayDeque<ScoreResult>()
     fun isDone(): Boolean {
         return false
     }
@@ -35,18 +40,18 @@ class Driver<T: Instrument<T>>(val poolSize: Int, val instrumentDesigner: Instru
         }
     }
 
-    class Worker<T: Instrument<T>>(val driver: Driver<T>): Runnable {
-        fun process(designState: DesignState): Double {
-            val inst = driver.instrumentDesigner.makeInstrumentFromState(designState)
-            return driver.instrumentDesigner.score(inst)
+    class Worker<T: Instrument<T>>(val pool: ScoringPool<T>): Runnable {
+        fun process(designParameters: DesignParameters): Double {
+            val inst = pool.instrumentDesigner.makeInstrumentFromParameters(designParameters)
+            return pool.instrumentDesigner.score(inst)
         }
 
         override fun run() {
-            while (!driver.isDone()) {
+            while (!pool.isDone()) {
                 val task =
-                    synchronized(driver.tasks) {
-                        if (driver.tasks.peek() != null) {
-                            driver.tasks.removeFirst()
+                    synchronized(pool.tasks) {
+                        if (pool.tasks.peek() != null) {
+                            pool.tasks.removeFirst()
                         } else {
                             null
                         }
@@ -55,13 +60,12 @@ class Driver<T: Instrument<T>>(val poolSize: Int, val instrumentDesigner: Instru
                     Thread.sleep(1000)
                 } else {
                     val result = process(task)
-                    synchronized(driver.results) {
-                        driver.results.add(WorkerResult(task, result))
+                    synchronized(pool.results) {
+                        pool.results.add(ScoreResult(task, result))
                     }
                 }
             }
         }
-
     }
 
     fun start() {
@@ -69,6 +73,7 @@ class Driver<T: Instrument<T>>(val poolSize: Int, val instrumentDesigner: Instru
             val newThread = Thread(Worker(this))
             newThread.start()
             workerThreads.add(newThread)
+            System.err.println("LAUNCHED THREAD")
         }
         val monitor = thread {
             while (!this.isDone()) {
@@ -81,11 +86,11 @@ class Driver<T: Instrument<T>>(val poolSize: Int, val instrumentDesigner: Instru
         return  tasks.size < poolSize
     }
 
-    fun hasAvailableResults(): Boolean {
+    fun hasAvailableScores(): Boolean {
         return (results.size > 0)
     }
 
-    fun getNextResult(): WorkerResult? {
+    fun getNextScore(): ScoreResult? {
         synchronized(results) {
             if (results.size > 0) {
                 return results.removeFirst()
@@ -96,10 +101,10 @@ class Driver<T: Instrument<T>>(val poolSize: Int, val instrumentDesigner: Instru
     }
 
     var taskCount = 0
-    fun addTask(designState: DesignState) {
+    fun addParameterSetToScore(designParameters: DesignParameters) {
         taskCount++
         synchronized(tasks) {
-            tasks.add(designState)
+            tasks.add(designParameters)
         }
     }
 

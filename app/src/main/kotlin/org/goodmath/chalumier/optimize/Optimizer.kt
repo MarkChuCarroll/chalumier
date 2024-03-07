@@ -1,177 +1,224 @@
 package org.goodmath.chalumier.optimize
 
-import kotlinx.coroutines.*
 import org.goodmath.chalumier.design.Instrument
 import org.goodmath.chalumier.design.InstrumentDesigner
-import org.goodmath.chalumier.design.DesignState
-import java.util.Random
-import kotlin.concurrent.thread
+import org.goodmath.chalumier.design.DesignParameters
 import kotlin.math.max
 
 
-data class Score(val constraintScore: Double, val score: Double): Comparable<Score> {
+/**
+ * A lot of the optimization process works with constraint scores
+ * and frequency scores. It's a lot easier to follow the code when
+ * it's written as "bestScore.frequencyScore" than "best[0][1]".
+ */
+data class Score(val constraintScore: Double, val frequencyScore: Double): Comparable<Score> {
     override operator fun compareTo(other: Score): Int {
         return if (constraintScore == 0.0 && other.constraintScore != 0.0) {
             -1
         } else {
             when (val c = constraintScore.compareTo(other.constraintScore)) {
-                0 -> score.compareTo(other.score)
+                0 -> frequencyScore.compareTo(other.frequencyScore)
                 else -> c
             }
+        }
+    }
+
+    override fun toString(): String {
+        return if (constraintScore != 0.0) {
+            "C%.6f".format(constraintScore)
+        } else {
+            "F%.6f".format(frequencyScore)
+        }
+    }
+
+}
+
+/**
+ * Similarly, we keep a list of states and scores, so
+ * a custom object makes it easier to read: candidate.state.minHoleDiameter[3]
+ * is much nicer than c[0]][11].
+ */
+data class ScoredState(
+    val score: Score,
+    val state: DesignParameters
+)
+
+/**
+ * I'm not sure why, but I was struggling the number of variable declarations
+ * in the optimizer. Clustering them into an object like this made the
+ * code easier for me to read.
+ */
+data class OptimizationState(
+    var lastReport: Long,
+    var best: DesignParameters,
+    var bestScore: Score,
+    var nGood: Int,
+    var nReal: Int,
+    var iterations: Int,
+    var poolSize: Int,
+    var currents: ArrayList<ScoredState>
+) {
+    companion object {
+        fun initialOptimizationState(
+            designer: InstrumentDesigner<*>,
+            constrainer: (DesignParameters) -> Double,
+            scorer: (DesignParameters) -> Double
+        ): OptimizationState {
+            val designState = designer.initialDesignParameters
+            val cScore = constrainer(designState)
+            val score = if (cScore == 0.0) { Score(0.0, scorer(designState))} else { Score(cScore, 0.0) }
+            return OptimizationState(
+                lastReport = System.currentTimeMillis(),
+                best = designState,
+                bestScore = score,
+                nGood = 0,
+                nReal = 0,
+                iterations =  0,
+                poolSize = (designState.size*5).toInt(),
+                currents = arrayListOf(ScoredState(score, designState)))
         }
     }
 }
 
 class Optimizer<T: Instrument<T>>(val designer: InstrumentDesigner<T>) {
-    val random = Random()
 
-
-    fun  repr(x: Score): String {
-        return if (x.constraintScore != 0.0) {
-            "C%.6f(%.6f)".format(x.constraintScore, x.score)
-        } else {
-            "%.6f(C%.6f)".format(x.score, x.constraintScore)
-        }
-    }
-
-
-
-    suspend fun improve(comment: String,
-                        designer: InstrumentDesigner<T>,
-                        constrainer: (DesignState) -> Double,
-                        scorer: (DesignState) -> Double,
-                        initialInstrument: Instrument<T>,
-                        fToL: Double = 1e-4,
-                        xToL: Double = 1e-6,
-                        initialAccuracy: Double = 0.001,
-                        monitor: (Score,
-                                  DesignState,
-                                  List<DesignState>) -> Unit = { _, _, _ -> Unit }): Instrument<T> {
-
-        var result: Instrument<T> = initialInstrument
-
-        val th = thread {
-            System.err.println("Runner started")
-            var lastT = 0L
-            var best = initialInstrument.designState!!
-            var constraintScore = constrainer(best)
-            var bestScore = if (constraintScore != 0.0) {
-                Score(constraintScore, 0.0)
-            } else {
-                Score(0.0, scorer(best))
+    fun improve(comment: String,
+                designer: InstrumentDesigner<T>,
+                constrainer: (DesignParameters) -> Double,
+                scorer: (DesignParameters) -> Double,
+                frequencyTolerance: Double = 1e-4,
+                xTolerance: Double = 1e-6,
+                initialAccuracy: Double = 0.001,
+                monitor: (Score,
+                          DesignParameters,
+                          List<DesignParameters>) -> Unit = { _, _, _ -> Unit }): Instrument<T> {
+        val opt = OptimizationState.initialOptimizationState(designer, constrainer,scorer)
+        val driver = ScoringPool(opt.poolSize, designer)
+        driver.start()
+        while (!driver.isDone() || driver.hasAvailableWorkers()) {
+            // bump iteration count and print status
+            opt.iterations++
+            val now = System.currentTimeMillis()
+            if (now - opt.lastReport > 10000) {
+                printStatus(opt)
+                if (opt.bestScore.constraintScore == 0.0) {
+                    monitor(opt.bestScore, opt.best, opt.currents.map { it.state })
+                }
             }
-            var nGood = 0
-            var nReal = 0
-            var i = 0
-            val poolSize = (best.size * 5).toInt()
-            val driver = Driver(poolSize, designer)
-            driver.start()
-            var done = false
-            var currents = listOf(Pair(best, bestScore))
 
-            while (!done || driver.hasAvailableResults()) {
-                // bump iteration count and print status
-                val now = System.currentTimeMillis()
-                if (now - lastT > 2000) {
-                    printStatus(bestScore, currents, nGood, nReal, i)
-                    lastT = now
-                    if (bestScore.constraintScore == 0.0) {
-                        monitor(bestScore, best, currents.map { it.first })
-                    }
-                }
-                i++
-                var newDesignState: DesignState? = null
-                var newScore: Score? = null
+            var newDesignParameters: DesignParameters? = null
+            var newScore: Score? = null
 
-                // If we're not done, and there's available workers waiting, we can
-                // add some new instruments to the pool.
-                if (!done && driver.hasAvailableWorkers()) {
-                    // Generate a new mutant to consider
-                    newDesignState = DesignState.generateNewDesignState(
-                            currents.map { it.first },
-                            initialAccuracy, currents.size < poolSize)
-                    constraintScore = constrainer(newDesignState)
-                    if (constraintScore > 0.0) {
-                        newScore = Score(constraintScore, 0.0)
-                    } else {
-                        driver.addTask(newDesignState)
-                    }
+            // If we're not done, and there's available workers waiting, we can
+            // add some new instruments to the pool.
+            if (!driver.isDone() && driver.hasAvailableWorkers()) {
+                // Generate a new mutant to consider
+                newDesignParameters = DesignParameters.generateNewDesign(
+                    opt.currents.map { it.state },
+                    initialAccuracy, opt.currents.size < opt.poolSize
+                )
+                val constraintScore = constrainer(newDesignParameters)
+                // If our new state satisfies all constraints, then we
+                // submit it to the work queue for evaluation.
+                if (constraintScore == 0.0) {
+                    driver.addParameterSetToScore(newDesignParameters)
+                } else {
+                    // Otherwise, add it into the current mix, and maybe
+                    // add it back to the mutation pool.
+                    newScore = Score(constraintScore, 0.0)
                 }
 
+                // If we just added a task to the work queue, then we'll
+                //  see if there are any results available from the workers.
                 if (newScore == null) {
-                    if (!driver.hasAvailableResults() || !done && !driver.hasAvailableWorkers()) {
+                    if (!driver.hasAvailableScores() || (!driver.isDone() && driver.hasAvailableWorkers())) {
                         continue
-                    } else {
-                        val (completedTaskState, completedTaskScore) = driver.getNextResult() ?: continue
-                        newScore = Score(0.0, completedTaskScore)
-                        newDesignState = completedTaskState
                     }
+                    val (completedTaskState, completedTaskScore) = driver.getNextScore() ?: continue
+                    newScore = Score(0.0, completedTaskScore)
+                    newDesignParameters = completedTaskState
                 }
 
+                // We've got a new state and score - either one
+                // that needs work on its constraints, or one that came
+                // back from the work queue with its evaluation score.
+                // So now, we're going to check if it should be added
+                // to the current candidate pool.
                 if (newScore.constraintScore == 0.0) {
-                    nReal += 1
+                    opt.nReal += 1
                 }
-                val l = currents.map { it.first[0] }.sortedBy { it }
-                val c = if (poolSize < l.size) {
-                    l[poolSize]
+                // We don't want to let the current candidate pool get too large, and
+                // it might have grown due to additions, so we need to periodically
+                // prune it to keep it at or below the number of available workers.
+                // The easy way to do that is to just sort the scores of the
+                // current pool, and then pick the cutoff value by looking at the
+                // score of the index after the desired number of entries.
+                //
+                // If the number of entries is smaller than the pool size, then
+                // we just throw away anything whos score is so large that it'll
+                // never produce a solution.
+                val orderedCurrents = opt.currents.map { it.score.frequencyScore }.sorted()
+                val c = if (opt.poolSize < orderedCurrents.size) {
+                    orderedCurrents[opt.poolSize]
                 } else {
                     1e30
                 }
-                val cutoff = Score(bestScore.constraintScore, c)
+                val cutoff = Score(opt.bestScore.constraintScore, c)
+                // Now we know a cutoff value. If our new model and score
+                // are better that the cutoff, then we drop the top value off
+                // the currentset, and add the new one in.
                 if (newScore <= cutoff) {
-                    currents = ArrayList(currents.filter { it.second <= cutoff })
-                    currents.add(Pair(newDesignState!!, newScore))
-                    nGood += 1
-                    if (newScore < bestScore) {
-                        bestScore = newScore
-                        best = newDesignState
+                    opt.currents = ArrayList(opt.currents.filter { it.score <= cutoff })
+                    opt.currents.add(ScoredState(newScore, newDesignParameters))
+                    opt.nGood += 1
+                    if (newScore < opt.bestScore) {
+                        opt.bestScore = newScore
+                        opt.best = newDesignParameters
                     }
                 }
-                if (currents.size >= poolSize && bestScore.constraintScore == 0.0) {
+
+                // Termination check: I don't entirely understand this yet, but...
+                // If we've got lots of results that satisfy the required constraints,
+                // then we check to see if it's good enough to accept as a final result.
+                if (opt.currents.size >= opt.poolSize && opt.bestScore.constraintScore == 0.0) {
+                    // xSpan is looking for the maximum distance between values
+                    // in the current pool for any parameter.
                     var xSpan = 0.0
-                    for (i in 0 until designer.initialDesignState.size) {
+                    for (i in 0 until designer.initialDesignParameters.size) {
                         xSpan = max(
                             xSpan,
-                            currents.map { it.first[i] }.max() -
-                                    currents.map { it.first[i] }.min()
+                            opt.currents.map { it.state[i] }.max() -
+                                    opt.currents.map { it.state[i] }.min()
                         )
                     }
+                    // fSpan is measuring the maximum distance between the frequency/intonation
+                    // scores in the pool and the current best candidate.
                     var fSpan =
-                        ArrayList(currents.map { it.second }).max().score - bestScore.score
-                    if (xSpan < xToL || (nGood >= 5000 && fSpan < fToL)) {
-                        done = true
+                        ArrayList(opt.currents.map { it.score }).max().frequencyScore - opt.bestScore.frequencyScore
+                    // If xSpan is smaller that the xTolerance from the original call,
+                    // and fSpan is smaller than the frequency tolerance from the call,
+                    // then we declare success.
+                    if (xSpan < xTolerance || (opt.nGood >= 5000 && fSpan < frequencyTolerance)) {
+                        driver.finish()
                     }
                 }
-                i += 1
             }
-            driver.finish()
-
-            // print status
-            synchronized(this) {
-                result = initialInstrument.copy()
-                result.designState = best
-            }
-            driver
         }
-
-        th.join()
-
-        return result
+        // print status
+        driver.joinAll()
+        return designer.makeInstrumentFromParameters(opt.best)
     }
 
     private fun<T: Instrument<T>> printStatus(
-        bestScore: Score,
-        currents: List<Pair<DesignState, Score>>,
-        nGood: Int,
-        nReal: Int,
-        i: Int
-    ) {
+        opt: OptimizationState) {
         System.err.println(
-            "Best=${repr(bestScore)}, max(currents)=${
-                repr(currents.map { it.second }.max())
+            "Best=${opt.bestScore}, max(currents)=${
+                opt.currents.map { it.score }.max()
             }"
         )
-        System.err.println("\tnumCurrents=${currents.size}, good=${nGood}, real=${nReal}, iteration=${i}")
+        System.err.println("\tnumCurrents=${opt.currents.size}, good=${opt.nGood}, real=${opt.nReal}, iteration=${opt.iterations}")
+        System.err.println("Current best state: ${opt.best}")
+        opt.lastReport = System.currentTimeMillis()
     }
 
 }
