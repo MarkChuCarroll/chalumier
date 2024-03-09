@@ -5,6 +5,8 @@ import org.goodmath.chalumier.design.Instrument
 import org.goodmath.chalumier.design.InstrumentDesigner
 import org.goodmath.chalumier.design.DesignState
 import java.util.*
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Future
 import kotlin.collections.ArrayList
 import kotlin.concurrent.thread
 
@@ -19,12 +21,12 @@ import kotlin.concurrent.thread
 data class WorkerResult(val designState: DesignState,
                         val score: Double)
 
-class Driver<T: Instrument<T>>(val poolSize: Int, val instrumentDesigner: InstrumentDesigner<T>) {
+class Driver(val poolSize: Int, val instrumentDesigner: InstrumentDesigner) {
 
     private var done: Boolean = false
     private val workerThreads = ArrayList<Thread>()
-    private val tasks = ArrayDeque<DesignState>()
-    private val results = ArrayDeque<WorkerResult>()
+    private val tasks = ArrayDeque<Pair<CompletableFuture<WorkerResult>,DesignState>>()
+    private val results = ArrayDeque<Future<WorkerResult>>()
     fun isDone(): Boolean {
         return false
     }
@@ -35,7 +37,7 @@ class Driver<T: Instrument<T>>(val poolSize: Int, val instrumentDesigner: Instru
         }
     }
 
-    class Worker<T: Instrument<T>>(val driver: Driver<T>): Runnable {
+    class Worker(val driver: Driver): Runnable {
         fun process(designState: DesignState): Double {
             val inst = driver.instrumentDesigner.makeInstrumentFromState(designState)
             return driver.instrumentDesigner.score(inst)
@@ -54,10 +56,8 @@ class Driver<T: Instrument<T>>(val poolSize: Int, val instrumentDesigner: Instru
                 if (task == null) {
                     Thread.sleep(1000)
                 } else {
-                    val result = process(task)
-                    synchronized(driver.results) {
-                        driver.results.add(WorkerResult(task, result))
-                    }
+                    val result = process(task.second)
+                    task.first.complete(WorkerResult(task.second, result))
                 }
             }
         }
@@ -88,7 +88,7 @@ class Driver<T: Instrument<T>>(val poolSize: Int, val instrumentDesigner: Instru
     fun getNextResult(): WorkerResult? {
         synchronized(results) {
             if (results.size > 0) {
-                return results.removeFirst()
+                return results.removeFirst().get()
             } else {
                 return null
             }
@@ -99,7 +99,9 @@ class Driver<T: Instrument<T>>(val poolSize: Int, val instrumentDesigner: Instru
     fun addTask(designState: DesignState) {
         taskCount++
         synchronized(tasks) {
-            tasks.add(designState)
+            val f = CompletableFuture<WorkerResult>()
+            tasks.add(Pair(f, designState))
+            results.add(f)
         }
     }
 

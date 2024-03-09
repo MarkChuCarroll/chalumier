@@ -20,7 +20,7 @@ class Design: CliktCommand() {
     val instrument by option().choice("folkflute", "pflute", "folkwhistle").required()
     val outputDir: Path by option("--output-dir").path().required()
 
-    fun makeDesigner(name: String): InstrumentDesigner<*> {
+    fun makeDesigner(name: String): InstrumentDesigner {
         return when (instrument) {
             "folkflute" -> folkFluteDesigner(outputDir)
             "pflute" -> pFluteDesigner(outputDir)

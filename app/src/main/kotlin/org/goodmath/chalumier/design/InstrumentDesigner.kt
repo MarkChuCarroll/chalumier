@@ -42,10 +42,9 @@ import kotlin.math.*
  * a little easier to understand what's going on, and to interpret
  * new states.
  */
-abstract class InstrumentDesigner<T : Instrument<T>>(
+abstract class InstrumentDesigner(
     override val name: String,
-    val protoInst: Instrument<T>,
-    val outputDir: Path): Configurable<InstrumentDesigner<T>>(name) {
+     val outputDir: Path): Configurable<InstrumentDesigner>(name) {
 
     /*
      * Start off with the configurable parameters that describe
@@ -105,7 +104,9 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
 
     open var bottomClearanceFraction by DoubleParameter("how close to the bottom are finger holes allowed to be placed?") { 0.0 }
 
-    open var scale: Double by DoubleParameter("Scaling factor to apply to the instrument specification") { 1.0 }
+    open var scale: Double by DoubleParameter("Scaling factor to apply to the instrument specification") {
+        2.0.pow(-transpose/12.0)
+    }
 
     open var minHoleSpacing by ListOfOptDoubleParameter(
         "a list of values specifying the minimum distance between pairs of holes") {
@@ -113,7 +114,7 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
     }
 
     open var maxHoleSpacing by ListOfOptDoubleParameter { c ->
-        c.numberOfHoles.repeat { c.initialLength }.toMutableList()
+        (c.numberOfHoles - 1).repeat { c.initialLength }.toMutableList()
     }
 
     open var balance by ListOfOptDoubleParameter { c -> (c.numberOfHoles - 2).repeat { null }.toMutableList() }
@@ -206,7 +207,11 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
     val initialDesignState: DesignState
         get() {
             validate()
-            return DesignState(length, initialHoleFractions, initialHoleDiameterFractions, initialInnerFractions, initialOuterFractions)
+            val result = DesignState(1.0,
+            initialHoleFractions,
+            ArrayList(initialHoleDiameterFractions.map { it * it}),
+            initialInnerFractions, initialOuterFractions)
+            return result
 
         }
 
@@ -215,65 +220,69 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
      * altered state vector and convert it back into an instrument for testing
      * and evaluation.
      */
-    fun makeInstrumentFromState(from: DesignState): Instrument<T> {
+    fun makeInstrumentFromState(from: DesignState): Instrument {
         val (innerLow, innerHigh) = lowHigh(innerDiameters)
         val (outerLow, outerHigh) = lowHigh(outerDiameters)
         val (innerAngleLow, innerAngleHigh) = lowHighOpt(innerAngles)
         val (outerAngleLow, outerAngleHigh) = lowHighOpt(outerAngles)
-        val inst = protoInst.gen()
-        inst.designState = from
-        inst.length = from.length
-        inst.holePositions = ArrayList(from.holePositions.map {
-            it * inst.length
-        })
-        inst.holeDiameters = ArrayList(from.holeAreas.mapIndexed { idx, area ->
-            minHoleDiameters[idx] + signedSqrt(area) * (maxHoleDiameters[idx] - minHoleDiameters[idx])
+        val instHolePositions = ArrayList(from.holePositions.map {
+            it * from.length
+
         })
 
-        // TODO: figure out what the deal is with pair values here.
-        val innerKinks = ArrayList(from.innerKinks.map {  it *inst.length })
-        val outerKinks = ArrayList(from.outerKinks.map { it * inst.length })
-
-        inst.inner = Profile.curvedProfile(
-            ArrayList(listOf(0.0) + innerKinks + listOf(inst.length)),
+        val innerKinks = ArrayList(from.innerKinks.map {  it * from.length })
+        val outerKinks = ArrayList(from.outerKinks.map { it * from.length })
+        val instInner = Profile.curvedProfile(
+            ArrayList(listOf(0.0) + innerKinks + listOf(from.length)),
             innerLow,
             innerHigh,
             innerAngleLow,
             innerAngleHigh
         )
-
-        inst.outer = Profile.curvedProfile(
-            ArrayList(listOf(0.0) + outerKinks + listOf(inst.length)),
+        val instOuterBase = Profile.curvedProfile(
+            ArrayList(listOf(0.0) + outerKinks + listOf(from.length)),
             outerLow,
             outerHigh,
             outerAngleLow,
             outerAngleHigh
         )
-
-        if (outerAdd) {
-            inst.outer += inst.inner
+        val instOuter = if (outerAdd) {
+            instOuterBase + instInner
+        } else {
+            instOuterBase
         }
 
-        inst.holeAngles = holeAngles
-        inst.innerHolePositions = ArrayList(numberOfHoles.repeat { 0.0 })
-        inst.holeLengths = ArrayList(numberOfHoles.repeat { 0.0 })
+
+        //val instHoleAngles = holeAngles
+        val instInnerHolePositions = ArrayList(numberOfHoles.repeat { 0.0 })
+        val instHoleLengths = ArrayList(numberOfHoles.repeat { 0.0 })
 
         (0 until numberOfHoles).forEach { i ->
             // ph: Note: approximates bore as cylindrical calculating shift, length
-            val radians = inst.holeAngles[i] * PI / 180.0
-            val thickness = (inst.outer(inst.holePositions[i]) - inst.inner(inst.holePositions[i])) * 0.5
+            val radians = holeAngles[i] * PI / 180.0
+            val thickness = (instOuter(instHolePositions[i]) - instInner(instHolePositions[i])) * 0.5
             val shift = sin(radians) * thickness
 
-            inst.innerHolePositions[i] = inst.holePositions[i] + shift
-            inst.holeLengths[i] = (sqrt(thickness * thickness + shift * shift))
+            instInnerHolePositions[i] = instHolePositions[i] + shift
+            instHoleLengths[i] = (sqrt(thickness * thickness + shift * shift))
             // ph: #+ self.hole_extra_height_by_diameter[i] * inst.hole_diameters[i]
-            inst.innerKinks = innerKinks
-            inst.outerKinks = outerKinks
-
-            inst.coneStep = coneStep
-            inst.closedTop = closedTop
         }
-        return inst
+        return Instrument(name,
+            length = from.length,
+            closedTop=closedTop,
+            coneStep=coneStep,
+            holeAngles = holeAngles,
+            holeDiameters = ArrayList(from.holeAreas.mapIndexed { idx, area ->
+                    minHoleDiameters[idx] + signedSqrt(area) * (maxHoleDiameters[idx] - minHoleDiameters[idx])
+            }),
+            holeLengths = instHoleLengths,
+            holePositions = instHolePositions,
+            inner = instInner,
+            outer = instOuter,
+            innerHolePositions = instInnerHolePositions,
+            numberOfHoles = numberOfHoles,
+            innerKinks = innerKinks,
+            outerKinks = outerKinks)
     }
 
     /**
@@ -281,7 +290,7 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
      * well the instrument matches its requirements. If the constraint score is 0,
      * then it's a perfect match.
      */
-    fun constraintScore(inst: Instrument<T>): Double {
+    fun constraintScore(inst: Instrument): Double {
         val scores = ArrayList<Double>()
         scores.add(inst.length)
 
@@ -348,11 +357,11 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
                         ))
             }
         }
-        return scores.sumOf { x -> -x }
+        return scores.sumOf { x -> if (x < 0) {-x} else {x} }
     }
 
     /** ph: Hook to modify instrument before scoring. */
-    open fun patchInstrument(inst: Instrument<T>): Instrument<T> {
+    open fun patchInstrument(inst: Instrument): Instrument {
         return inst
     }
 
@@ -368,7 +377,7 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
     /**
      * Compute an evaluation score for the instruments intonation and emission.
      */
-    fun score(i: Instrument<T>): Double {
+    fun score(i: Instrument): Double {
         val inst = patchInstrument(i)
         var score = 0.0
         var div = 0.0
@@ -385,13 +394,14 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
         // with the desired, and then express tha difference in cents.
         // This is a conversion factor for doing that.
         val s = 1200.0 / ln(2.0)
-        for (item in fingerings) {
-            val fingers = item.fingers
-            val desiredWavelength = item.wavelength(transpose)
-            val actualWavelength = if (item.nth == null) {
+        for (idx in fingerings.indices) {
+            val fingering = fingerings[idx]
+            val fingers = fingering.fingers
+            val desiredWavelength = fingering.wavelength(transpose)
+            val actualWavelength = if (fingering.nth == null) {
                 inst.trueWavelengthNear(desiredWavelength, fingers)
             } else {
-                inst.trueNthWavelengthNear(desiredWavelength, fingers, item.nth)
+                inst.trueNthWavelengthNear(desiredWavelength, fingers, fingering.nth)
             }
             val diff = abs(ln(desiredWavelength) - ln(actualWavelength)) * s
             val weight = 1.0
@@ -425,7 +435,7 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
 
     private fun drawInstrumentOntoDiagram(
         diagram: Diagram,
-        instrument: Instrument<T>,
+        instrument: Instrument,
         color: String = "#000000",
         redColor: String = "#ff0000"
     ) {
@@ -606,10 +616,9 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
         if (!outputDir.exists()) {
             outputDir.createDirectory()
         }
-        val initialInstrument = protoInst.gen()
-        initialInstrument.designState = initialDesignState
-        val newInstrument = improve( constrainer, scorer, makeInstrumentFromState(initialDesignState), monitor = saver)
-        save(Score(Double.NaN, Double.NaN), newInstrument.designState!!)
+        val initialState = initialDesignState
+        val newInstrument = improve(constrainer, scorer, initialDesignState, monitor = saver)
+        save(Score(Double.NaN, Double.NaN), newInstrument)
     }
 
     open fun scaler(values: List<Double?>): ArrayList<Double?> {
@@ -646,13 +655,12 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
 
     fun improve(constrainer: (DesignState) -> Double,
                 scorer: (DesignState) -> Double,
-                instrument: Instrument<T>,
-                monitor: (Score, DesignState, List<DesignState>) -> Unit): Instrument<T> {
+                initialDesignState: DesignState,
+                monitor: (Score, DesignState, List<DesignState>) -> Unit): DesignState {
         val optimizer = Optimizer(this)
         val designer = this
-        return runBlocking {
-            optimizer.improve("comment", designer, constrainer, scorer, instrument, monitor=monitor)
-        }
+        return optimizer.improve("comment", designer, constrainer, scorer, initialDesignState, monitor=monitor)
+
     }
 
 
@@ -663,10 +671,9 @@ abstract class InstrumentDesigner<T : Instrument<T>>(
 
 }
 
-abstract class InstrumentDesignerWithBoreScale<T : Instrument<T>>(override val name: String,
-                                                                   protoInst: Instrument<T>,
-                                                                   outputDir: Path):
-    InstrumentDesigner<T>(name, protoInst, outputDir) {
+abstract class InstrumentDesignerWithBoreScale(override val name: String,
+                                                                                                                                      outputDir: Path):
+    InstrumentDesigner(name, outputDir) {
 
     open fun boreScaler(value: List<Double?>, maximum: Double = 1e30): ArrayList<Double?> {
         val scale = sqrt(scale) * boreScale
@@ -785,14 +792,12 @@ data class DesignState(
             // Calculate the weights that we'll use for the different input states
             // to update our instrument.  We're going to try for a gaussian distribution of
             // weights, so we'll start by setting a threshold for the stddev.
-            val weightStdDev = (1.0 + 2.0 * random.nextDouble()) / (numberOfStates.toDouble().pow(0.5))
+            val weightStdDev = (1.0 + 2.0 * random.nextDouble()) / sqrt(numberOfStates.toDouble())
             val randomWeights = (0 until numberOfStates).map { random.nextGaussian(0.0, weightStdDev) }.toList()
             // We're looking for the weights to be distributed around zero, so we compute the
             // mean, and then subtract it from each weight.
             val offset = randomWeights.average()
             val weights = ArrayList(randomWeights.map { weight -> weight - offset })
-            // TODO: I'm not sure why ph added another random number.
-            weights.add(random.nextDouble())
             // Randomly pick one state and increase it's weight?
             weights[random.nextInt(numberOfStates)] += 1.0
             // Maybe inject extra noise.

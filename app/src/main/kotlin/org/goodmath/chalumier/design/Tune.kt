@@ -17,7 +17,7 @@ package org.goodmath.chalumier.design
 
 import kotlin.math.max
 
- class Working<T: InstrumentDesigner<U>, U: Instrument<U>>(
+ class Working<T: InstrumentDesigner>(
     val designer: T
 ) {
     val parameters = HashMap<String, Double>()
@@ -36,8 +36,8 @@ import kotlin.math.max
  *          whether each finger hole is open (0) or closed (1)
  *          (from bottom to top).
  */
-open class Tune<D: InstrumentDesigner<T>, T: Instrument<T>>(val designer: D) {
-    val working = Working<D, T>(designer)
+open class Tune<D: InstrumentDesigner>(val designer: D) {
+    val working = Working<D>(designer)
 
     /*
     open var tweak: List<String> by ConfigurationParameter {

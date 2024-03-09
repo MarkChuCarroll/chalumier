@@ -408,3 +408,14 @@ object ProfileParameterKind: ParameterKind<Profile> {
         }
     }
 }
+
+fun main() {
+    val pos = arrayListOf(100.0, 200.0, 300.0, 400.0)
+    val low = arrayListOf(40.0, 50.0, 60.0, 60.0)
+    val high = arrayListOf(60.0, 70.0, 80.0, 70.0)
+    val lowAngle: ArrayList<Angle?> = arrayListOf(null, null, null, null)
+    val highAngle: ArrayList<Angle?> = arrayListOf(null, null, null, null)
+    System.err.println(Profile.curvedProfile(pos, low, high, lowAngle, highAngle))
+    System.err.println(Profile.curvedProfile(pos, low, high, lowAngle, highAngle).asStepped(0.125))
+
+}

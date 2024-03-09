@@ -22,11 +22,7 @@ import java.nio.file.Path
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-abstract class Flute<T: Flute<T>>(override val name: String) : Instrument<T>(name) {
-
-}
-
-open class FluteDesigner<T : Flute<T>>(override val name: String, protoInst: Flute<T>, outputDir: Path) : InstrumentDesigner<T>(name, protoInst, outputDir) {
+open class FluteDesigner(override val name: String, outputDir: Path) : InstrumentDesigner(name, outputDir) {
 
     /* ph:
       2.5/8 = 0.3    ~ 20 cents flat
@@ -45,7 +41,7 @@ open class FluteDesigner<T : Flute<T>>(override val name: String, protoInst: Flu
     override var initialLength by DoubleParameter { wavelength("D4") * 0.5 }
 
 
-    override fun patchInstrument(inst: Instrument<T>): Instrument<T> {
+    override fun patchInstrument(inst: Instrument): Instrument {
         val newInst = inst.copy()
         newInst.holeLengths[inst.holeLengths.size - 1] += (inst.holeDiameters.fromEnd(1) * embExtra)
         return newInst
@@ -188,14 +184,11 @@ open class FluteDesigner<T : Flute<T>>(override val name: String, protoInst: Flu
     }
 }
 
-open class TaperedFluteDesigner(override val name: String,
-    protoInst: Flute<TaperedFlute>, dir: Path
-) : FluteDesigner<TaperedFlute>(name, protoInst, dir) {
+open class TaperedFluteDesigner(override val name: String, dir: Path
+) : FluteDesigner(name, dir) {
     open var innerTaper: Double by ConfigParameter(DoubleParameterKind, "Amount of tapering of bore. Smaller = more tapered.") {
         0.75
     }
-
-    override var numberOfHoles by IntParameter { protoInst.numberOfHoles  }
 
     open var outerTaper: Double by ConfigParameter(DoubleParameterKind, "Amount of tapering of exterior. Smaller = more tapered.") {
         0.85
@@ -250,17 +243,12 @@ open class TaperedFluteDesigner(override val name: String,
 
 }
 
-class TaperedFlute(override val name: String): Flute<TaperedFlute>(name) {
-    override val gen = { TaperedFlute(name) }
-    override var numberOfHoles by IntParameter { 7 }
-}
-
 
 /**
  * Design a flute with a recorder-like fingering system.
  */
 fun pFluteDesigner(outputDir: Path): TaperedFluteDesigner {
-    val flute = TaperedFluteDesigner("pFlute", TaperedFlute("pFlute"), outputDir)
+    val flute = TaperedFluteDesigner("pFlute", outputDir)
 
     flute.fingerings = FluteDesigner.fingeringsWithEmbouchure(FluteDesigner.pFluteFingers)
     flute.balance = arrayListOf(0.1, null, null, 0.05)
@@ -277,7 +265,6 @@ fun pFluteDesigner(outputDir: Path): TaperedFluteDesigner {
  */
 fun folkFluteDesigner(outputDir: Path): TaperedFluteDesigner {
     val flute = TaperedFluteDesigner("FolkFlute",
-        TaperedFlute("FolkFlute"),
         outputDir)
     flute.numberOfHoles = 7
     flute.fingerings = FluteDesigner.fingeringsWithEmbouchure(FluteDesigner.folkFingerings)

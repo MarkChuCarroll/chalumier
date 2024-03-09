@@ -17,6 +17,7 @@ package org.goodmath.chalumier.design
 
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.errors.RequiredParameterException
+import org.goodmath.chalumier.util.fromEnd
 import org.goodmath.chalumier.util.repeat
 import org.kotlinmath.Complex
 import org.kotlinmath.R
@@ -31,13 +32,11 @@ import kotlin.math.*
  * All the original comments from the Python are here, prefixed with "ph:".
  */
 
-fun <T> ArrayList<T>.fromEnd(i: Int): T = this[this.size - i]
-
 
 fun length(x: Double, y: Double): Double = sqrt(x * x + y * y)
 
 
-const val FourPi = PI * 4
+
 
 /**
  * ph: frequency response of a tree of connected pipes depends on area.
@@ -71,105 +70,57 @@ data class Event(
 
 
 
-abstract class Instrument<T: Instrument<T>>(override val name: String): Configurable<Instrument<T>>(name) {
-    abstract val gen: () -> Instrument<T>
+class Instrument(
+    override val name: String,
+    open var length: Double,
+    open var inner: Profile,
+    open var outer: Profile,
+    val innerKinks: ArrayList<Double>,
+    val outerKinks: ArrayList<Double>,
+    val numberOfHoles: Int,
+    val holePositions: ArrayList<Double>,
+    val holeAngles: ArrayList<Double>,
+    val innerHolePositions: ArrayList<Double>,
+    val holeLengths: ArrayList<Double>,
+    val holeDiameters: ArrayList<Double>,
+    val closedTop: Boolean,
+    val coneStep: Double): Configurable<Instrument>(name) {
 
-    fun copy(): Instrument<T> {
-        val newInst = gen()
-        val dumped = toJson()
-        newInst.fromJson(dumped)
-        return newInst
-    }
-
-    var designState: DesignState? = null
-
-    //  ph: length
-    open var length: Double by DoubleParameter { 0.0 }
-
-    open var trueLength: Double by DoubleParameter {
-        length
-    }
-
-    // inner profile, diameters
-    open var inner: Profile by ConfigParameter(ProfileParameterKind) { throw RequiredParameterException("inner profile") }
-
-    // ph: outer profile, diameters
-    open var outer: Profile by ConfigParameter(ProfileParameterKind) { throw RequiredParameterException("outer profile") }
-
-    open var numberOfHoles: Int by IntParameter { throw RequiredParameterException("number of holes") }
-
-    // ph: hole positions on outside
-    open var holePositions by ListOfDoubleParameter { throw RequiredParameterException("holePositions") }
-
-    // ph: angle of hole in degrees, up positive, down negative
-    open var holeAngles by ListOfDoubleParameter {
-        ArrayList(it.numberOfHoles.repeat { 0.0 })
-    }
-
-
-    // ph: hole positions in bore
-    // markcc: In ph's code, if these weren't set, then they were auto-initialized to None.
-    // But if you then called prepare, shit would explode.
-    open var innerHolePositions by ListOfDoubleParameter {
-        // ph: roughly ArrayList(it.numberOfHoles.repeat { null })
-        throw RequiredParameterException("innerHolePositions")
-    }
-
-    // ph: length of hole through instrument wall (perhaps plus an embouchure correction)
-    open var holeLengths by ListOfDoubleParameter {
-        ArrayList(it.numberOfHoles.repeat { 0.0 })
-    }
-
-    // ph: hole diameters
-    open var holeDiameters by ListOfDoubleParameter { throw RequiredParameterException("hole diameters") }
-
-    // ph: is the mouthpiece closed (eg reed) or open (eg ney)
-    open var closedTop: Boolean by ConfigParameter(BooleanParameterKind) { false }
-
-    // ph: inner profile step size for conical segments of inner profile
-    open var coneStep: Double by DoubleParameter { 0.125 }
-
-    open var innerKinks by ListOfDoubleParameter {
-        throw RequiredParameterException("innerKinks")
-    }
-
-    open var outerKinks by ListOfDoubleParameter {
-        throw RequiredParameterException("outerKinks")
-    }
-
-    // ph: Then call:
-    //   .prepare() to prepare  for queries
-    //   .evaluate(wavelength)
-
-    open var steppedInner by ConfigParameter(ProfileParameterKind) {
-        inner.asStepped(coneStep)
-    }
-
+    var trueLength: Double = length
     private val actions = ArrayList<ActionFunction>()
     private val actionsPhase = ArrayList<PhaseActionFunction>()
     private val initialEmission = ArrayList<Double>()
     open var emissionDivide by DoubleParameter { 1.0 }
     open var scale by DoubleParameter { 1.0  }
 
+    lateinit var steppedInner: Profile
+
+    fun copy(): Instrument {
+        throw NotImplementedError()
+    }
+
+
     fun prepare() {
         steppedInner = inner.asStepped(coneStep)
+        System.err.println("Stepped inner = ${steppedInner}")
         val events = arrayListOf(
             Event(length, "end")
         )
-        steppedInner.pos.forEachIndexed { i, p ->
-            if (0.0 < p && p < length) {
-                events.add(Event(p, "step", i))
+        steppedInner.pos.forEachIndexed { i, pos ->
+            if (0.0 < pos && pos < length) {
+                events.add(Event(pos, "step", i))
             }
         }
         innerHolePositions.forEachIndexed { i, p ->
             events.add(Event(p, "hole", i))
         }
         events.sortBy { it.position }
-
+        actions.clear()
         var position = -endFlangeLengthCorrection(
             outer(0.0, true), steppedInner(0.0, true)
         )
         var diameter = steppedInner(0.0, true)
+        initialEmission.clear()
         initialEmission.add(circleArea(diameter))
 
         events.forEach { event ->
@@ -208,7 +159,6 @@ abstract class Instrument<T: Instrument<T>>(override val name: String): Configur
                 val holeFunc: ActionFunction = { reply, wavelength, fingers, emission ->
                     val index = event.index
 
-                    // TODO: again, with the complex. Not sure what I'm supposedto do with this yet...
                     val holeReply: Complex = if (fingers[index] != 0.0) {
                         pipeReply(1.0.R, closedLength / wavelength)
                     } else {
@@ -230,6 +180,7 @@ abstract class Instrument<T: Instrument<T>>(override val name: String): Configur
             }
         }
         emissionDivide = circleArea(diameter)
+        System.err.println(toJson())
     }
 
     fun resonanceScore(wavelength: Double, fingers: List<Double>, calcEmission: Boolean = false): Pair<Double, ArrayList<Double>?> {
@@ -275,7 +226,9 @@ abstract class Instrument<T: Instrument<T>>(override val name: String): Configur
      * ph: phase version
      */
     fun preparePhase() {
+        actionsPhase.clear()
         val events = arrayListOf(Event(length, "end"))
+        System.err.println("STepped inner = ${steppedInner}")
         steppedInner.pos.forEachIndexed { i: Int, pos: Double ->
             if (0.0 < pos && pos < length) {
                 events.add(Event(pos, "step", i))

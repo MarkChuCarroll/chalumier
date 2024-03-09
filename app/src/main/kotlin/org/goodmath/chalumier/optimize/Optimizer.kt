@@ -22,7 +22,7 @@ data class Score(val constraintScore: Double, val score: Double): Comparable<Sco
     }
 }
 
-class Optimizer<T: Instrument<T>>(val designer: InstrumentDesigner<T>) {
+class Optimizer(val designer: InstrumentDesigner) {
     val random = Random()
 
 
@@ -36,24 +36,24 @@ class Optimizer<T: Instrument<T>>(val designer: InstrumentDesigner<T>) {
 
 
 
-    suspend fun improve(comment: String,
-                        designer: InstrumentDesigner<T>,
-                        constrainer: (DesignState) -> Double,
-                        scorer: (DesignState) -> Double,
-                        initialInstrument: Instrument<T>,
-                        fToL: Double = 1e-4,
-                        xToL: Double = 1e-6,
-                        initialAccuracy: Double = 0.001,
-                        monitor: (Score,
-                                  DesignState,
-                                  List<DesignState>) -> Unit = { _, _, _ -> Unit }): Instrument<T> {
+    fun improve(comment: String,
+                designer: InstrumentDesigner,
+                constrainer: (DesignState) -> Double,
+                scorer: (DesignState) -> Double,
+                initialDesignState: DesignState,
+                fToL: Double = 1e-4,
+                xToL: Double = 1e-6,
+                initialAccuracy: Double = 0.001,
+                monitor: (Score,
+                          DesignState,
+                          List<DesignState>) -> Unit = { _, _, _ -> Unit }): DesignState {
 
-        var result: Instrument<T> = initialInstrument
+        var result: DesignState = initialDesignState
 
         val th = thread {
             System.err.println("Runner started")
             var lastT = 0L
-            var best = initialInstrument.designState!!
+            var best = initialDesignState
             var constraintScore = constrainer(best)
             var bestScore = if (constraintScore != 0.0) {
                 Score(constraintScore, 0.0)
@@ -63,11 +63,12 @@ class Optimizer<T: Instrument<T>>(val designer: InstrumentDesigner<T>) {
             var nGood = 0
             var nReal = 0
             var i = 0
-            val poolSize = (best.size * 5).toInt()
+            val poolSize = 8
             val driver = Driver(poolSize, designer)
             driver.start()
             var done = false
             var currents = listOf(Pair(best, bestScore))
+            val currentsMaxLen = (best.size * 5).toInt()
 
             while (!done || driver.hasAvailableResults()) {
                 // bump iteration count and print status
@@ -89,9 +90,9 @@ class Optimizer<T: Instrument<T>>(val designer: InstrumentDesigner<T>) {
                     // Generate a new mutant to consider
                     newDesignState = DesignState.generateNewDesignState(
                             currents.map { it.first },
-                            initialAccuracy, currents.size < poolSize)
+                            initialAccuracy, currents.size < currentsMaxLen)
                     constraintScore = constrainer(newDesignState)
-                    if (constraintScore > 0.0) {
+                    if (constraintScore != 0.0) {
                         newScore = Score(constraintScore, 0.0)
                     } else {
                         driver.addTask(newDesignState)
@@ -112,8 +113,8 @@ class Optimizer<T: Instrument<T>>(val designer: InstrumentDesigner<T>) {
                     nReal += 1
                 }
                 val l = currents.map { it.first[0] }.sortedBy { it }
-                val c = if (poolSize < l.size) {
-                    l[poolSize]
+                val c = if (currentsMaxLen < l.size) {
+                    l[currentsMaxLen]
                 } else {
                     1e30
                 }
@@ -127,7 +128,7 @@ class Optimizer<T: Instrument<T>>(val designer: InstrumentDesigner<T>) {
                         best = newDesignState
                     }
                 }
-                if (currents.size >= poolSize && bestScore.constraintScore == 0.0) {
+                if (currents.size >= currentsMaxLen && bestScore.constraintScore == 0.0) {
                     var xSpan = 0.0
                     for (i in 0 until designer.initialDesignState.size) {
                         xSpan = max(
@@ -146,20 +147,14 @@ class Optimizer<T: Instrument<T>>(val designer: InstrumentDesigner<T>) {
             }
             driver.finish()
 
-            // print status
-            synchronized(this) {
-                result = initialInstrument.copy()
-                result.designState = best
-            }
-            driver
+            result = best
         }
-
         th.join()
 
         return result
     }
 
-    private fun<T: Instrument<T>> printStatus(
+    private fun printStatus(
         bestScore: Score,
         currents: List<Pair<DesignState, Score>>,
         nGood: Int,

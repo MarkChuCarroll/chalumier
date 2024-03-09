@@ -153,6 +153,8 @@ fun holeLengthCorrection(holeDiameter: Double, boreDiameter: Double, closed: Boo
     return a * (innerCorrection + outerCorrection)
 }
 
+const val FourPi = PI * 4
+
 fun cornuYx(t: Double, mirror: Boolean): Pair<Double, Double> {
     // ph: Reparamaterize for constant absolute rate of turning
     val newT = sqrt(abs(t)) * (if (t > 0) 1 else -1)
