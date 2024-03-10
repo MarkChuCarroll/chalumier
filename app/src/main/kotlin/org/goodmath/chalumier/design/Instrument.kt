@@ -70,7 +70,7 @@ data class Event(
 
 
 
-class Instrument(
+data class Instrument(
     override val name: String,
     open var length: Double,
     open var inner: Profile,
@@ -93,16 +93,21 @@ class Instrument(
     open var emissionDivide by DoubleParameter { 1.0 }
     open var scale by DoubleParameter { 1.0  }
 
-    lateinit var steppedInner: Profile
+    var steppedInner: Profile = inner.asStepped(0.125)
 
-    fun copy(): Instrument {
-        throw NotImplementedError()
+    fun dup(): Instrument {
+        val result = Instrument(name,
+            length, inner, outer, innerKinks, outerKinks, numberOfHoles, holePositions,
+            holeAngles, innerHolePositions, holeLengths, holeDiameters, closedTop, coneStep)
+        result.trueLength = trueLength
+        result.emissionDivide = emissionDivide
+        result.scale = scale
+        result.steppedInner = steppedInner
+        return result
     }
-
 
     fun prepare() {
         steppedInner = inner.asStepped(coneStep)
-        System.err.println("Stepped inner = ${steppedInner}")
         val events = arrayListOf(
             Event(length, "end")
         )
@@ -180,7 +185,6 @@ class Instrument(
             }
         }
         emissionDivide = circleArea(diameter)
-        System.err.println(toJson())
     }
 
     fun resonanceScore(wavelength: Double, fingers: List<Double>, calcEmission: Boolean = false): Pair<Double, ArrayList<Double>?> {
@@ -228,7 +232,6 @@ class Instrument(
     fun preparePhase() {
         actionsPhase.clear()
         val events = arrayListOf(Event(length, "end"))
-        System.err.println("STepped inner = ${steppedInner}")
         steppedInner.pos.forEachIndexed { i: Int, pos: Double ->
             if (0.0 < pos && pos < length) {
                 events.add(Event(pos, "step", i))

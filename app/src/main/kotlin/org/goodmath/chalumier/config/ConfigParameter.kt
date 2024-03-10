@@ -34,35 +34,42 @@ import kotlin.reflect.KProperty
 open class ConfigParameter<T: Configurable<T>, V>(
     val kind: ParameterKind<V>,
     val help: String = "",
-    var num: Int = -1,
     var gen: (T) -> V) {
 
+    var name: String? = null
 
-    var v: V? = null
+    private object UNITIALIZED
+
+    var v: Any? = UNITIALIZED
+
+    var i = 0
+
     operator fun provideDelegate(
         thisRef: T,
         prop: KProperty<*>
     ): ConfigParameter<T, V> {
-        this.num = thisRef.myNum
-        val p = thisRef.getConfigParameterByName(prop.name)
-        if (p != null) {
-            val toOverwrite = p as ConfigParameter<T, V>
-            toOverwrite.gen = gen
-            toOverwrite.v = null
-            return toOverwrite
-        } else {
-            thisRef.addConfigParameter(prop.name, this)
-            return this
-        }
+        this.name = prop.name
+        thisRef.addConfigParameter(prop.name, this)
+        return this
     }
 
+
+    @Suppress("UNCHECKED_CAST")
     fun get(thisRef: T): V {
-        val result = v ?: gen(thisRef)
-        set(result)
-        return result
+        return if (v == UNITIALIZED) {
+            synchronized(this) {
+                v = gen(thisRef)
+                v as V
+            }
+        } else {
+            v as V
+        }
+
     }
 
     fun set(value: V) {
+        i++
+        System.err.println("Setting property ${name} to ${value}($i)")
         v = value
     }
 

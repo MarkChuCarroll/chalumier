@@ -29,6 +29,8 @@ import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.io.path.*
 import kotlin.math.*
+import kotlin.properties.ReadWriteProperty
+import kotlin.reflect.KProperty
 
 
 /**
@@ -46,11 +48,12 @@ abstract class InstrumentDesigner(
     override val name: String,
      val outputDir: Path): Configurable<InstrumentDesigner>(name) {
 
+
+
     /*
      * Start off with the configurable parameters that describe
      * our instrument.
      */
-
     open var fingerings by ConfigParameter(ListOfFingeringsKind,"list of specifications of fingerings and the notes they should produce") {
         throw RequiredParameterException("fingerings")
     }
@@ -104,13 +107,13 @@ abstract class InstrumentDesigner(
 
     open var bottomClearanceFraction by DoubleParameter("how close to the bottom are finger holes allowed to be placed?") { 0.0 }
 
-    open var scale: Double by DoubleParameter("Scaling factor to apply to the instrument specification") {
+  open var scale: Double by DoubleParameter("Scaling factor to apply to the instrument specification") {
         2.0.pow(-transpose/12.0)
     }
 
     open var minHoleSpacing by ListOfOptDoubleParameter(
         "a list of values specifying the minimum distance between pairs of holes") {
-        it.numberOfHoles.repeat { 0.0 }.toMutableList()
+        (it.numberOfHoles-1).repeat { 0.0 }.toMutableList()
     }
 
     open var maxHoleSpacing by ListOfOptDoubleParameter { c ->
@@ -121,6 +124,7 @@ abstract class InstrumentDesigner(
     open var holeAngles by ListOfDoubleParameter { it.numberOfHoles.repeat { 0.0 }.toMutableList() }
 
     open var initialInnerFractions by ListOfDoubleParameter { c ->
+        System.err.println("!!!!!!!!!!!!!!!!!!!!!!")
         (c.innerDiameters.size - 2).repeat { (it + 1.0) / (c.innerDiameters.size - 1) }.toMutableList()
     }
 
@@ -151,6 +155,9 @@ abstract class InstrumentDesigner(
     }
 
     open var initialHoleFractions by ListOfDoubleParameter { c ->
+        System.err.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        System.err.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        System.err.println("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
         c.numberOfHoles.repeat { (it + 3.0) / (c.numberOfHoles + 2) * 0.5 }.toMutableList()
     }
 
@@ -204,16 +211,14 @@ abstract class InstrumentDesigner(
      * to produce the initial state - from there, the optimizer will be
      * generating variations on it.
      */
-    val initialDesignState: DesignState
-        get() {
-            validate()
-            val result = DesignState(1.0,
+    fun initialDesignState(): DesignState {
+        validate()
+        val result = DesignState.make(1.0,
             initialHoleFractions,
             ArrayList(initialHoleDiameterFractions.map { it * it}),
             initialInnerFractions, initialOuterFractions)
-            return result
-
-        }
+        return result
+    }
 
     /**
      * When the optimizer changes a state, we need to be able to take that
@@ -221,26 +226,26 @@ abstract class InstrumentDesigner(
      * and evaluation.
      */
     fun makeInstrumentFromState(from: DesignState): Instrument {
+        val length = from.length * initialLength * scale
         val (innerLow, innerHigh) = lowHigh(innerDiameters)
         val (outerLow, outerHigh) = lowHigh(outerDiameters)
         val (innerAngleLow, innerAngleHigh) = lowHighOpt(innerAngles)
         val (outerAngleLow, outerAngleHigh) = lowHighOpt(outerAngles)
         val instHolePositions = ArrayList(from.holePositions.map {
-            it * from.length
-
+            it * length
         })
 
-        val innerKinks = ArrayList(from.innerKinks.map {  it * from.length })
-        val outerKinks = ArrayList(from.outerKinks.map { it * from.length })
+        val innerKinks = ArrayList(from.innerKinks.map {  it * length })
+        val outerKinks = ArrayList(from.outerKinks.map { it * length })
         val instInner = Profile.curvedProfile(
-            ArrayList(listOf(0.0) + innerKinks + listOf(from.length)),
+            ArrayList(listOf(0.0) + innerKinks + listOf(length)),
             innerLow,
             innerHigh,
             innerAngleLow,
             innerAngleHigh
         )
         val instOuterBase = Profile.curvedProfile(
-            ArrayList(listOf(0.0) + outerKinks + listOf(from.length)),
+            ArrayList(listOf(0.0) + outerKinks + listOf(length)),
             outerLow,
             outerHigh,
             outerAngleLow,
@@ -268,7 +273,7 @@ abstract class InstrumentDesigner(
             // ph: #+ self.hole_extra_height_by_diameter[i] * inst.hole_diameters[i]
         }
         return Instrument(name,
-            length = from.length,
+            length = length,
             closedTop=closedTop,
             coneStep=coneStep,
             holeAngles = holeAngles,
@@ -285,6 +290,8 @@ abstract class InstrumentDesigner(
             outerKinks = outerKinks)
     }
 
+
+    var i: Int = 0
     /**
      * Compute a constraint score for the instrument, which describes how
      * well the instrument matches its requirements. If the constraint score is 0,
@@ -293,7 +300,6 @@ abstract class InstrumentDesigner(
     fun constraintScore(inst: Instrument): Double {
         val scores = ArrayList<Double>()
         scores.add(inst.length)
-
         val ml = maxLength
         if (ml != null) {
             scores.add(ml * scale - inst.length)
@@ -328,16 +334,16 @@ abstract class InstrumentDesigner(
         scores.add((1.0 - topClearanceFraction) * inst.length - inst.holePositions.last())
 
         // Check that the holes are within their min and max separation bounds.
-        for (idx in 0 until inst.holePositions.size - 1) {
+        for (idx in 0 until minHoleSpacing.size) {
             val minSpacing = minHoleSpacing[idx]
             if (minSpacing != null) {
                 scores.add((inst.holePositions[idx + 1] - inst.holePositions[idx]) - minSpacing)
             }
         }
-        for (i in 0 until maxHoleSpacing.size) {
-            val spacing = maxHoleSpacing[i]
+        for (idx in 0 until maxHoleSpacing.size) {
+            val spacing = maxHoleSpacing[idx]
             if (spacing != null) {
-                scores.add(spacing - (inst.holePositions[i + 1] - inst.holePositions[i]))
+                scores.add(spacing - (inst.holePositions[idx + 1] - inst.holePositions[idx]))
             }
         }
 
@@ -357,7 +363,13 @@ abstract class InstrumentDesigner(
                         ))
             }
         }
-        return scores.sumOf { x -> if (x < 0) {-x} else {x} }
+        val negScores = scores.filter { it < -0.05  }.map { -it }
+//        System.err.println("negScores = ${negScores}")
+        return if (negScores.isNotEmpty()) {
+            negScores.sum()
+        } else {
+            0.0
+        }
     }
 
     /** ph: Hook to modify instrument before scoring. */
@@ -616,8 +628,8 @@ abstract class InstrumentDesigner(
         if (!outputDir.exists()) {
             outputDir.createDirectory()
         }
-        val initialState = initialDesignState
-        val newInstrument = improve(constrainer, scorer, initialDesignState, monitor = saver)
+        val initialState = initialDesignState()
+        val newInstrument = improve(constrainer, scorer, initialState, monitor = saver)
         save(Score(Double.NaN, Double.NaN), newInstrument)
     }
 
@@ -704,7 +716,7 @@ abstract class InstrumentDesignerWithBoreScale(override val name: String,
  * For example, the holePositions are stored in the state as fractions
  * of the instrument's body length.
  */
-data class DesignState(
+data class DesignState private constructor(
     var length: Double,
     var holePositions: ArrayList<Double>,
     var holeAreas: ArrayList<Double>,
@@ -783,29 +795,53 @@ data class DesignState(
         return result
     }
 
+    fun copy(): DesignState =
+        make(length, holePositions, holeAreas, innerKinks, outerKinks)
+
     companion object {
-        val random = Random()
-        fun generateNewDesignState(designStates: List<DesignState>, initialAccuracy: Double, doNoiseOpt: Boolean): DesignState {
-            val doNoise = doNoiseOpt || random.nextDouble() < 0.1
+
+        fun make(length: Double,
+            holePositions: ArrayList<Double>,
+            holeAreas: ArrayList<Double>,
+            innerKinks: ArrayList<Double>,
+            outerKinks: ArrayList<Double>): DesignState {
+            val hpCopy = ArrayList<Double>()
+            hpCopy.addAll(holePositions)
+            val haCopy = ArrayList<Double>()
+            haCopy.addAll(holeAreas)
+            val ikCopy = ArrayList<Double>()
+            ikCopy.addAll(innerKinks)
+            val okCopy = ArrayList<Double>()
+            okCopy.addAll(outerKinks)
+            return DesignState(length, hpCopy, haCopy, ikCopy, okCopy)
+        }
+
+        fun generateNewDesignState(designStates: List<DesignState>, initialAccuracy: Double, doNoiseOpt: Boolean, r: Randomish=SysRandom): DesignState {
+            val doNoise = doNoiseOpt || r.nextDouble() < 0.1
             val numberOfStates = designStates.size
 
             // Calculate the weights that we'll use for the different input states
             // to update our instrument.  We're going to try for a gaussian distribution of
             // weights, so we'll start by setting a threshold for the stddev.
-            val weightStdDev = (1.0 + 2.0 * random.nextDouble()) / sqrt(numberOfStates.toDouble())
-            val randomWeights = (0 until numberOfStates).map { random.nextGaussian(0.0, weightStdDev) }.toList()
+            val weightStdDev = (1.0 + 2.0 * r.nextDouble()) / sqrt(numberOfStates.toDouble())
+            val randomWeights = (0 until numberOfStates).map { r.nextGaussian(0.0, weightStdDev) }.toList()
             // We're looking for the weights to be distributed around zero, so we compute the
             // mean, and then subtract it from each weight.
-            val offset = randomWeights.average()
-            val weights = ArrayList(randomWeights.map { weight -> weight - offset })
+            val offset = (0.0 - randomWeights.sum()) / numberOfStates
+            //val offset = randomWeights.average()
+            val weights = ArrayList(randomWeights.map { weight -> weight + offset })
+            // Rounding errors mean that if we don't do something, all values in the model
+            // are going to have a downward trend over time.
+            val deficit = (0.0 - weights.sum())/(designStates[0].size.toDouble() + 1.6445)
             // Randomly pick one state and increase it's weight?
-            weights[random.nextInt(numberOfStates)] += 1.0
+            val boosted = r.nextInt(numberOfStates)
+            weights[boosted] += 1.0
             // Maybe inject extra noise.
-            val noise = if (doNoise) { random.nextDouble() + initialAccuracy} else { 0.0 }
-            return mergeStates(designStates, weights, noise)
+            val noise = if (doNoise) { r.nextDouble() * initialAccuracy} else { 0.0 }
+            return mergeStates(designStates, weights, noise, r)
         }
         fun mergeStates(designStates: List<DesignState>, weights: List<Double>,
-                        noise: Double): DesignState {
+                        noise: Double, r: Randomish): DesignState {
             val newState = designStates[0].copy()
             for (i in (0 until newState.size)) {
                 newState[i] = designStates.indices.sumOf { stateIdx ->
@@ -814,13 +850,58 @@ data class DesignState(
             }
             if (noise != 0.0) {
                 for (i in 0 until newState.size) {
-                    newState[i] += random.nextGaussian(0.0, noise)
+                    var n = r.nextGaussian(0.0, noise)
+                    newState[i] +=  n
                 }
             }
-
+            val s = (0 until newState.size).sumOf { newState[it] }
             return newState
         }
 
     }
+}
+
+interface Randomish  {
+    fun nextDouble(): Double
+    fun nextInt(i:Int): Int
+    fun nextGaussian(a: Double, b: Double): Double
+}
+
+object SysRandom: Randomish {
+    var random = Random()
+    override fun nextDouble() = random.nextDouble()
+    override fun nextInt(i: Int) = random.nextInt(i)
+
+    override fun nextGaussian(a: Double, b: Double): Double {
+        return random.nextGaussian(a, b)
+    }
+}
+
+class RecordedRandomish(
+    val doubles: List<Double>,
+    val ints: List<Int>,
+    val gaussians: List<Double>, ): Randomish {
+
+    var id = 0
+    var ii = 0
+    var ig = 0
+    override fun nextDouble(): Double {
+        val result = doubles[id]
+        id++
+        return result
+    }
+
+    override fun nextInt(x: Int): Int {
+        val result = ints[ii]
+        ii++
+        return result
+    }
+
+    override fun nextGaussian(a: Double, b: Double): Double {
+        val result = gaussians[ig]
+        ig++
+        return result
+    }
+
 }
 

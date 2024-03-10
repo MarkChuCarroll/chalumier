@@ -15,6 +15,8 @@
  */
 package org.goodmath.chalumier.config
 
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
 import org.goodmath.chalumier.errors.ConfigurationParameterException
 import java.io.FileWriter
@@ -80,10 +82,23 @@ abstract class Configurable<T: Configurable<T>>(open val name: String) {
         }
     }
 
+    @OptIn(ExperimentalSerializationApi::class)
+    val prettyJson = Json { // this returns the JsonBuilder
+        prettyPrint = true
+        // optional: specify indent
+        prettyPrintIndent = " "
+    }
+
+    fun toJsonString(): String {
+        val js = toJson()
+        val out = js.toString()
+        val pr = prettyJson.parseToJsonElement(out)
+        return prettyJson.encodeToString(pr)
+    }
+
     fun writeParametersToFile(path: Path) {
         val f = FileWriter(path.toFile())
-        val json = toJson()
-        f.write(json.toString())
+        f.write(toString())
         f.close()
     }
 

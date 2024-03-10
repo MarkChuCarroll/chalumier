@@ -88,7 +88,12 @@ class Driver(val poolSize: Int, val instrumentDesigner: InstrumentDesigner) {
     fun getNextResult(): WorkerResult? {
         synchronized(results) {
             if (results.size > 0) {
-                return results.removeFirst().get()
+                val r = results.removeFirst().get()
+                val p = results.peek()
+                if (p != null) {
+                    System.err.println("Results ${results.peek().get()}")
+                }
+                return r
             } else {
                 return null
             }

@@ -202,7 +202,7 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
             val ay = high[i]
             val bx = pos[i + 1]
             val by = low[i + 1]
-            val n = ((by - ay).absoluteValue / maxStep).roundToInt() + 1
+            val n = ((by - ay).absoluteValue / maxStep).toInt() + 1
             if (n != 0) {
                 newPos.addAll((1 until n).map { j -> (bx - ax) * j / n + ax })
             }
@@ -334,7 +334,7 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
                     continue
                 }
                 val ca = atan2(cy2 - cy1, cx2 - cx1)
-                val steps = ((t2 - t1).absoluteValue / PI * quality).roundToInt()
+                val steps = ((t2 - t1).absoluteValue / PI * quality).toInt()
                 repeat((1 until steps).count()) {
                     val t = t1 + i * (t2 - t1) / steps
                     val (yy, xx) = cornuYx(t, mirror)
@@ -415,7 +415,5 @@ fun main() {
     val high = arrayListOf(60.0, 70.0, 80.0, 70.0)
     val lowAngle: ArrayList<Angle?> = arrayListOf(null, null, null, null)
     val highAngle: ArrayList<Angle?> = arrayListOf(null, null, null, null)
-    System.err.println(Profile.curvedProfile(pos, low, high, lowAngle, highAngle))
-    System.err.println(Profile.curvedProfile(pos, low, high, lowAngle, highAngle).asStepped(0.125))
 
 }

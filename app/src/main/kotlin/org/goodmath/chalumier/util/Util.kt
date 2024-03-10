@@ -19,7 +19,7 @@ package org.goodmath.chalumier.util
 interface Copyable<T> {
     fun copy(): T
 }
-fun <T> List<T>.fromEnd(i: Int): T = this[this.size - (i + 1)]
+fun <T> List<T>.fromEnd(i: Int): T = this[this.size - (i)]
 
 fun <T> List<T>.repeat(i: Int): List<T> {
     return (0 until i).flatMap { this }
