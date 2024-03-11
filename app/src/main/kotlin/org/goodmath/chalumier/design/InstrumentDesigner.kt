@@ -21,6 +21,7 @@ import org.goodmath.chalumier.errors.RequiredParameterException
 import org.goodmath.chalumier.errors.dAssert
 import org.goodmath.chalumier.optimize.Optimizer
 import org.goodmath.chalumier.optimize.Score
+import org.goodmath.chalumier.optimize.ScoredParameters
 import org.goodmath.chalumier.util.Randomizer
 import org.goodmath.chalumier.util.StandardRandomizer
 import org.goodmath.chalumier.util.repeat
@@ -208,7 +209,7 @@ abstract class InstrumentDesigner(
      * to produce the initial state - from there, the optimizer will be
      * generating variations on it.
      */
-    fun initialDesignState(): DesignParameters {
+    fun initialDesignParameters(): DesignParameters {
         validate()
         val result = DesignParameters.make(1.0,
             initialHoleFractions,
@@ -218,11 +219,11 @@ abstract class InstrumentDesigner(
     }
 
     /**
-     * When the optimizer changes a state, we need to be able to take that
+     * When the optimizer changes a parameter set, we need to be able to take that
      * altered state vector and convert it back into an instrument for testing
      * and evaluation.
      */
-    fun makeInstrumentFromState(from: DesignParameters): Instrument {
+    fun makeInstrumentFromParameters(from: DesignParameters): Instrument {
         val length = from.length * initialLength * scale
         val (innerLow, innerHigh) = lowHigh(innerDiameters)
         val (outerLow, outerHigh) = lowHigh(outerDiameters)
@@ -288,7 +289,6 @@ abstract class InstrumentDesigner(
     }
 
 
-    var i: Int = 0
     /**
      * Compute a constraint score for the instrument, which describes how
      * well the instrument matches its requirements. If the constraint score is 0,
@@ -369,6 +369,11 @@ abstract class InstrumentDesigner(
         }
     }
 
+    fun fullScore(params: DesignParameters): Score {
+        val inst = makeInstrumentFromParameters(params)
+        return Score(constraintScore(inst), score(inst))
+    }
+
     /** ph: Hook to modify instrument before scoring. */
     open fun patchInstrument(inst: Instrument): Instrument {
         return inst
@@ -435,11 +440,11 @@ abstract class InstrumentDesigner(
     }
 
     val constrainer: (DesignParameters) -> Double = {
-        constraintScore(makeInstrumentFromState(it))
+        constraintScore(makeInstrumentFromParameters(it))
     }
 
     var scorer: (DesignParameters) -> Double = {
-        score(makeInstrumentFromState(it))
+        score(makeInstrumentFromParameters(it))
     }
 
     private fun drawInstrumentOntoDiagram(
@@ -482,8 +487,8 @@ abstract class InstrumentDesigner(
      * Set up a value to make it easy to pass the save function as
      * a parameter for the optimizer.
      */
-    val saver = { score: Score, designParameters: DesignParameters,
-                  others: List<DesignParameters> -> save(score, designParameters, others) }
+    val saver = { pars: ScoredParameters,
+                  others: List<DesignParameters> -> save(pars, others) }
 
 
     fun twiddleFiles(path: Path) {
@@ -498,12 +503,11 @@ abstract class InstrumentDesigner(
         }
     }
 
-    fun save(score: Score,
-             designParameters: DesignParameters,
+    fun save(params: ScoredParameters,
              others: List<DesignParameters> = emptyList()) {
         twiddleFiles(outputDir / "data.json")
         writeParametersToFile(outputDir / "data.json")
-        val instrument = makeInstrumentFromState(designParameters)
+        val instrument = makeInstrumentFromParameters(params.parameters)
         val patchedInstrument = patchInstrument(instrument)
         patchedInstrument.prepare()
         patchedInstrument.preparePhase()
@@ -626,11 +630,11 @@ abstract class InstrumentDesigner(
         if (!outputDir.exists()) {
             outputDir.createDirectory()
         }
-        val initialState = initialDesignState()
-        val newInstrument = improve(constrainer, scorer, initialState,
+        val initialDesignParameters = initialDesignParameters()
+        val newInstrument = improve(constrainer, scorer, initialDesignParameters,
             reportingInterval,
             monitor = saver)
-        save(Score(Double.NaN, Double.NaN), newInstrument)
+        save(ScoredParameters(newInstrument, fullScore(newInstrument)))
     }
 
     open fun scaler(values: List<Double?>): ArrayList<Double?> {
@@ -669,8 +673,8 @@ abstract class InstrumentDesigner(
                 scorer: (DesignParameters) -> Double,
                 initialDesignParameters: DesignParameters,
                 reportingInterval: Int,
-                monitor: (Score, DesignParameters, List<DesignParameters>) -> Unit): DesignParameters {
-        val optimizer = Optimizer(this, constrainer, scorer, reportingInterval, monitor)
+                monitor: (ScoredParameters, List<DesignParameters>) -> Unit): DesignParameters {
+        val optimizer = Optimizer(this,  constrainer, scorer, reportingInterval, monitor=monitor)
         return optimizer.improve(initialDesignParameters)
 
     }
@@ -791,38 +795,38 @@ data class DesignParameters private constructor(
             return DesignParameters(length, hpCopy, haCopy, ikCopy, okCopy)
         }
 
-        fun generateNewDesignParameters(designParameters: List<DesignParameters>, initialAccuracy: Double, doNoiseOpt: Boolean, r: Randomizer = StandardRandomizer): DesignParameters {
+        fun generateNewDesignParameters(candidates: List<DesignParameters>, initialAccuracy: Double, doNoiseOpt: Boolean, r: Randomizer = StandardRandomizer): DesignParameters {
             val doNoise = doNoiseOpt || r.nextDouble() < 0.1
-            val numberOfStates = designParameters.size
+            val numberOfCandidates = candidates.size
 
             // Calculate the weights that we'll use for the different input states
             // to update our instrument.  We're going to try for a gaussian distribution of
             // weights, so we'll start by setting a threshold for the stddev.
-            val weightStdDev = (1.0 + 2.0 * r.nextDouble()) / sqrt(numberOfStates.toDouble())
-            val randomWeights = (0 until numberOfStates).map { r.nextGaussian(0.0, weightStdDev) }.toList()
+            val weightStdDev = (1.0 + 2.0 * r.nextDouble()) / sqrt(numberOfCandidates.toDouble())
+            val randomWeights = (0 until numberOfCandidates).map { r.nextGaussian(0.0, weightStdDev) }.toList()
             // We're looking for the weights to be distributed around zero, so we compute the
             // mean, and then subtract it from each weight.
-            val offset = (0.0 - randomWeights.sum()) / numberOfStates
+            val offset = (0.0 - randomWeights.sum()) / numberOfCandidates
             val weights = ArrayList(randomWeights.map { weight -> weight + offset })
-            // Randomly pick one state and increase it's weight.
-            weights[ r.nextInt(numberOfStates)] += 1.0
+            // Randomly pick one parameter set and increase it's weight.
+            weights[ r.nextInt(numberOfCandidates)] += 1.0
             // Maybe inject extra noise.
             val noise = if (doNoise) { r.nextDouble() * initialAccuracy} else { 0.0 }
 
-            val newState = designParameters[0].copy()
-            for (i in (0 until newState.size)) {
-                newState[i] = designParameters.indices.sumOf { stateIdx ->
-                    designParameters[stateIdx][i] * weights[stateIdx]
+            val newDesignParameters = candidates[0].copy()
+            for (i in (0 until newDesignParameters.size)) {
+                newDesignParameters[i] = candidates.indices.sumOf { candidateIdx ->
+                    candidates[candidateIdx][i] * weights[candidateIdx]
                 }
             }
             if (noise != 0.0) {
-                for (i in 0 until newState.size) {
-                    var n = r.nextGaussian(0.0, noise)
-                    newState[i] +=  n
+                for (i in 0 until newDesignParameters.size) {
+                    val n = r.nextGaussian(0.0, noise)
+                    newDesignParameters[i] +=  n
                 }
             }
-            val s = (0 until newState.size).sumOf { newState[it] }
-            return newState
+            val s = (0 until newDesignParameters.size).sumOf { newDesignParameters[it] }
+            return newDesignParameters
         }
 
     }

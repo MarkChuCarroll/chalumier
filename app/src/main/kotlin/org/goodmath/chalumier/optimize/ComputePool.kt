@@ -100,7 +100,7 @@ class ComputePool(
 
     class ParameterScorer(val computePool: ComputePool): Runnable {
         fun process(designParameters: DesignParameters): ScoredParameters {
-            val inst = computePool.instrumentDesigner.makeInstrumentFromState(designParameters)
+            val inst = computePool.instrumentDesigner.makeInstrumentFromParameters(designParameters)
             return ScoredParameters(designParameters,
                 Score(computePool.instrumentDesigner.constraintScore(inst),
                     computePool.instrumentDesigner.score(inst)))

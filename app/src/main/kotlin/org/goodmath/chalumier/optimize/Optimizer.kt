@@ -54,20 +54,21 @@ class Optimizer(
     private val constrainer: (DesignParameters) -> Double,
     private val scorer: (DesignParameters) -> Double,
     private val reportingInterval: Int = 5000,
-    private val monitor: (Score,
-                  DesignParameters,
-                  List<DesignParameters>) -> Unit = { _, _, _ -> Unit }) {
+    private val accuracy: Double = 0.001,
+    private val monitor: (ScoredParameters,
+                  List<DesignParameters>) -> Unit = { _, _ -> Unit }) {
 
 
     var lastReport: Long = System.currentTimeMillis()
-    lateinit var best: DesignParameters
-    lateinit var bestScore: Score
-    var currents = ArrayList<ScoredParameters>()
+    var best: ScoredParameters = ScoredParameters(designer.initialDesignParameters(),
+        designer.fullScore(designer.initialDesignParameters()))
+    var candidates = ArrayList<ScoredParameters>()
     val poolSize = 8
     val computePool = ComputePool(8, designer)
     var parameterSetUpdateCount = 0
     var constraintSatisfactionCount = 0
     var iterations = 0
+    val maxCandidates = (designer.initialDesignParameters().size * 5).toInt()
 
 
     fun maybeReportStatus() {
@@ -76,60 +77,56 @@ class Optimizer(
         val now = System.currentTimeMillis()
         if (now - lastReport > reportingInterval) {
             System.err.println(
-                "[[${iterations}]]: best: ${bestScore}, \tmax: ${
-                    currents.map { it.score }.max()
-                }, \tcount=${currents.size}, \tupdates: ${parameterSetUpdateCount}, \tsats: ${constraintSatisfactionCount}")
+                "[[${iterations}]]: best: ${best.score}, \tmax: ${
+                    candidates.map { it.score }.max()
+                }, \tcount=${candidates.size}, \tupdates: ${parameterSetUpdateCount}, \tsats: ${constraintSatisfactionCount}")
             lastReport = now
-            if (bestScore.constraintScore == 0.0) {
-                monitor(bestScore, best, currents.map { it.parameters })
+            if (best.score.constraintScore == 0.0) {
+                monitor(best, candidates.map { it.parameters })
             }
+        }
+    }
+
+    fun generateNewCandidate(): ScoredParameters? {
+        if (!computePool.isDone() && computePool.hasAvailableWorkers()) {
+            // Generate a new mutant to consider
+            val newDesignParameters = DesignParameters.generateNewDesignParameters(
+                candidates.map { it.parameters },
+                accuracy, candidates.size < maxCandidates
+            )
+            val constraintScore = constrainer(newDesignParameters)
+            // If it satisfies constraints, then we're going to dispatch
+            // it to the compute pool for evaluation. If not, then
+            // we'll just pass it straight through to see if it's
+            // closer to satisfying the constraints than anything
+            // in the current set.
+            return if (constraintScore != 0.0) {
+                val newScore = Score(constraintScore, 0.0)
+                return ScoredParameters(newDesignParameters, newScore)
+            } else {
+                computePool.addTask(newDesignParameters)
+                null
+            }
+        } else {
+            return null
         }
     }
 
 
     fun improve(initialDesignParameters: DesignParameters,
                 frequencyTolerance: Double = 1e-4,
-                parameterSpanTolerance: Double = 1e-6,
-                initialAccuracy: Double = 0.001): DesignParameters {
+                parameterSpanTolerance: Double = 1e-6): DesignParameters {
 
-        var result: DesignParameters = initialDesignParameters
-
-        best = initialDesignParameters
-        var constraintScore = constrainer(best)
-        bestScore = if (constraintScore != 0.0) {
-            Score(constraintScore, 0.0)
-        } else {
-            Score(0.0, scorer(best))
-        }
         computePool.start()
-        currents = arrayListOf(ScoredParameters(best, bestScore))
-        val currentsMaxLen = (best.size * 5).toInt()
+        candidates = arrayListOf(best)
+
 
         while (!computePool.isDone() || computePool.hasAvailableResults()) {
             maybeReportStatus()
-            var newDesignParameters: DesignParameters? = null
-            var newScore: Score? = null
 
             // If we're not done, and there's available workers waiting, we can
             // add some new instruments to the pool.
-            if (!computePool.isDone() && computePool.hasAvailableWorkers()) {
-                // Generate a new mutant to consider
-                newDesignParameters = DesignParameters.generateNewDesignParameters(
-                    currents.map { it.parameters },
-                    initialAccuracy, currents.size < currentsMaxLen
-                )
-                constraintScore = constrainer(newDesignParameters)
-                // If it satisfies constraints, then we're going to dispatch
-                // it to the compute pool for evaluation. If not, then
-                // we'll just pass it straight through to see if it's
-                // closer to satisfying the constraints than anything
-                // in the current set.
-                if (constraintScore != 0.0) {
-                    newScore = Score(constraintScore, 0.0)
-                } else {
-                    computePool.addTask(newDesignParameters)
-                }
-            }
+            var newCandidate = generateNewCandidate()
 
             // If newscore is null, that means that in the previous step,
             // we generated something that satisfies constraints, so we
@@ -138,17 +135,15 @@ class Optimizer(
             // results available, we grab the first one, and use it as our
             // next candidate. Otherwise, we skip out, because we have nothing
             // to evaluate.
-            if (newScore == null) {
+            if (newCandidate == null) {
                 if (!computePool.hasAvailableResults() || !computePool.isDone() && !computePool.hasAvailableWorkers()) {
                     continue
                 } else {
-                    val (completedTaskState, completedTaskScore) = computePool.getNextResult() ?: continue
-                    newScore = completedTaskScore
-                    newDesignParameters = completedTaskState
+                    newCandidate = computePool.getNextResult() ?: continue
                 }
             }
 
-            if (newScore.constraintScore == 0.0) {
+            if (newCandidate.score.constraintScore == 0.0) {
                 constraintSatisfactionCount += 1
             }
             // Now we want to decide whether our new candidate should
@@ -157,41 +152,40 @@ class Optimizer(
             // We sort the current set by its intonation score, and
             // and then pick the least accurate element that we want
             // to keep as a cutoff threshold.
-            val l = currents.map { it.score }.sortedBy { it }
-            val c = if (currentsMaxLen < l.size) {
-                l[currentsMaxLen].intonationScore
+            val l = candidates.map { it.score }.sortedBy { it }
+            val c = if (maxCandidates < l.size) {
+                l[maxCandidates].intonationScore
             } else {
                 1e30
             }
-            val cutoff = Score(bestScore.constraintScore, c)
+            val cutoff = Score(best.score.constraintScore, c)
             // If our new score is smaller than where we would have put
             // a cutoff, then we consider it viable, and add it to the
             // current candidates pool, also discarding anything beyond
             // the cutoff threshold.
-            if (newScore <= cutoff) {
-                currents = ArrayList(currents.filter { it.score <= cutoff })
-                currents.add(ScoredParameters(newDesignParameters!!, newScore))
+            if (newCandidate.score <= cutoff) {
+                candidates = ArrayList(candidates.filter { it.score <= cutoff })
+                candidates.add(newCandidate)
                 parameterSetUpdateCount += 1
-                if (newScore <= bestScore) {
-                    bestScore = newScore
-                    best = newDesignParameters
+                if (newCandidate.score <= best.score) {
+                    best = newCandidate
                 }
             }
 
             // And finally, we look at what we've got to see if it's good
             // enough to declare success. It's not even worth looking if
             // the currents pool isn't full, and the constraint score is greater than 0.
-            if (currents.size >= currentsMaxLen && bestScore.constraintScore == 0.0) {
+            if (candidates.size >= maxCandidates && best.score.constraintScore == 0.0) {
                 var parameterSpan = 0.0
-                for (i in 0 until designer.initialDesignState().size) {
+                for (i in 0 until designer.initialDesignParameters().size) {
                     parameterSpan = max(
                         parameterSpan,
-                        currents.map { it.parameters[i] }.max() -
-                                currents.map { it.parameters[i] }.min()
+                        candidates.map { it.parameters[i] }.max() -
+                                candidates.map { it.parameters[i] }.min()
                     )
                 }
                 var intonationSpan =
-                    ArrayList(currents.map { it.score }).max().intonationScore - bestScore.intonationScore
+                    ArrayList(candidates.map { it.score }).max().intonationScore - best.score.intonationScore
                 if (parameterSpan < parameterSpanTolerance || (parameterSetUpdateCount >= 5000 && intonationSpan < frequencyTolerance)) {
                     computePool.finish()
                 }
@@ -199,6 +193,6 @@ class Optimizer(
         }
         computePool.finish()
         computePool.joinAll()
-        return best
+        return best.parameters
     }
 }
