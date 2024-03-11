@@ -273,8 +273,6 @@ fun folkFluteDesigner(outputDir: Path): TaperedFluteDesigner {
     // ph: hole_angles = [ 30.0, -30.0, 30.0, 0.0, 0.0, 0.0, 0.0 ]
     flute.holeAngles = arrayListOf(-30.0, 30.0, 30.0, -30.0, 0.0, 30.0, 0.0)
     flute.maxHoleSpacing = flute.scaler(listOf(45.0, 45.0, null, 45.0, 45.0, null))
-    // max_hole_diameters = design.sqrt_scaler([ 11.4 ] * 6 + [ 13.9 ])
-    flute.maxHoleSpacing = flute.scaler(listOf(35.0, 35.0, null, 35.0, 35.0, null))
     return flute
 }
 

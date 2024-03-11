@@ -15,8 +15,6 @@
  */
 package org.goodmath.chalumier.config
 
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
 import kotlin.reflect.KProperty
 
 
@@ -38,11 +36,9 @@ open class ConfigParameter<T: Configurable<T>, V>(
 
     var name: String? = null
 
-    private object UNITIALIZED
+    private object UNINITIALIZED
 
-    var v: Any? = UNITIALIZED
-
-    var i = 0
+    var v: Any? = UNINITIALIZED
 
     operator fun provideDelegate(
         thisRef: T,
@@ -56,7 +52,7 @@ open class ConfigParameter<T: Configurable<T>, V>(
 
     @Suppress("UNCHECKED_CAST")
     fun get(thisRef: T): V {
-        return if (v == UNITIALIZED) {
+        return if (v == UNINITIALIZED) {
             synchronized(this) {
                 v = gen(thisRef)
                 v as V
@@ -68,8 +64,6 @@ open class ConfigParameter<T: Configurable<T>, V>(
     }
 
     fun set(value: V) {
-        i++
-        System.err.println("Setting property ${name} to ${value}($i)")
         v = value
     }
 

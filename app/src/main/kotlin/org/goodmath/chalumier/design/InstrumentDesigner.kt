@@ -15,22 +15,19 @@
  */
 package org.goodmath.chalumier.design
 
-import kotlinx.coroutines.runBlocking
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.diagram.Diagram
 import org.goodmath.chalumier.errors.RequiredParameterException
 import org.goodmath.chalumier.errors.dAssert
 import org.goodmath.chalumier.optimize.Optimizer
 import org.goodmath.chalumier.optimize.Score
+import org.goodmath.chalumier.util.Randomizer
+import org.goodmath.chalumier.util.StandardRandomizer
 import org.goodmath.chalumier.util.repeat
 import java.lang.Math.log
 import java.nio.file.Path
-import java.util.*
-import kotlin.collections.ArrayList
 import kotlin.io.path.*
 import kotlin.math.*
-import kotlin.properties.ReadWriteProperty
-import kotlin.reflect.KProperty
 
 
 /**
@@ -46,7 +43,7 @@ import kotlin.reflect.KProperty
  */
 abstract class InstrumentDesigner(
     override val name: String,
-     val outputDir: Path): Configurable<InstrumentDesigner>(name) {
+    private val outputDir: Path): Configurable<InstrumentDesigner>(name) {
 
 
 
@@ -211,9 +208,9 @@ abstract class InstrumentDesigner(
      * to produce the initial state - from there, the optimizer will be
      * generating variations on it.
      */
-    fun initialDesignState(): DesignState {
+    fun initialDesignState(): DesignParameters {
         validate()
-        val result = DesignState.make(1.0,
+        val result = DesignParameters.make(1.0,
             initialHoleFractions,
             ArrayList(initialHoleDiameterFractions.map { it * it}),
             initialInnerFractions, initialOuterFractions)
@@ -225,7 +222,7 @@ abstract class InstrumentDesigner(
      * altered state vector and convert it back into an instrument for testing
      * and evaluation.
      */
-    fun makeInstrumentFromState(from: DesignState): Instrument {
+    fun makeInstrumentFromState(from: DesignParameters): Instrument {
         val length = from.length * initialLength * scale
         val (innerLow, innerHigh) = lowHigh(innerDiameters)
         val (outerLow, outerHigh) = lowHigh(outerDiameters)
@@ -437,11 +434,11 @@ abstract class InstrumentDesigner(
         return result
     }
 
-    val constrainer: (DesignState) -> Double = {
+    val constrainer: (DesignParameters) -> Double = {
         constraintScore(makeInstrumentFromState(it))
     }
 
-    var scorer: (DesignState) -> Double = {
+    var scorer: (DesignParameters) -> Double = {
         score(makeInstrumentFromState(it))
     }
 
@@ -485,8 +482,8 @@ abstract class InstrumentDesigner(
      * Set up a value to make it easy to pass the save function as
      * a parameter for the optimizer.
      */
-    val saver = { score: Score, designState: DesignState,
-                  others: List<DesignState> -> save(score, designState, others) }
+    val saver = { score: Score, designParameters: DesignParameters,
+                  others: List<DesignParameters> -> save(score, designParameters, others) }
 
 
     fun twiddleFiles(path: Path) {
@@ -502,11 +499,11 @@ abstract class InstrumentDesigner(
     }
 
     fun save(score: Score,
-             designState: DesignState,
-             others: List<DesignState> = emptyList()) {
+             designParameters: DesignParameters,
+             others: List<DesignParameters> = emptyList()) {
         twiddleFiles(outputDir / "data.json")
         writeParametersToFile(outputDir / "data.json")
-        val instrument = makeInstrumentFromState(designState)
+        val instrument = makeInstrumentFromState(designParameters)
         val patchedInstrument = patchInstrument(instrument)
         patchedInstrument.prepare()
         patchedInstrument.preparePhase()
@@ -624,12 +621,15 @@ abstract class InstrumentDesigner(
         diagram.save(outputDir / "diagram.svg")
     }
 
-    fun run(outputDir: Path) {
+    fun run(outputDir: Path,
+            reportingInterval: Int = 5000) {
         if (!outputDir.exists()) {
             outputDir.createDirectory()
         }
         val initialState = initialDesignState()
-        val newInstrument = improve(constrainer, scorer, initialState, monitor = saver)
+        val newInstrument = improve(constrainer, scorer, initialState,
+            reportingInterval,
+            monitor = saver)
         save(Score(Double.NaN, Double.NaN), newInstrument)
     }
 
@@ -665,16 +665,15 @@ abstract class InstrumentDesigner(
         }
     }
 
-    fun improve(constrainer: (DesignState) -> Double,
-                scorer: (DesignState) -> Double,
-                initialDesignState: DesignState,
-                monitor: (Score, DesignState, List<DesignState>) -> Unit): DesignState {
-        val optimizer = Optimizer(this)
-        val designer = this
-        return optimizer.improve("comment", designer, constrainer, scorer, initialDesignState, monitor=monitor)
+    fun improve(constrainer: (DesignParameters) -> Double,
+                scorer: (DesignParameters) -> Double,
+                initialDesignParameters: DesignParameters,
+                reportingInterval: Int,
+                monitor: (Score, DesignParameters, List<DesignParameters>) -> Unit): DesignParameters {
+        val optimizer = Optimizer(this, constrainer, scorer, reportingInterval, monitor)
+        return optimizer.improve(initialDesignParameters)
 
     }
-
 
     companion object {
         val O = 0.0
@@ -710,13 +709,13 @@ abstract class InstrumentDesignerWithBoreScale(override val name: String,
 
 
 /**
- * The design state represents the current state of the mutable parameters
+ * The design parameters represents the current state of the mutable parameters
  * that can be varied by the design optimizer. Each of these values
  * is, in some form, normalized relative to the size of the instrument.
  * For example, the holePositions are stored in the state as fractions
  * of the instrument's body length.
  */
-data class DesignState private constructor(
+data class DesignParameters private constructor(
     var length: Double,
     var holePositions: ArrayList<Double>,
     var holeAreas: ArrayList<Double>,
@@ -771,40 +770,16 @@ data class DesignState private constructor(
         }
     }
 
-    override fun equals(other: Any?): Boolean {
-        if (this===other) { return true }
-        if (javaClass != other?.javaClass) { return false }
-
-        other as DesignState
-        return (length == other.length) &&
-                (holePositions.zip(other.holePositions).all{ (x, y) -> x == y }) &&
-                (holeAreas.zip(other.holeAreas).all { (x, y) -> x == y }) &&
-                (innerKinks.zip(other.innerKinks).all { (x, y) -> x == y}) &&
-                (outerKinks.zip(other.outerKinks).all { (x, y) -> x == y})
-    }
-
-    override fun hashCode(): Int {
-        var result = 0
-        for (i in 0 until size) {
-            result = 31 * result + this[i].hashCode()
-        }
-        result = 31 * result + holePositions.sumOf { it.hashCode() }
-        result = 31 * result + holeAreas.sumOf { it.hashCode() }
-        result = 31 * result + innerKinks.sumOf { it.hashCode() }
-        result = 31 * result + outerKinks.sumOf { it.hashCode() }
-        return result
-    }
-
-    fun copy(): DesignState =
+    fun copy(): DesignParameters =
         make(length, holePositions, holeAreas, innerKinks, outerKinks)
 
     companion object {
 
         fun make(length: Double,
-            holePositions: ArrayList<Double>,
-            holeAreas: ArrayList<Double>,
-            innerKinks: ArrayList<Double>,
-            outerKinks: ArrayList<Double>): DesignState {
+                 holePositions: ArrayList<Double>,
+                 holeAreas: ArrayList<Double>,
+                 innerKinks: ArrayList<Double>,
+                 outerKinks: ArrayList<Double>): DesignParameters {
             val hpCopy = ArrayList<Double>()
             hpCopy.addAll(holePositions)
             val haCopy = ArrayList<Double>()
@@ -813,12 +788,12 @@ data class DesignState private constructor(
             ikCopy.addAll(innerKinks)
             val okCopy = ArrayList<Double>()
             okCopy.addAll(outerKinks)
-            return DesignState(length, hpCopy, haCopy, ikCopy, okCopy)
+            return DesignParameters(length, hpCopy, haCopy, ikCopy, okCopy)
         }
 
-        fun generateNewDesignState(designStates: List<DesignState>, initialAccuracy: Double, doNoiseOpt: Boolean, r: Randomish=SysRandom): DesignState {
+        fun generateNewDesignParameters(designParameters: List<DesignParameters>, initialAccuracy: Double, doNoiseOpt: Boolean, r: Randomizer = StandardRandomizer): DesignParameters {
             val doNoise = doNoiseOpt || r.nextDouble() < 0.1
-            val numberOfStates = designStates.size
+            val numberOfStates = designParameters.size
 
             // Calculate the weights that we'll use for the different input states
             // to update our instrument.  We're going to try for a gaussian distribution of
@@ -828,24 +803,16 @@ data class DesignState private constructor(
             // We're looking for the weights to be distributed around zero, so we compute the
             // mean, and then subtract it from each weight.
             val offset = (0.0 - randomWeights.sum()) / numberOfStates
-            //val offset = randomWeights.average()
             val weights = ArrayList(randomWeights.map { weight -> weight + offset })
-            // Rounding errors mean that if we don't do something, all values in the model
-            // are going to have a downward trend over time.
-            val deficit = (0.0 - weights.sum())/(designStates[0].size.toDouble() + 1.6445)
-            // Randomly pick one state and increase it's weight?
-            val boosted = r.nextInt(numberOfStates)
-            weights[boosted] += 1.0
+            // Randomly pick one state and increase it's weight.
+            weights[ r.nextInt(numberOfStates)] += 1.0
             // Maybe inject extra noise.
             val noise = if (doNoise) { r.nextDouble() * initialAccuracy} else { 0.0 }
-            return mergeStates(designStates, weights, noise, r)
-        }
-        fun mergeStates(designStates: List<DesignState>, weights: List<Double>,
-                        noise: Double, r: Randomish): DesignState {
-            val newState = designStates[0].copy()
+
+            val newState = designParameters[0].copy()
             for (i in (0 until newState.size)) {
-                newState[i] = designStates.indices.sumOf { stateIdx ->
-                    designStates[stateIdx][i] * weights[stateIdx]
+                newState[i] = designParameters.indices.sumOf { stateIdx ->
+                    designParameters[stateIdx][i] * weights[stateIdx]
                 }
             }
             if (noise != 0.0) {
@@ -860,48 +827,3 @@ data class DesignState private constructor(
 
     }
 }
-
-interface Randomish  {
-    fun nextDouble(): Double
-    fun nextInt(i:Int): Int
-    fun nextGaussian(a: Double, b: Double): Double
-}
-
-object SysRandom: Randomish {
-    var random = Random()
-    override fun nextDouble() = random.nextDouble()
-    override fun nextInt(i: Int) = random.nextInt(i)
-
-    override fun nextGaussian(a: Double, b: Double): Double {
-        return random.nextGaussian(a, b)
-    }
-}
-
-class RecordedRandomish(
-    val doubles: List<Double>,
-    val ints: List<Int>,
-    val gaussians: List<Double>, ): Randomish {
-
-    var id = 0
-    var ii = 0
-    var ig = 0
-    override fun nextDouble(): Double {
-        val result = doubles[id]
-        id++
-        return result
-    }
-
-    override fun nextInt(x: Int): Int {
-        val result = ints[ii]
-        ii++
-        return result
-    }
-
-    override fun nextGaussian(a: Double, b: Double): Double {
-        val result = gaussians[ig]
-        ig++
-        return result
-    }
-
-}
-

@@ -48,8 +48,6 @@ import java.nio.file.Path
 abstract class Configurable<T: Configurable<T>>(open val name: String) {
     val configParameters = HashMap<String, ConfigParameter<T, *>>()
 
-    val myNum: Int = getNextNum()
-
     fun listConfigParameters(): List<Pair<String, String>> {
         return configParameters.map { (k, v) ->
             Pair(k, v.kind.name)
@@ -69,10 +67,12 @@ abstract class Configurable<T: Configurable<T>>(open val name: String) {
         return getConfigParameterByName(name)?.kind
     }
 
+    @Suppress("UNCHECKED_CAST")
     fun <V> getConfigParameterValue(name: String): V? {
         return configParameters[name]?.get(this as T) as V?
     }
 
+    @Suppress("UNCHECKED_CAST")
     fun <V> setConfigParameterValue(name: String, value: V) {
         val opt = configParameters[name] as? ConfigParameter<T, V>
         if (opt != null) {
@@ -98,10 +98,11 @@ abstract class Configurable<T: Configurable<T>>(open val name: String) {
 
     fun writeParametersToFile(path: Path) {
         val f = FileWriter(path.toFile())
-        f.write(toString())
+        f.write(toJsonString())
         f.close()
     }
 
+    @Suppress("UNCHECKED_CAST")
     open fun toJson(): JsonObject {
         val me: T = this as T
         return buildJsonObject {
@@ -153,12 +154,4 @@ abstract class Configurable<T: Configurable<T>>(open val name: String) {
             throw ConfigurationParameterException("Expected an array of parameter list entries, but found '$params'")
         }
     }
-
-    var num: Int = 0
-    fun getNextNum(): Int {
-        num++
-        return num
-    }
-
-
 }

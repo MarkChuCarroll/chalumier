@@ -1,9 +1,8 @@
 package org.goodmath.chalumier.optimize
 
 import kotlinx.coroutines.*
-import org.goodmath.chalumier.design.Instrument
 import org.goodmath.chalumier.design.InstrumentDesigner
-import org.goodmath.chalumier.design.DesignState
+import org.goodmath.chalumier.design.DesignParameters
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Future
@@ -18,17 +17,16 @@ import kotlin.concurrent.thread
  */
 
 
-data class WorkerResult(val designState: DesignState,
-                        val score: Double)
-
-class Driver(val poolSize: Int, val instrumentDesigner: InstrumentDesigner) {
+class ComputePool(
+    private val poolSize: Int,
+    val instrumentDesigner: InstrumentDesigner) {
 
     private var done: Boolean = false
     private val workerThreads = ArrayList<Thread>()
-    private val tasks = ArrayDeque<Pair<CompletableFuture<WorkerResult>,DesignState>>()
-    private val results = ArrayDeque<Future<WorkerResult>>()
+    private val tasks = ArrayDeque<Pair<CompletableFuture<ScoredParameters>,DesignParameters>>()
+    private val results = ArrayDeque<Future<ScoredParameters>>()
     fun isDone(): Boolean {
-        return false
+        return done
     }
 
     fun joinAll() {
@@ -37,36 +35,9 @@ class Driver(val poolSize: Int, val instrumentDesigner: InstrumentDesigner) {
         }
     }
 
-    class Worker(val driver: Driver): Runnable {
-        fun process(designState: DesignState): Double {
-            val inst = driver.instrumentDesigner.makeInstrumentFromState(designState)
-            return driver.instrumentDesigner.score(inst)
-        }
-
-        override fun run() {
-            while (!driver.isDone()) {
-                val task =
-                    synchronized(driver.tasks) {
-                        if (driver.tasks.peek() != null) {
-                            driver.tasks.removeFirst()
-                        } else {
-                            null
-                        }
-                    }
-                if (task == null) {
-                    Thread.sleep(1000)
-                } else {
-                    val result = process(task.second)
-                    task.first.complete(WorkerResult(task.second, result))
-                }
-            }
-        }
-
-    }
-
     fun start() {
         for (i in 0 until poolSize) {
-            val newThread = Thread(Worker(this))
+            val newThread = Thread(ParameterScorer(this))
             newThread.start()
             workerThreads.add(newThread)
         }
@@ -85,7 +56,7 @@ class Driver(val poolSize: Int, val instrumentDesigner: InstrumentDesigner) {
         return (results.size > 0)
     }
 
-    fun getNextResult(): WorkerResult? {
+    fun getNextResult(): ScoredParameters? {
         synchronized(results) {
             if (results.size > 0) {
                 val r = results.removeFirst().get()
@@ -101,16 +72,45 @@ class Driver(val poolSize: Int, val instrumentDesigner: InstrumentDesigner) {
     }
 
     var taskCount = 0
-    fun addTask(designState: DesignState) {
+    fun addTask(designParameters: DesignParameters) {
         taskCount++
         synchronized(tasks) {
-            val f = CompletableFuture<WorkerResult>()
-            tasks.add(Pair(f, designState))
+            val f = CompletableFuture<ScoredParameters>()
+            tasks.add(Pair(f, designParameters))
             results.add(f)
         }
     }
 
     fun finish() {
         done = true
+    }
+
+    class ParameterScorer(val computePool: ComputePool): Runnable {
+        fun process(designParameters: DesignParameters): ScoredParameters {
+            val inst = computePool.instrumentDesigner.makeInstrumentFromState(designParameters)
+            return ScoredParameters(designParameters,
+                Score(computePool.instrumentDesigner.constraintScore(inst),
+                    computePool.instrumentDesigner.score(inst)))
+        }
+
+        override fun run() {
+            while (!computePool.isDone()) {
+                val task =
+                    synchronized(computePool.tasks) {
+                        if (computePool.tasks.peek() != null) {
+                            computePool.tasks.removeFirst()
+                        } else {
+                            null
+                        }
+                    }
+                if (task == null) {
+                    Thread.sleep(1000)
+                } else {
+                    val result = process(task.second)
+                    task.first.complete(result)
+                }
+            }
+        }
+
     }
 }
