@@ -1,3 +1,18 @@
+/*
+ * Copyright 2024 Mark C. Chu-Carroll
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.goodmath.chalumier.optimize
 
 import kotlinx.coroutines.*
@@ -7,16 +22,18 @@ import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Future
 import kotlin.collections.ArrayList
-import kotlin.concurrent.thread
 
 /*
  * Ok, here's where things get hairy.
  *
  * @See docs/demakein-and-nesoni.md for my notes from reverse-engineering/spelunking
  *   nesoni and how demakein uses it for parallelism.
+ *
+ * Actually, it turns out to not be so hairy - in fact, this was
+ * one of the easiest parts of demakein to rewrite. Demakein's whole
+ * parallel computation was basically a rather cryptically written
+ * futures-based work queue.
  */
-
-
 class ComputePool(
     private val poolSize: Int,
     val instrumentDesigner: InstrumentDesigner) {
@@ -25,6 +42,8 @@ class ComputePool(
     private val workerThreads = ArrayList<Thread>()
     private val tasks = ArrayDeque<Pair<CompletableFuture<ScoredParameters>,DesignParameters>>()
     private val results = ArrayDeque<Future<ScoredParameters>>()
+    private var totalSubmittedTasks = 0
+
     fun isDone(): Boolean {
         return done
     }
@@ -41,13 +60,8 @@ class ComputePool(
             newThread.start()
             workerThreads.add(newThread)
         }
-        val monitor = thread {
-            while (!this.isDone()) {
-                Thread.sleep(5000)
-                System.err.println("Tasks = ${tasks.size}, results = ${results.size}, total = ${taskCount}")
-            }
-        }
     }
+
     fun hasAvailableWorkers(): Boolean {
         return  tasks.size < poolSize
     }
@@ -71,9 +85,8 @@ class ComputePool(
         }
     }
 
-    var taskCount = 0
     fun addTask(designParameters: DesignParameters) {
-        taskCount++
+        totalSubmittedTasks++
         synchronized(tasks) {
             val f = CompletableFuture<ScoredParameters>()
             tasks.add(Pair(f, designParameters))

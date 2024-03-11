@@ -1,3 +1,18 @@
+/*
+ * Copyright 2024 Mark C. Chu-Carroll
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.goodmath.chalumier.optimize
 
 import org.goodmath.chalumier.design.InstrumentDesigner
@@ -15,9 +30,9 @@ data class Score(val constraintScore: Double, val intonationScore: Double): Comp
 
     override fun toString(): String {
         if (constraintScore != 0.0) {
-            return "C%4f".format(constraintScore)
+            return "(C)%4f".format(constraintScore)
         } else {
-            return "I%.4f".format(intonationScore)
+            return "(I)%.4f".format(intonationScore)
         }
     }
 }
@@ -25,12 +40,21 @@ data class Score(val constraintScore: Double, val intonationScore: Double): Comp
 data class ScoredParameters(val parameters: DesignParameters,
                             val score: Score)
 
+
+/**
+ * Now this is where things did get ugly. Figuring out how to rewrite
+ * this was a total bear. The original demakein code is sloppily
+ * structured, undocumented, and relies on a lot of rather subtle
+ * semantics. I've tried to document as much as possible, and
+ * I plan to do further cleanups and refactorings once I'm sure
+ * it's working.
+ */
 class Optimizer(
-    val designer: InstrumentDesigner,
-    val constrainer: (DesignParameters) -> Double,
-    val scorer: (DesignParameters) -> Double,
-    val reportingInterval: Int = 5000,
-    val monitor: (Score,
+    private val designer: InstrumentDesigner,
+    private val constrainer: (DesignParameters) -> Double,
+    private val scorer: (DesignParameters) -> Double,
+    private val reportingInterval: Int = 5000,
+    private val monitor: (Score,
                   DesignParameters,
                   List<DesignParameters>) -> Unit = { _, _, _ -> Unit }) {
 
@@ -41,8 +65,8 @@ class Optimizer(
     var currents = ArrayList<ScoredParameters>()
     val poolSize = 8
     val computePool = ComputePool(8, designer)
-    var nGood = 0
-    var nReal = 0
+    var parameterSetUpdateCount = 0
+    var constraintSatisfactionCount = 0
     var iterations = 0
 
 
@@ -52,9 +76,9 @@ class Optimizer(
         val now = System.currentTimeMillis()
         if (now - lastReport > reportingInterval) {
             System.err.println(
-                "Best=${bestScore}, max=${
+                "[[${iterations}]]: best: ${bestScore}, \tmax: ${
                     currents.map { it.score }.max()
-                }, count=${currents.size}, good=${nGood}, real=${nReal}, iteration=${iterations}")
+                }, \tcount=${currents.size}, \tupdates: ${parameterSetUpdateCount}, \tsats: ${constraintSatisfactionCount}")
             lastReport = now
             if (bestScore.constraintScore == 0.0) {
                 monitor(bestScore, best, currents.map { it.parameters })
@@ -64,8 +88,8 @@ class Optimizer(
 
 
     fun improve(initialDesignParameters: DesignParameters,
-                fToL: Double = 1e-4,
-                xToL: Double = 1e-6,
+                frequencyTolerance: Double = 1e-4,
+                parameterSpanTolerance: Double = 1e-6,
                 initialAccuracy: Double = 0.001): DesignParameters {
 
         var result: DesignParameters = initialDesignParameters
@@ -95,6 +119,11 @@ class Optimizer(
                     initialAccuracy, currents.size < currentsMaxLen
                 )
                 constraintScore = constrainer(newDesignParameters)
+                // If it satisfies constraints, then we're going to dispatch
+                // it to the compute pool for evaluation. If not, then
+                // we'll just pass it straight through to see if it's
+                // closer to satisfying the constraints than anything
+                // in the current set.
                 if (constraintScore != 0.0) {
                     newScore = Score(constraintScore, 0.0)
                 } else {
@@ -102,6 +131,13 @@ class Optimizer(
                 }
             }
 
+            // If newscore is null, that means that in the previous step,
+            // we generated something that satisfies constraints, so we
+            // don't have anything to move forward with until the compute
+            // pool retfirurns something. If there are compute pool score
+            // results available, we grab the first one, and use it as our
+            // next candidate. Otherwise, we skip out, because we have nothing
+            // to evaluate.
             if (newScore == null) {
                 if (!computePool.hasAvailableResults() || !computePool.isDone() && !computePool.hasAvailableWorkers()) {
                     continue
@@ -113,8 +149,14 @@ class Optimizer(
             }
 
             if (newScore.constraintScore == 0.0) {
-                nReal += 1
+                constraintSatisfactionCount += 1
             }
+            // Now we want to decide whether our new candidate should
+            // be included in the current pool of parameter sets that
+            // will be used to create the next generation of candidates.
+            // We sort the current set by its intonation score, and
+            // and then pick the least accurate element that we want
+            // to keep as a cutoff threshold.
             val l = currents.map { it.score }.sortedBy { it }
             val c = if (currentsMaxLen < l.size) {
                 l[currentsMaxLen].intonationScore
@@ -122,27 +164,35 @@ class Optimizer(
                 1e30
             }
             val cutoff = Score(bestScore.constraintScore, c)
+            // If our new score is smaller than where we would have put
+            // a cutoff, then we consider it viable, and add it to the
+            // current candidates pool, also discarding anything beyond
+            // the cutoff threshold.
             if (newScore <= cutoff) {
                 currents = ArrayList(currents.filter { it.score <= cutoff })
                 currents.add(ScoredParameters(newDesignParameters!!, newScore))
-                nGood += 1
+                parameterSetUpdateCount += 1
                 if (newScore <= bestScore) {
                     bestScore = newScore
                     best = newDesignParameters
                 }
             }
+
+            // And finally, we look at what we've got to see if it's good
+            // enough to declare success. It's not even worth looking if
+            // the currents pool isn't full, and the constraint score is greater than 0.
             if (currents.size >= currentsMaxLen && bestScore.constraintScore == 0.0) {
-                var xSpan = 0.0
+                var parameterSpan = 0.0
                 for (i in 0 until designer.initialDesignState().size) {
-                    xSpan = max(
-                        xSpan,
+                    parameterSpan = max(
+                        parameterSpan,
                         currents.map { it.parameters[i] }.max() -
                                 currents.map { it.parameters[i] }.min()
                     )
                 }
-                var fSpan =
+                var intonationSpan =
                     ArrayList(currents.map { it.score }).max().intonationScore - bestScore.intonationScore
-                if (xSpan < xToL || (nGood >= 5000 && fSpan < fToL)) {
+                if (parameterSpan < parameterSpanTolerance || (parameterSetUpdateCount >= 5000 && intonationSpan < frequencyTolerance)) {
                     computePool.finish()
                 }
             }

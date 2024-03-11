@@ -11,6 +11,9 @@ import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.io.path.Path
 
+/**
+ * A batch of tests to help debug the instrument designer.
+ */
 class InstrumentDesignerTest {
 
     fun makeDesigner(): InstrumentDesigner {
