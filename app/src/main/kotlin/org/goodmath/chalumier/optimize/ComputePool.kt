@@ -16,7 +16,6 @@
 package org.goodmath.chalumier.optimize
 
 import kotlinx.coroutines.*
-import org.goodmath.chalumier.design.InstrumentDesigner
 import org.goodmath.chalumier.design.DesignParameters
 import java.util.*
 import java.util.concurrent.CompletableFuture
@@ -36,7 +35,9 @@ import kotlin.collections.ArrayList
  */
 class ComputePool(
     private val poolSize: Int,
-    val instrumentDesigner: InstrumentDesigner) {
+    private val constraintScorer: (DesignParameters) -> Double,
+    private val intonationScorer: (DesignParameters) -> Double) {
+
 
     private var done: Boolean = false
     private val workerThreads = ArrayList<Thread>()
@@ -73,12 +74,7 @@ class ComputePool(
     fun getNextResult(): ScoredParameters? {
         synchronized(results) {
             if (results.size > 0) {
-                val r = results.removeFirst().get()
-                val p = results.peek()
-                if (p != null) {
-                    System.err.println("Results ${results.peek().get()}")
-                }
-                return r
+                return results.removeFirst().get()
             } else {
                 return null
             }
@@ -100,10 +96,9 @@ class ComputePool(
 
     class ParameterScorer(val computePool: ComputePool): Runnable {
         fun process(designParameters: DesignParameters): ScoredParameters {
-            val inst = computePool.instrumentDesigner.makeInstrumentFromParameters(designParameters)
             return ScoredParameters(designParameters,
-                Score(computePool.instrumentDesigner.constraintScore(inst),
-                    computePool.instrumentDesigner.score(inst)))
+                Score(computePool.constraintScorer(designParameters),
+                    computePool.intonationScorer(designParameters)))
         }
 
         override fun run() {

@@ -164,7 +164,7 @@ class InstrumentDesignerTest {
     fun testGenerateNewModel() {
         val random = Random()
         fun getScores(designer: InstrumentDesigner, params: DesignParameters): ScoredParameters {
-            val cScore = designer.constrainer(params)
+            val cScore = designer.constraintScorer(params)
             if (cScore > 0) {
                 return ScoredParameters(params, Score(cScore, 0.0))
             } else {
