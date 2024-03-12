@@ -96,7 +96,7 @@ class ReedDroneDesigner(override val name: String,
   // withFingerPad =arrayListOf()
 
   override var fingerings by ListOfFingeringsParam {
-          listOf(Fingering("C4", ArrayList<Double>(), 1.0)).toMutableList()
+          listOf(Fingering("C4", ArrayList<Double>(), 1)).toMutableList()
   }
 
   override var divisions by ListOfListOfIntDoublePairParam { emptyList() }
@@ -138,17 +138,17 @@ open class ReedpipeDesigner(override val name: String, outputDir: Path):
 
   override var fingerings by ListOfFingeringsParam {
         mutableListOf(
-            Fingering("C4",arrayListOf(X, X, X, X, X, X, X, X), 1.0),
-            Fingering("D4",arrayListOf(O, X, X, X, X, X, X, X), 1.0),
-            Fingering("E4",arrayListOf(O, O, X, X, X, X, X, X), 1.0),
-            Fingering("F4",arrayListOf(O, O, O, X, X, X, X, X), 1.0),
-            Fingering("G4",arrayListOf(O, O, O, O, X, X, X, X), 1.0),
-            Fingering("A4",arrayListOf(O, O, O, O, O, X, X, X), 1.0),
+            Fingering("C4",arrayListOf(X, X, X, X, X, X, X, X), 1),
+            Fingering("D4",arrayListOf(O, X, X, X, X, X, X, X), 1),
+            Fingering("E4",arrayListOf(O, O, X, X, X, X, X, X), 1),
+            Fingering("F4",arrayListOf(O, O, O, X, X, X, X, X), 1),
+            Fingering("G4",arrayListOf(O, O, O, O, X, X, X, X), 1),
+            Fingering("A4",arrayListOf(O, O, O, O, O, X, X, X), 1),
             // ph: ("Bb4", [O,O,O,X,X,O,X,X), 1),
-            Fingering("B4",arrayListOf(O, O, O, O, O, O, X, X), 1.0),
-            Fingering("C5",arrayListOf(O, O, O, O, O, X, O, X), 1.0),
+            Fingering("B4",arrayListOf(O, O, O, O, O, O, X, X), 1),
+            Fingering("C5",arrayListOf(O, O, O, O, O, X, O, X), 1),
             // ph: ("C#5", [O,O,O,O,O,X,X,O), 1),
-            Fingering("D5",arrayListOf(O, O, O, O, O, X, O, O), 1.0)
+            Fingering("D5",arrayListOf(O, O, O, O, O, X, O, O), 1)
         )
       }
 
@@ -230,34 +230,34 @@ open class ShawmDesigner(override val name: String,
 
   override var fingerings by ConfigParameter(ListOfFingeringsKind) {
     arrayListOf(
-        Fingering("B3",arrayListOf(X, X, X, X, X, X, X, X, X), 1.0),
-        Fingering("B4",arrayListOf(X, X, X, X, X, X, X, X, X), 2.0),
-        Fingering("C4",arrayListOf(O, X, X, X, X, X, X, X, X), 1.0),
-        Fingering("D4",arrayListOf(O, O, X, X, X, X, X, X, X), 1.0),
-        Fingering("E4",arrayListOf(O, O, O, X, X, X, X, X, X), 1.0),
-        Fingering("F4",arrayListOf(O, X, X, O, X, X, X, X, X), 1.0),
-        Fingering("F#4",arrayListOf(O, O, X, X, O, X, X, X, X), 1.0),
-        Fingering("G4",arrayListOf(O, O, O, O, O, X, X, X, X), 1.0),
+        Fingering("B3",arrayListOf(X, X, X, X, X, X, X, X, X), 1),
+        Fingering("B4",arrayListOf(X, X, X, X, X, X, X, X, X), 2),
+        Fingering("C4",arrayListOf(O, X, X, X, X, X, X, X, X), 1),
+        Fingering("D4",arrayListOf(O, O, X, X, X, X, X, X, X), 1),
+        Fingering("E4",arrayListOf(O, O, O, X, X, X, X, X, X), 1),
+        Fingering("F4",arrayListOf(O, X, X, O, X, X, X, X, X), 1),
+        Fingering("F#4",arrayListOf(O, O, X, X, O, X, X, X, X), 1),
+        Fingering("G4",arrayListOf(O, O, O, O, O, X, X, X, X), 1),
         // ph: Fingering("G#4",arrayListOf(O, O,X,X,X,O,X,X,X), 1),
-        Fingering("A4",arrayListOf(O, O, O, O, O, O, X, X, X), 1.0),
-        Fingering("Bb4",arrayListOf(O, O, O, O, X, X, O, X, X), 1.0),
-        Fingering("B4",arrayListOf(O, O, O, O, O, O, O, X, X), 1.0),
-        Fingering("C5",arrayListOf(O, O, O, O, O, O, X, O, X), 1.0),
-        Fingering("C#5",arrayListOf(O, O, O, O, O, O, X, X, O), 1.0),
-        Fingering("D5",arrayListOf(O, O, O, O, O, O, X, O, O), 1.0), // ph: #?
-        Fingering("C5",arrayListOf(O, X, X, X, X, X, X, X, X), 2.0),
-        Fingering("D5",arrayListOf(O, O, X, X, X, X, X, X, X), 2.0),
-        Fingering("E5",arrayListOf(O, O, O, X, X, X, X, X, X), 2.0),
+        Fingering("A4",arrayListOf(O, O, O, O, O, O, X, X, X), 1),
+        Fingering("Bb4",arrayListOf(O, O, O, O, X, X, O, X, X), 1),
+        Fingering("B4",arrayListOf(O, O, O, O, O, O, O, X, X), 1),
+        Fingering("C5",arrayListOf(O, O, O, O, O, O, X, O, X), 1),
+        Fingering("C#5",arrayListOf(O, O, O, O, O, O, X, X, O), 1),
+        Fingering("D5",arrayListOf(O, O, O, O, O, O, X, O, O), 1), // ph: #?
+        Fingering("C5",arrayListOf(O, X, X, X, X, X, X, X, X), 2),
+        Fingering("D5",arrayListOf(O, O, X, X, X, X, X, X, X), 2),
+        Fingering("E5",arrayListOf(O, O, O, X, X, X, X, X, X), 2),
         Fingering(
             "E5",
            arrayListOf(O, O, O, X, X, X, X, X, O),
-            2.0
+            2
         ), // Register hole exactly at node for E
-        Fingering("F5",arrayListOf(O, O, X, O, X, X, X, X, X), 2.0),
-        Fingering("F#5",arrayListOf(O, O, O, X, O, X, X, X, X), 2.0),
-        Fingering("G5",arrayListOf(O, O, O, O, O, X, X, X, X), 2.0),
+        Fingering("F5",arrayListOf(O, O, X, O, X, X, X, X, X), 2),
+        Fingering("F#5",arrayListOf(O, O, O, X, O, X, X, X, X), 2),
+        Fingering("G5",arrayListOf(O, O, O, O, O, X, X, X, X), 2),
         // ph: Fingering("G#5",arrayListOf(O,O,O,X,O,X,X,X), 2),
-        Fingering("A5",arrayListOf(O, O, O, O, O, O, X, X, X), 2.0),
+        Fingering("A5",arrayListOf(O, O, O, O, O, O, X, X, X), 2),
         // ph: Fingering("B5", arrayListOf(O,O,X,X,O,X,X,X), 2),
         // ph: Fingering("C5", arrayListOf(O,O,X,X,O,O,X,X), 2),
         // ph: Fingering("B5", arrayListOf(O,O,O,O,O,O,X,X)),
@@ -310,27 +310,27 @@ class FolkShawmDesigner(override val name: String,
 
   override var fingerings: ArrayList<Fingering> by ConfigParameter(ListOfFingeringsKind) {
    arrayListOf(
-        Fingering("C4",arrayListOf(X, X, X, X, X, X, X), 1.0),
-        Fingering("C5",arrayListOf(X, X, X, X, X, X, X), 2.0),
-        Fingering("C4*3",arrayListOf(X, X, X, X, X, X, X), 3.0),
-        Fingering("C4*4",arrayListOf(X, X, X, X, X, X, X), 4.0),
-        Fingering("D4",arrayListOf(O, X, X, X, X, X, X), 1.0),
-        Fingering("E4",arrayListOf(O, O, X, X, X, X, X), 1.0),
-        Fingering("F#4",arrayListOf(O, O, O, X, X, X, X), 1.0),
-        Fingering("G4",arrayListOf(O, O, O, O, X, X, X), 1.0),
-        Fingering("A4",arrayListOf(O, O, O, O, O, X, X), 1.0),
-        Fingering("B4",arrayListOf(O, O, O, O, O, O, X), 1.0),
+        Fingering("C4",arrayListOf(X, X, X, X, X, X, X), 1),
+        Fingering("C5",arrayListOf(X, X, X, X, X, X, X), 2),
+        Fingering("C4*3",arrayListOf(X, X, X, X, X, X, X), 3),
+        Fingering("C4*4",arrayListOf(X, X, X, X, X, X, X), 4),
+        Fingering("D4",arrayListOf(O, X, X, X, X, X, X), 1),
+        Fingering("E4",arrayListOf(O, O, X, X, X, X, X), 1),
+        Fingering("F#4",arrayListOf(O, O, O, X, X, X, X), 1),
+        Fingering("G4",arrayListOf(O, O, O, O, X, X, X), 1),
+        Fingering("A4",arrayListOf(O, O, O, O, O, X, X), 1),
+        Fingering("B4",arrayListOf(O, O, O, O, O, O, X), 1),
         // ph: Fingering("C5",     arrayListOf(O, O,O,O,X,X,O), 1),
-        Fingering("C#5",arrayListOf(O, O, O, O, O, O, O), 1.0),
-        Fingering("D5",arrayListOf(O, X, X, X, X, X, O), 2.0),
-        Fingering("D5",arrayListOf(O, X, X, X, X, X, X), 2.0),
-        Fingering("E5",arrayListOf(O, O, X, X, X, X, X), 2.0),
+        Fingering("C#5",arrayListOf(O, O, O, O, O, O, O), 1),
+        Fingering("D5",arrayListOf(O, X, X, X, X, X, O), 2),
+        Fingering("D5",arrayListOf(O, X, X, X, X, X, X), 2),
+        Fingering("E5",arrayListOf(O, O, X, X, X, X, X), 2),
         // ph: Fingering("E5",     arrayListOf(O,X,X,X,X,O)),
-        Fingering("F#5",arrayListOf(O, O, O, X, X, X, X), 2.0),
-        Fingering("G5",arrayListOf(O, O, O, O, X, X, X), 2.0),
-        Fingering("A5",arrayListOf(O, O, O, O, O, X, X), 2.0),
-        Fingering("B5",arrayListOf(O, O, O, O, O, O, X), 2.0),
-        Fingering("C#6",arrayListOf(O, O, O, O, O, O, O), 2.0),
+        Fingering("F#5",arrayListOf(O, O, O, X, X, X, X), 2),
+        Fingering("G5",arrayListOf(O, O, O, O, X, X, X), 2),
+        Fingering("A5",arrayListOf(O, O, O, O, O, X, X), 2),
+        Fingering("B5",arrayListOf(O, O, O, O, O, O, X), 2),
+        Fingering("C#6",arrayListOf(O, O, O, O, O, O, O), 2),
         // ph: Fingering("D6",    arrayListOf(O, X,X,X,X,X,X), 4),
         // ph: Fingering("D4*3",  arrayListOf(O, X,X,X,X,X,X), 3),
         // ph: Fingering("E4*3",  arrayListOf(O, O,X,X,X,X,X), 3),

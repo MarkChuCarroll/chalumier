@@ -1,8 +1,24 @@
+/*
+ * Copyright 2024 Mark C. Chu-Carroll
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.goodmath.chalumier.design
 
 import org.goodmath.chalumier.optimize.Score
 import org.goodmath.chalumier.optimize.ScoredParameters
 import org.goodmath.chalumier.util.RecordedRandomizer
+import org.goodmath.chalumier.util.assertFloatListEquals
 import org.junit.jupiter.api.Test
 
 import org.junit.jupiter.api.Assertions.*
@@ -20,12 +36,8 @@ class InstrumentDesignerTest {
         flute.numberOfHoles = 7
         flute.fingerings = FluteDesigner.fingeringsWithEmbouchure(FluteDesigner.folkFingerings)
         flute.balance = arrayListOf(0.1, null, null, 0.1)
-        // ph: hole_angles = [ -30.0, -30.0, 30.0, -30.0, 30.0, -30.0, 0.0 ]
-        // ph: hole_angles = [ 30.0, -30.0, 30.0, 0.0, 0.0, 0.0, 0.0 ]
         flute.holeAngles = arrayListOf(-30.0, 30.0, 30.0, -30.0, 0.0, 30.0, 0.0)
         flute.maxHoleSpacing = flute.scaler(listOf(45.0, 45.0, null, 45.0, 45.0, null))
-        // min_hole_diameters = design.sqrt_scaler([ 7.5 ] * 6  + [ 12.2 ])
-        // max_hole_diameters = design.sqrt_scaler([ 11.4 ] * 6 + [ 13.9 ])
         return flute
     }
 
@@ -37,15 +49,6 @@ class InstrumentDesignerTest {
         assertIterableEquals(expected, (0 until i.size).map { i[it] })
     }
 
-    fun assertFloatListEquals(expected: List<Double>, actual: List<Double>, delta: Double, description: String) {
-        assertEquals(expected.size, actual.size)
-        (0 until actual.size).forEach { i ->
-            assertEquals(
-                expected[i], actual[i], delta,
-                "${description}[${i}] was incorrect"
-            )
-        }
-    }
 
     @Test
     fun testMakeInstrumentFromDesign() {

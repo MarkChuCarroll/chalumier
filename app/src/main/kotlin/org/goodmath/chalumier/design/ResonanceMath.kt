@@ -23,15 +23,14 @@ import org.kotlinmath.times
 import kotlin.math.*
 
 /*
- * This file contains phase utility functions from demakein.
- * I've tried to reproduce the functionality of the original code.
+ * This file contains phase utility functions from demakein,
+ * which are used by the frequency, resonance,and phase computations
+ * in Instrument. I've tried to reproduce the functionality of the
+ * original code.
+ *
  * When relevant, I've kept the original comments from the Python,
  * prefixed with "ph:".
  *
- * A lot of this actually seems, in retrospect, to be irrelevant.
- * I originally thought that ph was using complex numbers to represent
- * magnitudes with phase. But it looks like that was just a remnant of
- * an earlier version of the code.
  */
 
 /**
@@ -39,6 +38,18 @@ import kotlin.math.*
  * its length considered as a vector.
  */
 fun Complex.absoluteValue(): Double = mod
+
+
+/**
+ * ph: frequency response of a tree of connected pipes depends on area.
+ */
+fun circleArea(diameter: Double): Double {
+    val radius = diameter / 2
+    return PI * radius * radius
+}
+
+const val SPEED_OF_SOUND = 346100.0
+
 
 
 /*
@@ -165,3 +176,5 @@ fun cornuYx(t: Double, mirror: Boolean): Pair<Double, Double> {
         Pair(y, x)
     }
 }
+
+fun distance(x: Double, y: Double): Double = sqrt(x * x + y * y)

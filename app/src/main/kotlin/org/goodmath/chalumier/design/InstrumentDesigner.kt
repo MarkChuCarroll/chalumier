@@ -534,7 +534,7 @@ abstract class InstrumentDesigner(
         fingerings.map { item ->
             val fingers = item.fingers
             val w1 = item.wavelength(transpose)
-            val w2: Double = if (item.nth != 0.0) {
+            val w2: Double = if (item.nth != 0) {
                 patchedInstrument.trueWavelengthNear(w1, fingers)
             } else {
                 patchedInstrument.trueNthWavelengthNear(w1, fingers, item.nth)

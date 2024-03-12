@@ -226,7 +226,7 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
                 val (y1, x1) = cornuYx(t1, mirror)
                 val (y2, x2) = cornuYx(t2, mirror)
                 val chordA = atan2(y2 - y1, x2 - x1)
-                val chordL = length(y2 - y1, x2 - x1)
+                val chordL = distance(y2 - y1, x2 - x1)
                 var thisA1 = abs(t1)  // ph: t1*t1
                 var thisA2 = abs(t2) // ph: #t2*t2
                 if (mirror) {
@@ -319,7 +319,7 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
                 val y1 = high[i]
                 val x2 = pos[i + 1]
                 val y2 = low[i + 1]
-                val l = length(x2 - x1, y2 - y1)
+                val l = distance(x2 - x1, y2 - y1)
                 val ang = atan2(y2 - y1, x2 - x1)
                 val a1 = interpretedHighAngle[i]?.let { ha -> ha - ang } ?: 0.0
                 val a2 = interpretedLowAngle[i + 1]?.let { la -> la - ang } ?: 0.0
@@ -329,7 +329,7 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
                 val (t1, t2, mirror) = solve(a1, a2)
                 val (cy1, cx1) = cornuYx(t1, mirror)
                 val (cy2, cx2) = cornuYx(t2, mirror)
-                val cl = length(cy2 - cy1, cx2 - cx1).absoluteValue
+                val cl = distance(cy2 - cy1, cx2 - cx1).absoluteValue
                 if (cl < 1e-10) {
                     continue
                 }
@@ -339,7 +339,7 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
                     val t = t1 + i * (t2 - t1) / steps
                     val (yy, xx) = cornuYx(t, mirror)
                     val aa = atan2(yy - cy1, xx - cx1)
-                    val ll = length(yy - cy1, xx - cx1)
+                    val ll = distance(yy - cy1, xx - cx1)
                     val x = cos(aa - ca + ang) * ll / cl * l + x1
                     val y = sin(aa - ca + ang) * ll / cl * l + y1
                     ppos.add(x)

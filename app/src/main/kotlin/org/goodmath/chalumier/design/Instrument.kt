@@ -16,9 +16,7 @@
 package org.goodmath.chalumier.design
 
 import org.goodmath.chalumier.config.*
-import org.goodmath.chalumier.errors.RequiredParameterException
 import org.goodmath.chalumier.util.fromEnd
-import org.goodmath.chalumier.util.repeat
 import org.kotlinmath.Complex
 import org.kotlinmath.R
 import kotlin.math.*
@@ -29,34 +27,18 @@ import kotlin.math.*
  * of the original code, but adding types to hopefully make it harder
  * to screw things up.
  *
- * All the original comments from the Python are here, prefixed with "ph:".
+ * Where it seemed relevant, I kept original comments from the Python
+ * in the code, prefixed with "ph:".
  */
 
-
-fun length(x: Double, y: Double): Double = sqrt(x * x + y * y)
-
-
-
-
-/**
- * ph: frequency response of a tree of connected pipes depends on area.
- */
-fun circleArea(diameter: Double): Double {
-    val radius = diameter / 2
-    return PI * radius * radius
-}
-
-const val SPEED_OF_SOUND = 346100.0
 
 /*
  * in ph's original code, there were about a dozen different
  * possible arguments to an action function, with many different
  * names, and parameters passed by position(!). For example,
  * the first parameter could be "reply", "reply_end", or "phase".
- * It *looks* like some of the functions at some point took/returned
- * complex values, but that appears to be an anachronism.
- *
- * Actions also get called with varying numbers of parameters.
+ * It also did a lot of stuff involving using default parameters
+ * to capture closures.
  *
  * I'm cleaning that mess up.
  */
@@ -64,11 +46,9 @@ const val SPEED_OF_SOUND = 346100.0
 typealias ActionFunction = (reply: Complex, wavelength: Double, fingers: List<Double>, emission: ArrayList<Double>?) -> Complex
 typealias PhaseActionFunction = (phase: Double, wavelength: Double, fingers: List<Double>) -> Double
 
-data class Event(
+data class InstrumentBoreChange(
     val position: Double, val descriptor: String, val index: Int = 0
 )
-
-
 
 data class Instrument(
     override val name: String,
@@ -109,15 +89,15 @@ data class Instrument(
     fun prepare() {
         steppedInner = inner.asStepped(coneStep)
         val events = arrayListOf(
-            Event(length, "end")
+            InstrumentBoreChange(length, "end")
         )
         steppedInner.pos.forEachIndexed { i, pos ->
             if (0.0 < pos && pos < length) {
-                events.add(Event(pos, "step", i))
+                events.add(InstrumentBoreChange(pos, "step", i))
             }
         }
         innerHolePositions.forEachIndexed { i, p ->
-            events.add(Event(p, "hole", i))
+            events.add(InstrumentBoreChange(p, "hole", i))
         }
         events.sortBy { it.position }
         actions.clear()
@@ -231,14 +211,14 @@ data class Instrument(
      */
     fun preparePhase() {
         actionsPhase.clear()
-        val events = arrayListOf(Event(length, "end"))
+        val events = arrayListOf(InstrumentBoreChange(length, "end"))
         steppedInner.pos.forEachIndexed { i: Int, pos: Double ->
             if (0.0 < pos && pos < length) {
-                events.add(Event(pos, "step", i))
+                events.add(InstrumentBoreChange(pos, "step", i))
             }
         }
         innerHolePositions.forEachIndexed { i, pos ->
-            events.add(Event(pos, "hole", i))
+            events.add(InstrumentBoreChange(pos, "hole", i))
         }
         events.sortBy { it.position }
         var position = -endFlangeLengthCorrection(
@@ -304,16 +284,15 @@ data class Instrument(
         return phase
     }
 
-    fun trueWavelengthNear(
+
+    private fun wavelengthNear(
         wavelength: Double,
         fingers: List<Double>,
         stepCents: Double = 1.0,
         stepIncrease: Double = 1.05,
-        maxSteps: Int = 100
+        maxSteps: Int = 100,
+        scorer: (Double) -> Double
     ): Double {
-
-        fun scorer(probe: Double): Double = ((resonancePhase(probe, fingers) + 0.5) % 1.0) - 0.5
-
         var step = 2.0.pow(stepCents / 1200.0)
         val halfStep = sqrt(step)
         val probes = arrayListOf(wavelength / halfStep, wavelength * halfStep)
@@ -336,7 +315,7 @@ data class Instrument(
         }
 
         for (iteration in 0 until maxSteps) {
-            if (scores.fromEnd(2) >= 0 && scores.fromEnd(1) < 0) {
+            if (scores.fromEnd(2) >= 0.0 && scores.fromEnd(1) < 0.0) {
                 return evaluate(scores.size - 2)
             }
             probes.add(0, probes[0] / step)
@@ -356,55 +335,30 @@ data class Instrument(
         }
     }
 
+
+    fun trueWavelengthNear(
+        wavelength: Double,
+        fingers: List<Double>,
+        stepCents: Double = 1.0,
+        stepIncrease: Double = 1.05,
+        maxSteps: Int = 100
+    ): Double {
+        val scorer = { probe: Double -> ((resonancePhase(probe, fingers) + 0.5) % 1.0) - 0.5 }
+        return wavelengthNear(wavelength, fingers, stepCents, stepIncrease, maxSteps, scorer)
+    }
+
     fun trueNthWavelengthNear(
         wavelength: Double,
         fingers: List<Double>,
+        n: Int,
         stepCents: Double = 1.0,
         stepIncrease: Double = 1.5,
         maxSteps: Int = 20
     ): Double {
-        fun scorer(probe: Double): Double {
-            return ((resonancePhase(probe, fingers) + 0.5) % 1.0) - 0.5
-        }
+        val scorer = { probe: Double -> resonancePhase(probe, fingers) - n.toDouble() }
 
-        var step = 2.0.pow(stepCents / 1200.0)
-        val halfStep = sqrt(step)
-        val probes: ArrayList<Double> = ArrayList(listOf(wavelength / halfStep, wavelength * halfStep))
-        val scores = ArrayList(probes.map { scorer(it) })
-        fun evaluate(i: Int): Double {
-            val y1 = scores[i]
-            val x1 = probes[i]
-            val y2 = scores[i + 1]
-            val x2 = probes[i + 1]
-            val m = (y2 - y1) / (x2 - x1)
-            val c = y1 - m * x1
-            return -c / m
-        }
-
-        for (iteration in 0 until maxSteps) {
-            if (scores.fromEnd(2) >= 0 && scores.fromEnd(1) < 0) {
-                return evaluate(scores.size - 2)
-            }
-            if (scores[0] <= 0) {
-                probes.add(0, probes[0] / step)
-                scores.add(0, scorer(probes[0]))
-            }
-            if (scores[0] >= 0 && scores[1] < 0) {
-                return evaluate(0)
-            }
-            if (scores.fromEnd(1) >= 0) {
-                probes.add(probes.fromEnd(1) * step)
-                scores.add(scorer(probes.fromEnd(1)))
-            }
-            step = step.pow(stepIncrease)
-        }
-        return if (abs(scores.fromEnd(1)) < abs(scores[0])) {
-            probes.fromEnd(1)
-        } else {
-            probes[0]
-        }
+        return wavelengthNear(wavelength, fingers, stepCents, stepIncrease, maxSteps, scorer)
     }
-
 
     fun sqrtScaler(values: List<Double?>): List<Double?> {
         val scaleFactor = scale.pow(0.5)

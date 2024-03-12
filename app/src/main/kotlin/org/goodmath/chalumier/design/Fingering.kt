@@ -23,7 +23,7 @@ import org.goodmath.chalumier.config.ParameterKind
 import org.goodmath.chalumier.errors.ConfigurationParameterException
 
 data class Fingering(
-    val noteName: String, val fingers: List<Double>, val nth: Double? = null
+    val noteName: String, val fingers: List<Double>, val nth: Int? = null
 ) {
     fun wavelength(transpose: Int): Double {
         return wavelength(noteName, transpose)
@@ -46,7 +46,7 @@ object FingeringParameterKind: ParameterKind<Fingering> {
         }
         val noteName = f["noteName"]?.toString() ?: throw ConfigurationParameterException("Expected a noteName field in $f")
         val fingersStr = f["fingers"]?.toString() ?: throw ConfigurationParameterException("Expected a fingers field in $f")
-        val nth = f["nth"]?.toString()?.toDouble()
+        val nth = f["nth"]?.toString()?.toInt()
         val fingers = fingersStr.split(",").map { it.toDouble() }
         return Fingering(noteName, fingers, nth)
     }
