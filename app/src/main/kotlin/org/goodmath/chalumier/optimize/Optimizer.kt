@@ -16,6 +16,7 @@
 package org.goodmath.chalumier.optimize
 
 import org.goodmath.chalumier.design.DesignParameters
+import org.kotlinmath.NaN
 import kotlin.math.max
 
 
@@ -28,6 +29,7 @@ import kotlin.math.max
  * the same underlying task.
  */
 class Optimizer(
+    private val instrumentName: String,
     private val initialDesignParameters: DesignParameters,
     private val constraintScorer: (DesignParameters) -> Double,
     private val intonationScorer: (DesignParameters) -> Double,
@@ -38,12 +40,13 @@ class Optimizer(
 
 
     var lastReport: Long = System.currentTimeMillis()
+    var lastParameterSpan: Double = Double.NaN
+    var lastIntonationSpan: Double = Double.NaN
     var best: ScoredParameters = ScoredParameters(initialDesignParameters,
         Score(constraintScorer(initialDesignParameters),
             intonationScorer(initialDesignParameters)))
     var candidates = ArrayList<ScoredParameters>()
-    val poolSize = 8
-    val computePool = ComputePool(8, constraintScorer, intonationScorer)
+    val computePool = ComputePool(16, constraintScorer, intonationScorer)
     var parameterSetUpdateCount = 0
     var constraintSatisfactionCount = 0
     var iterations = 0
@@ -62,10 +65,13 @@ class Optimizer(
         iterations++
         val now = System.currentTimeMillis()
         if (now - lastReport > reportingInterval) {
-            System.err.println(
+            val formattedSpans = "I%.6f / P%.6f".format(lastIntonationSpan, lastParameterSpan)
+            System.out.println(
                 "[[${fmtIterations(iterations)}]]: best: ${best.score}, \tmax: ${
                     candidates.map { it.score }.max()
-                }, \tcount=${candidates.size}, \tupdates: ${parameterSetUpdateCount}, \tsats: ${constraintSatisfactionCount}")
+                }, \tcount=${candidates.size}, \tupdates: ${parameterSetUpdateCount}, \tsats: ${
+                    constraintSatisfactionCount
+                }, \tspans=$formattedSpans")
             lastReport = now
             if (best.score.constraintScore == 0.0) {
                 monitor(best, candidates.map { it.parameters })
@@ -108,12 +114,12 @@ class Optimizer(
         // If the new candidate is null, that means that in the previous step,
         // we generated something that satisfies constraints, so we
         // don't have anything to move forward with until the compute
-        // pool retfirurns something. If there are compute pool score
+        // pool returns something. If there are compute pool score
         // results available, we grab the first one, and use it as our
         // next candidate. Otherwise, we skip out, because we have nothing
         // to evaluate.
         val newCandidate = newCandidateOpt ?:
-            if (!computePool.hasAvailableResults() || !computePool.isDone() && !computePool.hasAvailableWorkers()) {
+            if (!computePool.hasAvailableResults() || !computePool.isDone() && computePool.hasAvailableWorkers()) {
                 return false
             } else {
                  computePool.getNextResult() ?: return false
@@ -150,22 +156,24 @@ class Optimizer(
         return true
     }
 
+
+    var parameterUpdatesAsOfLastCheck = 0
     /**
      * Evaluate the current candidate pool and decide if it's good
      * enough to declare success.
      */
     private fun evaluateResults(parameterSpanTolerance: Double, frequencyTolerance: Double) {
-        if (candidates.size >= maxCandidates && best.score.constraintScore == 0.0) {
-            var parameterSpan = 0.0
-            for (i in 0 until initialDesignParameters.size) {
-                parameterSpan = max(
-                    parameterSpan,
-                    candidates.map { it.parameters[i] }.max() -
-                            candidates.map { it.parameters[i] }.min()
-                )
-            }
+        if (candidates.size >= maxCandidates && best.score.constraintScore == 0.0 && (parameterSetUpdateCount - parameterUpdatesAsOfLastCheck) > 200) {
+            parameterUpdatesAsOfLastCheck = parameterSetUpdateCount
+            val parameterSpan = (0 until initialDesignParameters.size).map { idx ->
+                val allAtIdx = candidates.map { c -> c.parameters[idx] }
+                allAtIdx.max() - allAtIdx.min()
+            }.max()
+
             var intonationSpan =
                 ArrayList(candidates.map { it.score }).max().intonationScore - best.score.intonationScore
+            lastParameterSpan = parameterSpan
+            lastIntonationSpan = intonationSpan
             if (parameterSpan < parameterSpanTolerance || (parameterSetUpdateCount >= 5000 && intonationSpan < frequencyTolerance)) {
                 computePool.finish()
             }
@@ -174,12 +182,11 @@ class Optimizer(
 
 
     fun optimizeInstrument(frequencyTolerance: Double = 1e-4,
-                           parameterSpanTolerance: Double = 1e-6): DesignParameters {
+                           parameterSpanTolerance: Double = 1e-4): DesignParameters {
 
         computePool.start()
         candidates = arrayListOf(best)
-
-
+        System.out.println("Chalumier Optimizer: analyzing instrument design for ${instrumentName}")
         while (!computePool.isDone() || computePool.hasAvailableResults()) {
             periodicallyReportStatus()
 

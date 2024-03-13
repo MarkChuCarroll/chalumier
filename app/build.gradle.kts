@@ -31,6 +31,7 @@ dependencies {
     // https://mvnrepository.com/artifact/eu.mihosoft.vrl.jcsg/jcsg
     implementation("eu.mihosoft.vrl.jcsg:jcsg:0.5.7")
     implementation("com.github.ajalt.clikt:clikt:4.2.2")
+    implementation("net.peanuuutz.tomlkt:tomlkt:0.3.7")
 
 
 

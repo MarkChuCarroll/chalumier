@@ -600,7 +600,7 @@ abstract class InstrumentDesigner(
         outerDiameters.forEachIndexed { i, item ->
             diagram.text(
                 graphX - 150.0,
-                textY + 10.0 + outerDiameters.size - i * 10.0,
+                textY + 10.0 + (outerDiameters.size - i) * 10.0,
                 describeLowHigh(item) + "mm at %.1fmm".format(outerKinks[i])
             )
         }
@@ -667,7 +667,7 @@ abstract class InstrumentDesigner(
                           initialDesignParameters: DesignParameters,
                           reportingInterval: Int,
                           monitor: (ScoredParameters, List<DesignParameters>) -> Unit): DesignParameters {
-        val optimizer = Optimizer(initialDesignParameters,  constrainer, scorer, reportingInterval, monitor=monitor)
+        val optimizer = Optimizer(name, initialDesignParameters,  constrainer, scorer, reportingInterval, monitor=monitor)
         return optimizer.optimizeInstrument()
 
     }

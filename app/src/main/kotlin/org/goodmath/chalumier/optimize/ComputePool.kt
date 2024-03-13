@@ -37,6 +37,7 @@ class ComputePool(
     private val poolSize: Int,
     private val constraintScorer: (DesignParameters) -> Double,
     private val intonationScorer: (DesignParameters) -> Double) {
+    var active = 0
 
 
     private var done: Boolean = false
@@ -63,6 +64,10 @@ class ComputePool(
         }
     }
 
+    fun workerStatus(): Int {
+        return active
+    }
+
     fun hasAvailableWorkers(): Boolean {
         return  tasks.size < poolSize
     }
@@ -74,7 +79,9 @@ class ComputePool(
     fun getNextResult(): ScoredParameters? {
         synchronized(results) {
             if (results.size > 0) {
-                return results.removeFirst().get()
+                val result = results.removeFirst().get()
+                active--
+                return result
             } else {
                 return null
             }
@@ -82,8 +89,8 @@ class ComputePool(
     }
 
     fun addTask(designParameters: DesignParameters) {
-        totalSubmittedTasks++
         synchronized(tasks) {
+            active++
             val f = CompletableFuture<ScoredParameters>()
             tasks.add(Pair(f, designParameters))
             results.add(f)

@@ -35,8 +35,8 @@ class Design: CliktCommand() {
 
     fun makeDesigner(name: String): InstrumentDesigner {
         return when (instrument) {
-            "folkflute" -> folkFluteDesigner(outputDir)
-            "pflute" -> pFluteDesigner(outputDir)
+            "folkflute" -> folkFluteDesigner(name, outputDir)
+            "pflute" -> pFluteDesigner(name, outputDir)
             "folkwhistle" -> folkWhistleDesigner(outputDir)
             else -> throw CliktError()
         }

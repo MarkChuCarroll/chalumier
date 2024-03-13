@@ -247,8 +247,8 @@ open class TaperedFluteDesigner(override val name: String, dir: Path
 /**
  * Design a flute with a recorder-like fingering system.
  */
-fun pFluteDesigner(outputDir: Path): TaperedFluteDesigner {
-    val flute = TaperedFluteDesigner("pFlute", outputDir)
+fun pFluteDesigner(name: String, outputDir: Path): TaperedFluteDesigner {
+    val flute = TaperedFluteDesigner(name, outputDir)
 
     flute.fingerings = FluteDesigner.fingeringsWithEmbouchure(FluteDesigner.pFluteFingers)
     flute.balance = arrayListOf(0.1, null, null, 0.05)
@@ -263,8 +263,8 @@ fun pFluteDesigner(outputDir: Path): TaperedFluteDesigner {
 /**
  * Design a flute with a pennywhistle-like fingering system.
  */
-fun folkFluteDesigner(outputDir: Path): TaperedFluteDesigner {
-    val flute = TaperedFluteDesigner("FolkFlute",
+fun folkFluteDesigner(name: String, outputDir: Path): TaperedFluteDesigner {
+    val flute = TaperedFluteDesigner(name,
         outputDir)
     flute.numberOfHoles = 7
     flute.fingerings = FluteDesigner.fingeringsWithEmbouchure(FluteDesigner.folkFingerings)

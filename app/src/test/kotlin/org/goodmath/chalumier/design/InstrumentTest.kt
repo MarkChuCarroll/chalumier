@@ -64,8 +64,6 @@ class InstrumentTest {
         assertEquals(1.5404018007, flute.resonancePhase(1178.0, arrayListOf(X, X, X, X, X, X, O)), 1E-10)
         assertEquals(0.596625858411, flute.resonancePhase(1178.0, arrayListOf(O, X, X, O, X, X, O)), 1E-10)
         assertEquals(0.596220254111, flute.resonancePhase(1178.0, arrayListOf(X, O, X, O, X, X, O)), 1E-10)
-
-
     }
 
     @Test
@@ -86,6 +84,5 @@ class InstrumentTest {
         assertEquals(302.707071509, flute.trueNthWavelengthNear(1178.0,  arrayListOf(1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0), 4), 1E-8)
         assertEquals(815.086664168, flute.trueNthWavelengthNear(1178.0, arrayListOf(1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0), 1), 1E-8)
         assertEquals(313.972294704, flute.trueNthWavelengthNear(1178.0, arrayListOf(1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0), 4), 1E-8)
-
     }
 }
