@@ -15,9 +15,21 @@
  */
 package org.goodmath.chalumier.optimize
 
+import com.github.ajalt.mordant.rendering.*
+import com.github.ajalt.mordant.rendering.BorderType.Companion.SQUARE_DOUBLE_SECTION_SEPARATOR
+import com.github.ajalt.mordant.rendering.TextColors.Companion.rgb
+import com.github.ajalt.mordant.table.Borders
+import com.github.ajalt.mordant.table.ColumnWidth
+import com.github.ajalt.mordant.table.table
+import com.github.ajalt.mordant.terminal.Terminal
 import org.goodmath.chalumier.design.DesignParameters
 import org.kotlinmath.NaN
+import java.awt.FlowLayout.CENTER
+import java.awt.FlowLayout.RIGHT
+import kotlin.math.abs
+import kotlin.math.log10
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 
 /**
@@ -30,6 +42,7 @@ import kotlin.math.max
  */
 class Optimizer(
     private val instrumentName: String,
+    private val echo: (Any?) -> Unit,
     private val initialDesignParameters: DesignParameters,
     private val constraintScorer: (DesignParameters) -> Double,
     private val intonationScorer: (DesignParameters) -> Double,
@@ -50,8 +63,22 @@ class Optimizer(
     var parameterSetUpdateCount = 0
     var constraintSatisfactionCount = 0
     var iterations = 0
-    val maxCandidates = (initialDesignParameters.size * 5).toInt()
+    val maxCandidates = (initialDesignParameters.size * 2).toInt()
+    var initialSpans: Pair<Double, Double> = Pair(Double.NaN, Double.NaN)
 
+    val colorSequence =listOf(TextColors.brightRed, TextColors.brightYellow, TextColors.brightMagenta, TextColors.brightBlue, TextColors.brightGreen)
+    val term = Terminal()
+    val height = term.info.height
+
+
+    fun color(current: Double, orig: Double): TextStyle {
+        if (orig.isNaN()) {
+            return TextColors.brightYellow
+        }
+        val curlog = log10(current).roundToInt()
+        val origlog = log10(orig).roundToInt()
+        return  colorSequence[abs(origlog - curlog) % colorSequence.size]
+    }
 
 
     /**
@@ -65,13 +92,102 @@ class Optimizer(
         iterations++
         val now = System.currentTimeMillis()
         if (now - lastReport > reportingInterval) {
-            val formattedSpans = "I%.6f / P%.6f".format(lastIntonationSpan, lastParameterSpan)
-            System.out.println(
-                "[[${fmtIterations(iterations)}]]: best: ${best.score}, \tmax: ${
+            val iSpan = color(lastIntonationSpan, initialSpans.first)("I%.6f".format(lastIntonationSpan))
+            val pSpan = color(lastParameterSpan, initialSpans.second)("P%.6f".format(lastParameterSpan))
+            val formattedSpans = "$iSpan / $pSpan"
+            val iterCount = TextColors.brightCyan("[[${fmtIterations(iterations)}]]")
+            val scoreText = if (best.score.constraintScore > 0) {
+                TextColors.brightRed(best.score.toString())
+            } else {
+                TextColors.brightGreen(best.score.toString())
+            }
+
+            term.cursor.move {
+                setPosition(0, height - 6)
+                startOfLine()
+                clearScreenAfterCursor()
+            }
+            echo(table {
+                borderType = BorderType.SQUARE
+                borderStyle = rgb("#4b25b9")
+                align = TextAlign.CENTER
+                tableBorders = Borders.ALL
+                column(0) {
+                    width = ColumnWidth.Fixed(12)
+                }
+                column(1) {
+                    width = ColumnWidth.Fixed(12)
+                }
+                column(2) {
+                    width = ColumnWidth.Fixed(12)
+                }
+                column(3) {
+                    width = ColumnWidth.Fixed(8)
+                }
+                column(4) {
+                    width = ColumnWidth.Fixed(8)
+                }
+                column(5) {
+                    width = ColumnWidth.Fixed(25)
+                }
+
+                header {
+                    style = TextColors.brightBlue + TextStyles.bold
+                    row {
+                        cellBorders = Borders.NONE
+                        cell("Iterations")
+                        cell("Best")
+                        cell("Max")
+                        cell("Updates")
+                        cell("Satisfactory")
+                        cell("Spans")
+                    }
+                }
+                body {
+                    style = TextColors.green
+                    column(0) {
+                        align = TextAlign.RIGHT
+                        cellBorders = Borders.ALL
+                        style = TextColors.brightBlue + TextStyles.bold
+                    }
+                    column(1) {
+                        cellBorders = Borders.ALL
+                        align = TextAlign.RIGHT
+                        style = TextColors.brightBlue
+                    }
+                    column(2) {
+                        align = TextAlign.RIGHT
+                        cellBorders = Borders.ALL
+                        style = TextColors.brightBlue
+                    }
+                    column(3) {
+                        align = TextAlign.RIGHT
+                        cellBorders = Borders.ALL
+                        style = TextColors.brightBlue
+                    }
+                    column(4) {
+                        align = TextAlign.RIGHT
+                        cellBorders = Borders.ALL
+                        style = TextColors.brightBlue
+                    }
+                    column(5) {
+                        align = TextAlign.CENTER
+                        cellBorders = Borders.ALL
+                        style = TextColors.brightBlue
+                    }
+                    row(
+                        iterCount, scoreText, candidates.map { it.score }.max(), parameterSetUpdateCount,
+                        constraintSatisfactionCount, formattedSpans
+                    )
+                }
+            })
+
+/*            echo(
+                "$iterCount: best: $scoreText , max: ${
                     candidates.map { it.score }.max()
-                }, \tcount=${candidates.size}, \tupdates: ${parameterSetUpdateCount}, \tsats: ${
+                }, updates: ${parameterSetUpdateCount},   sats: ${
                     constraintSatisfactionCount
-                }, \tspans=$formattedSpans")
+                }, spans=$formattedSpans")*/
             lastReport = now
             if (best.score.constraintScore == 0.0) {
                 monitor(best, candidates.map { it.parameters })
@@ -122,7 +238,8 @@ class Optimizer(
             if (!computePool.hasAvailableResults() || !computePool.isDone() && computePool.hasAvailableWorkers()) {
                 return false
             } else {
-                 computePool.getNextResult() ?: return false
+                computePool.getNextResult() ?: return false
+
             }
 
         if (newCandidate.score.constraintScore == 0.0) {
@@ -134,7 +251,7 @@ class Optimizer(
         // We sort the current set by its intonation score, and
         // and then pick the least accurate element that we want
         // to keep as a cutoff threshold.
-        val l = candidates.map { it.score }.sortedBy { it }
+        val l = candidates.map { it.score }.sortedBy { it.intonationScore }
         val c = if (maxCandidates < l.size) {
             l[maxCandidates].intonationScore
         } else {
@@ -167,13 +284,18 @@ class Optimizer(
             parameterUpdatesAsOfLastCheck = parameterSetUpdateCount
             val parameterSpan = (0 until initialDesignParameters.size).map { idx ->
                 val allAtIdx = candidates.map { c -> c.parameters[idx] }
-                allAtIdx.max() - allAtIdx.min()
+                val maxVal = allAtIdx.max()
+                val minVal = allAtIdx.min()
+                (maxVal - minVal)
             }.max()
 
             var intonationSpan =
                 ArrayList(candidates.map { it.score }).max().intonationScore - best.score.intonationScore
             lastParameterSpan = parameterSpan
             lastIntonationSpan = intonationSpan
+            if (initialSpans.first.isNaN()) {
+                initialSpans = Pair(lastIntonationSpan, lastParameterSpan)
+            }
             if (parameterSpan < parameterSpanTolerance || (parameterSetUpdateCount >= 5000 && intonationSpan < frequencyTolerance)) {
                 computePool.finish()
             }
@@ -181,12 +303,17 @@ class Optimizer(
     }
 
 
-    fun optimizeInstrument(frequencyTolerance: Double = 1e-4,
+    fun optimizeInstrument(frequencyTolerance: Double = 1e-5,
                            parameterSpanTolerance: Double = 1e-4): DesignParameters {
 
         computePool.start()
         candidates = arrayListOf(best)
-        System.out.println("Chalumier Optimizer: analyzing instrument design for ${instrumentName}")
+
+        term.cursor.move {
+            setPosition(0, height-7)
+            clearScreenAfterCursor()
+        }
+        echo(TextColors.brightMagenta("Chalumier Optimizer: analyzing instrument design for ${instrumentName}"))
         while (!computePool.isDone() || computePool.hasAvailableResults()) {
             periodicallyReportStatus()
 
@@ -206,8 +333,6 @@ class Optimizer(
             // the currents pool isn't full, and the constraint score is greater than 0.
             evaluateResults(parameterSpanTolerance, frequencyTolerance)
         }
-        computePool.finish()
-        computePool.joinAll()
         return best.parameters
     }
 

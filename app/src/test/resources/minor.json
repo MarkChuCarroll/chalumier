@@ -1,0 +1,201 @@
+{
+  "name": "Weird D flute"
+  "instrumentType": "folkFlute",
+  "rootNote": "D4",
+  "numberOfHoles": 7,
+  "fingerings": [
+    {
+      "noteName": "D4",
+      "fingers": [
+        "X",
+        "X",
+        "X",
+        "X",
+        "X",
+        "X",
+        "O"
+      ]
+    },
+    {
+      "noteName": "E4",
+      "fingers": [
+        "O",
+        "X",
+        "X",
+        "X",
+        "X",
+        "X",
+        "O"
+      ]
+    },
+    {
+      "noteName": "F#4",
+      "fingers": [
+        "O",
+        "O",
+        "X",
+        "X",
+        "X",
+        "X",
+        "O"
+      ]
+    },
+    {
+      "noteName": "G4",
+      "fingers": [
+        "O",
+        "O",
+        "O",
+        "X",
+        "X",
+        "X",
+        "O"
+      ]
+    },
+    {
+      "noteName": "A4",
+      "fingers": [
+        "O",
+        "O",
+        "O",
+        "O",
+        "X",
+        "X",
+        "O"
+      ]
+    },
+    {
+      "noteName": "B4",
+      "fingers": [
+        "O",
+        "O",
+        "O",
+        "O",
+        "O",
+        "X",
+        "O"
+      ]
+    },
+    {
+      "noteName": "C5",
+      "fingers": [
+        "O",
+        "O",
+        "O",
+        "X",
+        "X",
+        "O",
+        "O"
+      ]
+    },
+    {
+      "noteName": "C#5",
+      "fingers": [
+        "O",
+        "O",
+        "O",
+        "O",
+        "O",
+        "O",
+        "O"
+      ]
+    },
+    {
+      "noteName": "D5",
+      "fingers": [
+        "X",
+        "X",
+        "X",
+        "X",
+        "X",
+        "O",
+        "O"
+      ]
+    },
+    {
+      "noteName": "D5",
+      "fingers": [
+        "X",
+        "X",
+        "X",
+        "X",
+        "X",
+        "X",
+        "O"
+      ]
+    },
+    {
+      "noteName": "E5",
+      "fingers": [
+        "O",
+        "X",
+        "X",
+        "X",
+        "X",
+        "X",
+        "O"
+      ]
+    },
+    {
+      "noteName": "F#5",
+      "fingers": [
+        "O",
+        "O",
+        "X",
+        "X",
+        "X",
+        "X",
+        "O"
+      ]
+    },
+    {
+      "noteName": "G5",
+      "fingers": [
+        "O",
+        "O",
+        "O",
+        "X",
+        "X",
+        "X",
+        "O"
+      ]
+    },
+    {
+      "noteName": "A5",
+      "fingers": [
+        "O",
+        "O",
+        "O",
+        "O",
+        "X",
+        "X",
+        "O"
+      ]
+    },
+    {
+      "noteName": "B5",
+      "fingers": [
+        "O",
+        "O",
+        "O",
+        "O",
+        "O",
+        "X",
+        "O"
+      ]
+    },
+    {
+      "noteName": "C6",
+      "fingers": [
+        "O",
+        "O",
+        "O",
+        "X",
+        "X",
+        "O",
+        "O"
+      ]
+    }
+  ]
+}
+

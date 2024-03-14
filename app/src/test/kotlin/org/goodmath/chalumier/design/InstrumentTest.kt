@@ -15,8 +15,8 @@
  */
 package org.goodmath.chalumier.design
 
-import org.goodmath.chalumier.design.InstrumentDesigner.Companion.O
-import org.goodmath.chalumier.design.InstrumentDesigner.Companion.X
+import org.goodmath.chalumier.design.Hole.*
+
 import org.junit.jupiter.api.Test
 
 import org.junit.jupiter.api.Assertions.*
@@ -42,8 +42,8 @@ class InstrumentTest {
         flute.numberOfHoles = 7
         flute.fingerings = FluteDesigner.fingeringsWithEmbouchure(FluteDesigner.folkFingerings)
         flute.balance = arrayListOf(0.1, null, null, 0.1)
-        // ph: hole_angles = [ -30.0, -30.0, 30.0, -30.0, 30.0, -30.0, 0.0 ]
-        // ph: hole_angles = [ 30.0, -30.0, 30.0, 0.0, 0.0, 0.0, 0.0 ]
+        // ph: hole_angles = [ -30.0, -30.0, 30.0, -30.0, 30.0, -30.0, O ]
+        // ph: hole_angles = [ 30.0, -30.0, 30.0, O, O, O, O ]
         flute.holeAngles = arrayListOf(-30.0, 30.0, 30.0, -30.0, 0.0, 30.0, 0.0)
         flute.maxHoleSpacing = flute.scaler(listOf(45.0, 45.0, null, 45.0, 45.0, null))
         // min_hole_diameters = design.sqrt_scaler([ 7.5 ] * 6  + [ 12.2 ])
@@ -68,21 +68,21 @@ class InstrumentTest {
 
     @Test
     fun testTrueWavelengthNear() {
-        assertEquals(1290.32705069, flute.trueWavelengthNear(1178.0, arrayListOf(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0)), 1E-8)
-        assertEquals(1015.42666135, flute.trueWavelengthNear(1178.0, arrayListOf(1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0)), 1E-8)
-        assertEquals(717.899892079, flute.trueWavelengthNear(1178.0, arrayListOf(1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0)), 1E-8)
-        assertEquals(828.740302396, flute.trueWavelengthNear(1178.0, arrayListOf(1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0)), 1E-8)
+        assertEquals(1290.32705069, flute.trueWavelengthNear(1178.0, arrayListOf(X, X, X, X, X, X, O)), 1E-8)
+        assertEquals(1015.42666135, flute.trueWavelengthNear(1178.0, arrayListOf(X, O, X, X, X, X, O)), 1E-8)
+        assertEquals(717.899892079, flute.trueWavelengthNear(1178.0, arrayListOf(X, O, X, O, O, X, O)), 1E-8)
+        assertEquals(828.740302396, flute.trueWavelengthNear(1178.0, arrayListOf(X, O, X, O, X, X, O)), 1E-8)
     }
 
     @Test
     fun testTrueNthWavelengthNear() {
-        assertEquals(1288.80144381, flute.trueNthWavelengthNear(1178.0, arrayListOf(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0), 1), 1E-8)
-        assertEquals(655.244984487, flute.trueNthWavelengthNear(1178.0, arrayListOf(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0), 2), 1E-8)
-        assertEquals(1015.90777764, flute.trueNthWavelengthNear(1178.0, arrayListOf(1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0), 1), 1E-8)
-        assertEquals(370.692806868, flute.trueNthWavelengthNear(1178.0, arrayListOf(1.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0), 3), 1E-8)
-        assertEquals(495.296861326, flute.trueNthWavelengthNear(1178.0, arrayListOf(1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0), 2), 1E-8)
-        assertEquals(302.707071509, flute.trueNthWavelengthNear(1178.0,  arrayListOf(1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0), 4), 1E-8)
-        assertEquals(815.086664168, flute.trueNthWavelengthNear(1178.0, arrayListOf(1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0), 1), 1E-8)
-        assertEquals(313.972294704, flute.trueNthWavelengthNear(1178.0, arrayListOf(1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0), 4), 1E-8)
+        assertEquals(1288.80144381, flute.trueNthWavelengthNear(1178.0, arrayListOf(X, X, X, X, X, X, O), 1), 1E-8)
+        assertEquals(655.244984487, flute.trueNthWavelengthNear(1178.0, arrayListOf(X, X, X, X, X, X, O), 2), 1E-8)
+        assertEquals(1015.90777764, flute.trueNthWavelengthNear(1178.0, arrayListOf(X, O, X, X, X, X, O), 1), 1E-8)
+        assertEquals(370.692806868, flute.trueNthWavelengthNear(1178.0, arrayListOf(X, O, X, X, X, X, O), 3), 1E-8)
+        assertEquals(495.296861326, flute.trueNthWavelengthNear(1178.0, arrayListOf(X, O, X, O, O, X, O), 2), 1E-8)
+        assertEquals(302.707071509, flute.trueNthWavelengthNear(1178.0,  arrayListOf(X, O, X, O, O, X, O), 4), 1E-8)
+        assertEquals(815.086664168, flute.trueNthWavelengthNear(1178.0, arrayListOf(X, O, X, O, X, X, O), 1), 1E-8)
+        assertEquals(313.972294704, flute.trueNthWavelengthNear(1178.0, arrayListOf(X, O, X, O, X, X, O), 4), 1E-8)
     }
 }

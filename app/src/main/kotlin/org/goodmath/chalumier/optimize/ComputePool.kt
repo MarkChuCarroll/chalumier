@@ -18,8 +18,7 @@ package org.goodmath.chalumier.optimize
 import kotlinx.coroutines.*
 import org.goodmath.chalumier.design.DesignParameters
 import java.util.*
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.Future
+import java.util.concurrent.*
 import kotlin.collections.ArrayList
 
 /*
@@ -44,23 +43,21 @@ class ComputePool(
     private val workerThreads = ArrayList<Thread>()
     private val tasks = ArrayDeque<Pair<CompletableFuture<ScoredParameters>,DesignParameters>>()
     private val results = ArrayDeque<Future<ScoredParameters>>()
+    private val threadQueue: BlockingQueue<Runnable> = ArrayBlockingQueue<Runnable>(poolSize)
     private var totalSubmittedTasks = 0
+    private var exec = ThreadPoolExecutor(poolSize, poolSize*2, 2000L, TimeUnit.MILLISECONDS, threadQueue)
+
 
     fun isDone(): Boolean {
         return done
     }
 
-    fun joinAll() {
-        for (t in workerThreads) {
-            t.join()
-        }
-    }
 
     fun start() {
+        exec = ThreadPoolExecutor(poolSize, poolSize*2, 2000L, TimeUnit.MILLISECONDS, threadQueue)
         for (i in 0 until poolSize) {
-            val newThread = Thread(ParameterScorer(this))
-            newThread.start()
-            workerThreads.add(newThread)
+            val worker = ParameterScorer(this, i)
+            exec.execute(worker)
         }
     }
 
@@ -99,9 +96,12 @@ class ComputePool(
 
     fun finish() {
         done = true
+        exec.shutdown()
+        exec.awaitTermination(1000, TimeUnit.MILLISECONDS)
+        results.clear()
     }
 
-    class ParameterScorer(val computePool: ComputePool): Runnable {
+    class ParameterScorer(val computePool: ComputePool, val idx: Int): Runnable {
         fun process(designParameters: DesignParameters): ScoredParameters {
             return ScoredParameters(designParameters,
                 Score(computePool.constraintScorer(designParameters),

@@ -15,6 +15,8 @@
  */
 package org.goodmath.chalumier.design
 
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.util.fromEnd
 import org.kotlinmath.Complex
@@ -43,15 +45,16 @@ import kotlin.math.*
  * I'm cleaning that mess up.
  */
 
-typealias ActionFunction = (reply: Complex, wavelength: Double, fingers: List<Double>, emission: ArrayList<Double>?) -> Complex
-typealias PhaseActionFunction = (phase: Double, wavelength: Double, fingers: List<Double>) -> Double
+typealias ActionFunction = (reply: Complex, wavelength: Double, fingers: List<Hole>, emission: ArrayList<Double>?) -> Complex
+typealias PhaseActionFunction = (phase: Double, wavelength: Double, fingers: List<Hole>) -> Double
 
 data class InstrumentBoreChange(
     val position: Double, val descriptor: String, val index: Int = 0
 )
 
+@Serializable
 data class Instrument(
-    override val name: String,
+    val name: String,
     open var length: Double,
     open var inner: Profile,
     open var outer: Profile,
@@ -64,14 +67,18 @@ data class Instrument(
     val holeLengths: ArrayList<Double>,
     val holeDiameters: ArrayList<Double>,
     val closedTop: Boolean,
-    val coneStep: Double): Configurable<Instrument>(name) {
+    val coneStep: Double,
+    var emissionDivide: Double = 1.0,
+    var scale: Double = 1.0) {
 
     var trueLength: Double = length
+
+    @Transient
     private val actions = ArrayList<ActionFunction>()
+    @Transient
     private val actionsPhase = ArrayList<PhaseActionFunction>()
+    @Transient
     private val initialEmission = ArrayList<Double>()
-    open var emissionDivide by DoubleParameter { 1.0 }
-    open var scale by DoubleParameter { 1.0  }
 
     var steppedInner: Profile = inner.asStepped(0.125)
 
@@ -144,7 +151,7 @@ data class Instrument(
                 val holeFunc: ActionFunction = { reply, wavelength, fingers, emission ->
                     val index = event.index
 
-                    val holeReply: Complex = if (fingers[index] != 0.0) {
+                    val holeReply: Complex = if (fingers[index] != Hole.O) {
                         pipeReply(1.0.R, closedLength / wavelength)
                     } else {
                         pipeReply((-1.0).R, openLength / wavelength)
@@ -155,7 +162,7 @@ data class Instrument(
                         for (i in 0 until emission.size) {
                             emission[i] *= mag1
                         }
-                        if (fingers[index] != 0.0) {
+                        if (fingers[index] != Hole.O) {
                             emission.add(holeArea * mag2)
                         }
                     }
@@ -167,7 +174,7 @@ data class Instrument(
         emissionDivide = circleArea(diameter)
     }
 
-    fun resonanceScore(wavelength: Double, fingers: List<Double>, calcEmission: Boolean = false): Pair<Double, ArrayList<Double>?> {
+    fun resonanceScore(wavelength: Double, fingers: List<Hole>, calcEmission: Boolean = false): Pair<Double, ArrayList<Double>?> {
         // ph: A score -1 <= score <= 1, zero if wavelength w resonates
         var reply = (-1.0).R  // ph: open end
         val emission = if (calcEmission) {
@@ -258,7 +265,7 @@ data class Instrument(
                 val openLength = trueLength + holeLengthCorrection(holeDiameter, diameter, false)
                 val closedLength = trueLength + holeLengthCorrection(holeDiameter, diameter, true)
                 val holeFunc: PhaseActionFunction = { phase, wavelength, fingers ->
-                    val holePhase = if (fingers[index] != 0.0) {
+                    val holePhase = if (fingers[index] != Hole.O) {
                         pipeReplyPhase(0.0, closedLength /wavelength)
                     } else {
                         pipeReplyPhase((-0.5), openLength / wavelength)
@@ -273,7 +280,7 @@ data class Instrument(
     /*
      * ph: score % 1 == 0 if wavelength w resonates
      */
-    fun resonancePhase(wavelength: Double, fingers: List<Double>): Double {
+    fun resonancePhase(wavelength: Double, fingers: List<Hole>): Double {
         var phase = 0.5 // ph: open end
         for (action in actionsPhase) {
             phase = action(phase, wavelength, fingers)
@@ -287,7 +294,7 @@ data class Instrument(
 
     private fun wavelengthNear(
         wavelength: Double,
-        fingers: List<Double>,
+        fingers: List<Hole>,
         stepCents: Double = 1.0,
         stepIncrease: Double = 1.05,
         maxSteps: Int = 100,
@@ -338,7 +345,7 @@ data class Instrument(
 
     fun trueWavelengthNear(
         wavelength: Double,
-        fingers: List<Double>,
+        fingers: List<Hole>,
         stepCents: Double = 1.0,
         stepIncrease: Double = 1.05,
         maxSteps: Int = 100
@@ -349,7 +356,7 @@ data class Instrument(
 
     fun trueNthWavelengthNear(
         wavelength: Double,
-        fingers: List<Double>,
+        fingers: List<Hole>,
         n: Int,
         stepCents: Double = 1.0,
         stepIncrease: Double = 1.5,

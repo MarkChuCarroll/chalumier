@@ -16,8 +16,8 @@
 package org.goodmath.chalumier.design
 
 import org.goodmath.chalumier.config.*
-import org.goodmath.chalumier.design.InstrumentDesigner.Companion.O
-import org.goodmath.chalumier.design.InstrumentDesigner.Companion.X
+import org.goodmath.chalumier.design.Hole.X
+import org.goodmath.chalumier.design.Hole.O
 import org.goodmath.chalumier.util.fromEnd
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
@@ -190,8 +190,8 @@ class SixHoleWhistleDesigner(override val name: String,
     }
 }
 
-fun folkWhistleDesigner(outputDir: Path): SixHoleWhistleDesigner {
-    val result = SixHoleWhistleDesigner("FolkWhistle",  outputDir)
+fun folkWhistleDesigner(name: String, outputDir: Path): SixHoleWhistleDesigner {
+    val result = SixHoleWhistleDesigner(name,  outputDir)
     result.initialLength = wavelength("D4") * 0.5
     result.fingerings = arrayListOf(
         Fingering("D4", listOf(X, X, X, X, X, X)),

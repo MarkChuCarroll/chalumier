@@ -1,19 +1,44 @@
+/*
+ * Copyright 2024 Mark C. Chu-Carroll
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.goodmath.chalumier.cli
 
+import kotlinx.serialization.json.Json
 import org.goodmath.chalumier.design.Fingering
 import org.goodmath.chalumier.design.InstrumentDesigner
+import org.goodmath.chalumier.design.frequency
+import org.goodmath.chalumier.design.wavelength
 import org.goodmath.chalumier.errors.ChalumierException
+import java.nio.file.Path
+import kotlin.io.path.readText
 
-class DesignerBuilder(val templates: Map<String, (name: String) -> InstrumentDesigner>) {
+class DesignerBuilder(val templates: Map<String, (name: String, outputDir: Path) -> InstrumentDesigner>) {
 
-    fun getDesigner(spec: InstrumentSpec): InstrumentDesigner {
+    fun getDesigner(specFile: Path, outputDir: Path): InstrumentDesigner {
+        val spec = Json.decodeFromString<InstrumentSpec>(specFile.readText())
+        return getDesigner(spec, outputDir)
+    }
+
+    fun getDesigner(spec: InstrumentSpec, dir: Path): InstrumentDesigner {
         val baseTemplate = templates.get(spec.instrumentType) ?: throw ChalumierException("Unknown instrument type ${spec.instrumentType}")
-        val designer = baseTemplate(spec.name)
+        val designer = baseTemplate(spec.name, dir)
+        designer.initialLength = wavelength(spec.rootNote) * 0.5
         designer.numberOfHoles = spec.numberOfHoles
-        designer.fingerings = toFingerings(spec.fingerings)
+        designer.fingerings = ArrayList(spec.fingerings)
         spec.innerDiameters?.let { designer.innerDiameters = it }
         spec.outerDiameters?.let { designer.outerDiameters = it }
-        spec.length?.let { designer.length = it}
         spec.maxLength?.let { designer.maxLength = it}
         designer.closedTop = spec.closedTop
         spec.initialLength?.let { designer.initialLength = it }
@@ -35,12 +60,4 @@ class DesignerBuilder(val templates: Map<String, (name: String) -> InstrumentDes
         return designer
     }
 
-    private fun toFingerings(fingerings: List<FingeringSpec>): ArrayList<Fingering> {
-        return ArrayList(fingerings.map { f ->
-            Fingering(f.noteName, f.fingering.map { when(it) {
-                Hole.Open -> 0.0
-                Hole.Closed -> 1.0
-            }
-            }, f.nTh)})
-    }
 }

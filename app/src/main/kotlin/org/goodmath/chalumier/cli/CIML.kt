@@ -1,4 +1,4 @@
-package org.goodmath.chalumier
+package org.goodmath.chalumier.cli
 
 /**
  * This is an implementation of CIML - the Chalumier Instrument Markup Language.
@@ -28,16 +28,15 @@ class CIML {
  *
  *
  */
-interface ParseEvents {
-    fun str(s: String): Boolean
-    fun int(i: Int): Boolean
+interface ParseEvents<T> {
+    fun str(s: String, t: T): Boolean
+    fun int(i: Int, t: T): Boolean
     fun ident(id: String): Boolean
 
     fun startArray(): Boolean
     fun endArray(): Boolean
     fun startDict(): Boolean
     fun endDict(): Boolean
-
 }
 
 class Parsed<T: DataType> {
@@ -50,12 +49,7 @@ class Parsed<T: DataType> {
 abstract class DataType(open val name: String) {
     fun ind(i: Int): String = "   ".repeat(i)
 
-    /**
-     * Read an elemento of this datatype from the front of the string,
-     * and return the parsed result, along  with the remainer of the string
-     * that came after the value.
-     */
-    abstract fun parseFrom(input: String): Pair<Parsed<DataType>, String>
+
 
     open fun render(indent: Int): String = name
 }
@@ -96,18 +90,17 @@ data class EnumType(override val name: String, val values: List<String>): DataTy
 val FingeringType = DictType("Fingering",
     mapOf("noteName" to StringType,
         "fingering" to ArrayType((EnumType("Hole", listOf("Open", "Close")))),
-        "nth" to OptionalType(IntType)))
+        "nth" to OptionalType(IntType)
+    ))
 
-val InstrumentSpec = DictType("Instrument",
+val InstrumentSpecSchema = DictType("Instrument",
     mapOf("name" to StringType,
         "instrumentType" to StringType,
         "numberOfHoles" to IntType,
         "fingerings" to ArrayType(FingeringType),
         "innerDiameters" to OptionalType(ArrayType(TupleType(listOf(DoubleType, DoubleType)))),
         "length" to OptionalType(DoubleType),
-        "minHoleDiameters" to OptionalType(ArrayType(DoubleType))))
+        "minHoleDiameters" to OptionalType(ArrayType(DoubleType))
+    ))
 
 
-fun main() {
-    System.out.println(InstrumentSpec.render(1))
-}

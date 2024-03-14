@@ -15,6 +15,7 @@
  */
 package org.goodmath.chalumier.design
 
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import org.goodmath.chalumier.config.ConfigParameter
 import org.goodmath.chalumier.config.Configurable
@@ -22,8 +23,14 @@ import org.goodmath.chalumier.config.ListParameterKind
 import org.goodmath.chalumier.config.ParameterKind
 import org.goodmath.chalumier.errors.ConfigurationParameterException
 
+@Serializable
+enum class Hole {
+    O, X
+}
+
+@Serializable
 data class Fingering(
-    val noteName: String, val fingers: List<Double>, val nth: Int? = null
+    val noteName: String, val fingers: List<Hole>, val nth: Int? = null
 ) {
     fun wavelength(transpose: Int): Double {
         return wavelength(noteName, transpose)
@@ -45,9 +52,10 @@ object FingeringParameterKind: ParameterKind<Fingering> {
             throw ConfigurationParameterException("Expected a loadable json  ${name} object, but found ${f}")
         }
         val noteName = f["noteName"]?.toString() ?: throw ConfigurationParameterException("Expected a noteName field in $f")
+
         val fingersStr = f["fingers"]?.toString() ?: throw ConfigurationParameterException("Expected a fingers field in $f")
         val nth = f["nth"]?.toString()?.toInt()
-        val fingers = fingersStr.split(",").map { it.toDouble() }
+        val fingers = fingersStr.split(",").map { if (it == "O") { Hole.O } else {Hole.X } }
         return Fingering(noteName, fingers, nth)
     }
 

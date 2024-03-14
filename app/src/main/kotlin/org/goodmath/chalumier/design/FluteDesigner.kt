@@ -16,6 +16,8 @@
 package org.goodmath.chalumier.design
 
 import org.goodmath.chalumier.config.*
+import org.goodmath.chalumier.design.Hole.O
+import org.goodmath.chalumier.design.Hole.X
 import org.goodmath.chalumier.util.fromEnd
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
@@ -47,7 +49,7 @@ open class FluteDesigner(override val name: String, outputDir: Path) : Instrumen
         return newInst
     }
 
-    override fun calcEmission(emission: List<Double>, fingers: List<Double>): Double {
+    override fun calcEmission(emission: List<Double>, fingers: List<Hole>): Double {
         /* ph:  Emission is relative to embouchure hole, ie we assume the amplitude at the
          * embouchure hole is fixed
          */

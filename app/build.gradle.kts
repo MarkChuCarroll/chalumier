@@ -49,5 +49,6 @@ testing {
 
 application {
     // Define the main class for the application.
-    mainClass.set("org.goodmath.chalumier.AppKt")
+    mainClass.set("org.goodmath.chalumier.cli.ChalumierKt")
+    applicationName = "chalumier"
 }

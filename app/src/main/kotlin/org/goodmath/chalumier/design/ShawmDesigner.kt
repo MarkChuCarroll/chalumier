@@ -15,6 +15,8 @@
  */
 package org.goodmath.chalumier.design
 
+import org.goodmath.chalumier.design.Hole.O
+import org.goodmath.chalumier.design.Hole.X
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
@@ -96,7 +98,7 @@ class ReedDroneDesigner(override val name: String,
   // withFingerPad =arrayListOf()
 
   override var fingerings by ListOfFingeringsParam {
-          listOf(Fingering("C4", ArrayList<Double>(), 1)).toMutableList()
+          listOf(Fingering("C4", ArrayList<Hole>(), 1)).toMutableList()
   }
 
   override var divisions by ListOfListOfIntDoublePairParam { emptyList() }

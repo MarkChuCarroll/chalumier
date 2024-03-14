@@ -15,6 +15,10 @@
  */
 package org.goodmath.chalumier.design
 
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.diagram.Diagram
 import org.goodmath.chalumier.errors.RequiredParameterException
@@ -377,7 +381,7 @@ abstract class InstrumentDesigner(
      *
      * Let-s Flute_designer rate emission relative to embouchure hole.
      */
-    open fun calcEmission(emission: List<Double>, fingers: List<Double>): Double {
+    open fun calcEmission(emission: List<Double>, fingers: List<Hole>): Double {
         return sqrt(emission.sumOf { e -> e * e })
     }
 
@@ -498,12 +502,13 @@ abstract class InstrumentDesigner(
 
     fun save(params: ScoredParameters,
              others: List<DesignParameters> = emptyList()) {
-        twiddleFiles(outputDir / "data.json")
-        writeParametersToFile(outputDir / "data.json")
+        twiddleFiles(outputDir / "${name}-parameters.json")
         val instrument = makeInstrumentFromParameters(params.parameters)
         val patchedInstrument = patchInstrument(instrument)
         patchedInstrument.prepare()
         patchedInstrument.preparePhase()
+        (outputDir / "${name}-parameters.json").writeText(Json.encodeToString<Instrument>(patchedInstrument))
+
 
         val diagram = Diagram()
         drawInstrumentOntoDiagram(diagram, instrument)
@@ -614,20 +619,21 @@ abstract class InstrumentDesigner(
                 describeLowHigh(item) + "mm at %.1fmm".format(innerKinks[i])
             )
         }
-        twiddleFiles(outputDir / "diagram.svg")
-        diagram.save(outputDir / "diagram.svg")
+        twiddleFiles(outputDir / "${name}-design.svg")
+        diagram.save(outputDir / "${name}-design.svg")
     }
 
-    fun run(outputDir: Path,
-            reportingInterval: Int = 5000) {
+    fun run(echo: (Any?) -> Unit,
+        reportingInterval: Int = 5000) : Instrument {
         if (!outputDir.exists()) {
             outputDir.createDirectory()
         }
         val initialDesignParameters = initialDesignParameters()
-        val newInstrument = optimizeIntrument(constraintScorer, intonationScorer, initialDesignParameters,
+        val newInstrument = optimizeIntrument(echo, constraintScorer, intonationScorer, initialDesignParameters,
             reportingInterval,
             monitor = saver)
         save(ScoredParameters(newInstrument, fullScore(newInstrument)))
+        return makeInstrumentFromParameters(newInstrument)
     }
 
     open fun scaler(values: List<Double?>): ArrayList<Double?> {
@@ -662,20 +668,17 @@ abstract class InstrumentDesigner(
         }
     }
 
-    fun optimizeIntrument(constrainer: (DesignParameters) -> Double,
+    fun optimizeIntrument(echo: (Any?) -> Unit,
+                          constrainer: (DesignParameters) -> Double,
                           scorer: (DesignParameters) -> Double,
                           initialDesignParameters: DesignParameters,
                           reportingInterval: Int,
                           monitor: (ScoredParameters, List<DesignParameters>) -> Unit): DesignParameters {
-        val optimizer = Optimizer(name, initialDesignParameters,  constrainer, scorer, reportingInterval, monitor=monitor)
+        val optimizer = Optimizer(name, echo, initialDesignParameters,  constrainer, scorer, reportingInterval, monitor=monitor)
         return optimizer.optimizeInstrument()
 
     }
 
-    companion object {
-        val O = 0.0
-        val X = 1.0
-    }
 
 }
 
