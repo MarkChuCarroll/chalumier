@@ -29,10 +29,6 @@ import kotlin.math.*
  * of the original code, but adding types to hopefully make it harder
  * to screw things up.
  *
- * But I gotta be honest. I have no idea whatsoever of WTF this is
- * doing. The original code is pretty impenetrable, and I'm just slavishly
- * translating it.
- *
  * Where relevant, the original comments from the Python are here, prefixed with "ph:".
  */
 typealias DoubleList = ArrayList<Double>
@@ -103,24 +99,36 @@ class Angle(val dir: AngleDirection, val v: Double? = null) {
  */
 data class Solution(val t1: Double, val t2: Double, val mirror: Boolean)
 
+/**
+ * A profile is a description of a 3 dimensional tube, whose diameter can
+ * vary along its length. It's used to model the body of instruments.
+ *
+ * @param pos a position along the tube where the diameter changes.
+ * @param low the new diameter at this position.
+ * @param high sadly, I'm not sure. Most of the time, high is a duplicate
+ *     of low.
+ */
 @Serializable
 data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val high: ArrayList<Double> = low) {
 
-    operator fun invoke(otherPos: Double, useHigh: Boolean = false): Double {
-        if (otherPos < pos[0]) {
+    /**
+     * Compute the diameter of the profile at a location.
+     */
+    operator fun invoke(location: Double, useHigh: Boolean = false): Double {
+        if (location < pos[0]) {
             return low[0]
-        } else if (otherPos > pos.last()) {
+        } else if (location > pos.last()) {
             return high.last()
         }
-        val i = pos.bisect(otherPos)
-        if (pos[i] == otherPos) {
+        val i = pos.bisect(location)
+        if (pos[i] == location) {
             if (useHigh) {
                 return high[i]
             } else {
                 return low[i]
             }
         }
-        val t = (otherPos - pos[i - 1]) / (pos[i] - pos[i - 1])
+        val t = (location - pos[i - 1]) / (pos[i] - pos[i - 1])
         return (1.0 - t) * high[i - 1] + t * low[i]
     }
 
@@ -132,13 +140,8 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
 
     /**
      * ph: Fairly dumb way to combine profiles. Won't work perfectly for min, max.
-     * MarkCC: I have no idea why we would want to marph from a profile to
-     * something which isn't a profile, so I've left that out.
      */
     fun morph(other: Profile, op: (Double, Double) -> Double): Profile {
-        // pn:
-        // if not isinstance(other, Profile):
-        //   other = Profile([0.0],[other],[other])
         val combinedPos = ArrayList((pos + other.pos).sorted())
         val combinedLow = ArrayList(combinedPos.map { p -> op(this(p, false), other(p, false)) }.toMutableList())
 
@@ -146,13 +149,24 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
         return Profile(combinedPos, combinedLow, combinedHigh)
     }
 
+    fun morph(other: Double, op: (Double, Double) -> Double): Profile {
+        val otherProfile = Profile(arrayListOf(0.0), arrayListOf(other), arrayListOf(other))
+        return morph(otherProfile, op)
+    }
+
+
     fun maxWith(other: Profile): Profile = morph(other) { a, b -> max(a, b) }
 
     fun minWith(other: Profile): Profile = morph(other) { a, b -> min(a, b) }
 
     operator fun plus(other: Profile): Profile = morph(other) { a, b -> a + b }
 
+    operator fun plus(other: Double): Profile = morph(other) { a, b -> a + b }
+
+
     operator fun minus(other: Profile): Profile = morph(other) { a, b -> a - b }
+
+    operator fun minus(other: Double): Profile = morph(other) { a, b -> a - b }
 
     /**
      * Clip or extend a profile
@@ -407,13 +421,4 @@ object ProfileParameterKind: ParameterKind<Profile> {
             put("high", ListOfDoubleParameterKind.dump(t.high))
         }
     }
-}
-
-fun main() {
-    val pos = arrayListOf(100.0, 200.0, 300.0, 400.0)
-    val low = arrayListOf(40.0, 50.0, 60.0, 60.0)
-    val high = arrayListOf(60.0, 70.0, 80.0, 70.0)
-    val lowAngle: ArrayList<Angle?> = arrayListOf(null, null, null, null)
-    val highAngle: ArrayList<Angle?> = arrayListOf(null, null, null, null)
-
 }

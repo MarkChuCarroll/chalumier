@@ -16,6 +16,8 @@
 package org.goodmath.chalumier.design
 
 import org.goodmath.chalumier.design.Hole.*
+import org.goodmath.chalumier.design.instruments.Instrument
+import org.goodmath.chalumier.design.instruments.TaperedFlute
 
 import org.junit.jupiter.api.Test
 
@@ -25,7 +27,7 @@ import kotlin.io.path.Path
 
 class InstrumentTest {
 
-    lateinit var fluteDesigner: InstrumentDesigner
+    lateinit var fluteDesigner: InstrumentDesigner<TaperedFlute>
     lateinit var flute: Instrument
     @BeforeEach
     fun setU() {
@@ -36,7 +38,7 @@ class InstrumentTest {
         flute.preparePhase()
     }
 
-    fun makeDesigner(): InstrumentDesigner {
+    fun makeDesigner(): InstrumentDesigner<TaperedFlute> {
         val flute = TaperedFluteDesigner("FolkFlute",
             Path("/tmp/test"))
         flute.numberOfHoles = 7

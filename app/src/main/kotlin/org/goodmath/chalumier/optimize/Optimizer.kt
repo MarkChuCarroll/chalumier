@@ -16,19 +16,14 @@
 package org.goodmath.chalumier.optimize
 
 import com.github.ajalt.mordant.rendering.*
-import com.github.ajalt.mordant.rendering.BorderType.Companion.SQUARE_DOUBLE_SECTION_SEPARATOR
 import com.github.ajalt.mordant.rendering.TextColors.Companion.rgb
 import com.github.ajalt.mordant.table.Borders
 import com.github.ajalt.mordant.table.ColumnWidth
 import com.github.ajalt.mordant.table.table
 import com.github.ajalt.mordant.terminal.Terminal
 import org.goodmath.chalumier.design.DesignParameters
-import org.kotlinmath.NaN
-import java.awt.FlowLayout.CENTER
-import java.awt.FlowLayout.RIGHT
 import kotlin.math.abs
 import kotlin.math.log10
-import kotlin.math.max
 import kotlin.math.roundToInt
 
 
@@ -45,39 +40,39 @@ class Optimizer(
     private val echo: (Any?) -> Unit,
     private val initialDesignParameters: DesignParameters,
     private val constraintScorer: (DesignParameters) -> Double,
-    private val intonationScorer: (DesignParameters) -> Double,
+    intonationScorer: (DesignParameters) -> Double,
     private val reportingInterval: Int = 5000,
     private val accuracy: Double = 0.001,
     private val monitor: (ScoredParameters,
-                  List<DesignParameters>) -> Unit = { _, _ -> Unit }) {
+                          List<DesignParameters>) -> Unit = { _, _ ->  }) {
 
 
-    var lastReport: Long = System.currentTimeMillis()
-    var lastParameterSpan: Double = Double.NaN
-    var lastIntonationSpan: Double = Double.NaN
-    var best: ScoredParameters = ScoredParameters(initialDesignParameters,
+    private var lastReport: Long = System.currentTimeMillis()
+    private var lastParameterSpan: Double = Double.NaN
+    private var lastIntonationSpan = Double.NaN
+    private var best: ScoredParameters = ScoredParameters(initialDesignParameters,
         Score(constraintScorer(initialDesignParameters),
             intonationScorer(initialDesignParameters)))
-    var candidates = ArrayList<ScoredParameters>()
-    val computePool = ComputePool(16, constraintScorer, intonationScorer)
-    var parameterSetUpdateCount = 0
-    var constraintSatisfactionCount = 0
-    var iterations = 0
-    val maxCandidates = (initialDesignParameters.size * 2).toInt()
-    var initialSpans: Pair<Double, Double> = Pair(Double.NaN, Double.NaN)
+    private var candidates = ArrayList<ScoredParameters>()
+    private val computePool = ComputePool(16, constraintScorer, intonationScorer)
+    private var parameterSetUpdateCount = 0
+    private var constraintSatisfactionCount = 0
+    private var iterations = 0
+    private val maxCandidates = initialDesignParameters.size * 2
+    private var initialSpans: Pair<Double, Double> = Pair(Double.NaN, Double.NaN)
 
-    val colorSequence =listOf(TextColors.brightRed, TextColors.brightYellow, TextColors.brightMagenta, TextColors.brightBlue, TextColors.brightGreen)
-    val term = Terminal()
-    val height = term.info.height
+    private val colorSequence =listOf(TextColors.brightRed, TextColors.brightYellow, TextColors.brightMagenta, TextColors.brightBlue, TextColors.brightGreen)
+    private val term = Terminal()
+    private val height = term.info.height
 
 
-    fun color(current: Double, orig: Double): TextStyle {
+    private fun color(current: Double, orig: Double): TextStyle {
         if (orig.isNaN()) {
             return TextColors.brightYellow
         }
-        val curlog = log10(current).roundToInt()
-        val origlog = log10(orig).roundToInt()
-        return  colorSequence[abs(origlog - curlog) % colorSequence.size]
+        val curLog = log10(current).roundToInt()
+        val origLog = log10(orig).roundToInt()
+        return  colorSequence[abs(origLog - curLog) % colorSequence.size]
     }
 
 
@@ -85,7 +80,7 @@ class Optimizer(
      * Bump the iteration count, and if the reporting interval has elapsed,
      * print out a brief status report.
      */
-    fun periodicallyReportStatus() {
+    private fun periodicallyReportStatus() {
         fun fmtIterations(its: Int): String {
             return "%05d".format(its)
         }
@@ -176,18 +171,12 @@ class Optimizer(
                         style = TextColors.brightBlue
                     }
                     row(
-                        iterCount, scoreText, candidates.map { it.score }.max(), parameterSetUpdateCount,
+                        iterCount, scoreText, candidates.maxOfOrNull { it.score }, parameterSetUpdateCount,
                         constraintSatisfactionCount, formattedSpans
                     )
                 }
             })
 
-/*            echo(
-                "$iterCount: best: $scoreText , max: ${
-                    candidates.map { it.score }.max()
-                }, updates: ${parameterSetUpdateCount},   sats: ${
-                    constraintSatisfactionCount
-                }, spans=$formattedSpans")*/
             lastReport = now
             if (best.score.constraintScore == 0.0) {
                 monitor(best, candidates.map { it.parameters })
@@ -195,7 +184,7 @@ class Optimizer(
         }
     }
 
-    fun generateNewCandidate(): ScoredParameters? {
+    private fun generateNewCandidate(): ScoredParameters? {
         if (!computePool.isDone() && computePool.hasAvailableWorkers()) {
             // Generate a new mutant to consider
             val newDesignParameters = DesignParameters.generateNewDesignParameters(
@@ -226,7 +215,7 @@ class Optimizer(
      * If there is no new parameter set available, then returns false.
      *
      */
-    fun updateCandidatePool(newCandidateOpt: ScoredParameters?): Boolean {
+    private fun updateCandidatePool(newCandidateOpt: ScoredParameters?): Boolean {
         // If the new candidate is null, that means that in the previous step,
         // we generated something that satisfies constraints, so we
         // don't have anything to move forward with until the compute
@@ -249,7 +238,7 @@ class Optimizer(
         // be included in the current pool of parameter sets that
         // will be used to create the next generation of candidates.
         // We sort the current set by its intonation score, and
-        // and then pick the least accurate element that we want
+        // then pick the least accurate element that we want
         // to keep as a cutoff threshold.
         val l = candidates.map { it.score }.sortedBy { it.intonationScore }
         val c = if (maxCandidates < l.size) {
@@ -274,7 +263,7 @@ class Optimizer(
     }
 
 
-    var parameterUpdatesAsOfLastCheck = 0
+    private var parameterUpdatesAsOfLastCheck = 0
     /**
      * Evaluate the current candidate pool and decide if it's good
      * enough to declare success.
@@ -282,14 +271,14 @@ class Optimizer(
     private fun evaluateResults(parameterSpanTolerance: Double, frequencyTolerance: Double) {
         if (candidates.size >= maxCandidates && best.score.constraintScore == 0.0 && (parameterSetUpdateCount - parameterUpdatesAsOfLastCheck) > 200) {
             parameterUpdatesAsOfLastCheck = parameterSetUpdateCount
-            val parameterSpan = (0 until initialDesignParameters.size).map { idx ->
+            val parameterSpan = (0 until initialDesignParameters.size).maxOf { idx ->
                 val allAtIdx = candidates.map { c -> c.parameters[idx] }
                 val maxVal = allAtIdx.max()
                 val minVal = allAtIdx.min()
                 (maxVal - minVal)
-            }.max()
+            }
 
-            var intonationSpan =
+            val intonationSpan =
                 ArrayList(candidates.map { it.score }).max().intonationScore - best.score.intonationScore
             lastParameterSpan = parameterSpan
             lastIntonationSpan = intonationSpan
@@ -313,7 +302,7 @@ class Optimizer(
             setPosition(0, height-7)
             clearScreenAfterCursor()
         }
-        echo(TextColors.brightMagenta("Chalumier Optimizer: analyzing instrument design for ${instrumentName}"))
+        echo(TextColors.brightMagenta("Chalumier Optimizer: analyzing instrument design for $instrumentName"))
         while (!computePool.isDone() || computePool.hasAvailableResults()) {
             periodicallyReportStatus()
 

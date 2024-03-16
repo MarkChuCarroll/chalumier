@@ -15,16 +15,27 @@
  */
 package org.goodmath.chalumier.design
 
+import io.github.xn32.json5k.Json5
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.design.Hole.O
 import org.goodmath.chalumier.design.Hole.X
+import org.goodmath.chalumier.design.instruments.Instrument
+import org.goodmath.chalumier.design.instruments.InstrumentBuilder
+import org.goodmath.chalumier.design.instruments.TaperedFlute
 import org.goodmath.chalumier.util.fromEnd
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
+import kotlin.io.path.readText
+import kotlin.io.path.writeText
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-open class FluteDesigner(override val name: String, outputDir: Path) : InstrumentDesigner(name, outputDir) {
+
+abstract class FluteDesigner<Inst: Instrument>(override val name: String, outputDir: Path,
+                                               builder: InstrumentBuilder<Inst>
+) : InstrumentDesigner<Inst>(name, outputDir, builder) {
 
     /* ph:
       2.5/8 = 0.3    ~ 20 cents flat
@@ -186,14 +197,22 @@ open class FluteDesigner(override val name: String, outputDir: Path) : Instrumen
     }
 }
 
-open class TaperedFluteDesigner(override val name: String, dir: Path
-) : FluteDesigner(name, dir) {
+class TaperedFluteDesigner(override val name: String, dir: Path,
+    builder: InstrumentBuilder<TaperedFlute> = TaperedFlute.builder) : FluteDesigner<TaperedFlute>(name, dir, builder) {
     open var innerTaper: Double by ConfigParameter(DoubleParameterKind, "Amount of tapering of bore. Smaller = more tapered.") {
         0.75
     }
 
     open var outerTaper: Double by ConfigParameter(DoubleParameterKind, "Amount of tapering of exterior. Smaller = more tapered.") {
         0.85
+    }
+
+    override fun readInstrument(path: Path): TaperedFlute {
+        return Json5.decodeFromString<TaperedFlute>(path.readText())
+    }
+
+    override fun writeInstrument(instrument: TaperedFlute, path: Path) {
+        path.writeText(Json5.encodeToString(instrument))
     }
 
     // ph: inner_diameters = design.sqrt_scaler([ 14.0, 14.0, 18.4, 21.0, 18.4, 18.4 ])

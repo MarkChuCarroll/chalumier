@@ -15,11 +15,12 @@
  */
 package org.goodmath.chalumier.design
 
-import kotlinx.serialization.Serializable
+import io.github.xn32.json5k.Json5
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 import org.goodmath.chalumier.config.*
+import org.goodmath.chalumier.design.instruments.*
 import org.goodmath.chalumier.diagram.Diagram
 import org.goodmath.chalumier.errors.RequiredParameterException
 import org.goodmath.chalumier.errors.dAssert
@@ -44,11 +45,15 @@ import kotlin.math.*
  * a little easier to understand what's going on, and to interpret
  * new states.
  */
-abstract class InstrumentDesigner(
+abstract class InstrumentDesigner<Inst: Instrument>(
     override val name: String,
-    private val outputDir: Path): Configurable<InstrumentDesigner>(name) {
+    private val outputDir: Path,
+    val builder: InstrumentBuilder<Inst>
+): Configurable<InstrumentDesigner<Inst>>(name) {
 
+    abstract fun readInstrument(path: Path): Inst
 
+    abstract fun writeInstrument(instrument: Inst, path: Path)
 
     /*
      * Start off with the configurable parameters that describe
@@ -268,7 +273,9 @@ abstract class InstrumentDesigner(
             instHoleLengths[i] = (sqrt(thickness * thickness + shift * shift))
             // ph: #+ self.hole_extra_height_by_diameter[i] * inst.hole_diameters[i]
         }
-        return Instrument(name,
+        return builder.create(
+            this,
+            name,
             length = length,
             closedTop=closedTop,
             coneStep=coneStep,
@@ -500,15 +507,17 @@ abstract class InstrumentDesigner(
         }
     }
 
+    @Suppress("UNCHECKED_CAST")
+    @OptIn(ExperimentalSerializationApi::class)
     fun save(params: ScoredParameters,
              others: List<DesignParameters> = emptyList()) {
-        twiddleFiles(outputDir / "${name}-parameters.json")
+        twiddleFiles(outputDir / "${name}-parameters.json5")
         val instrument = makeInstrumentFromParameters(params.parameters)
-        val patchedInstrument = patchInstrument(instrument)
+        val patchedInstrument = patchInstrument(instrument) as Inst
         patchedInstrument.prepare()
         patchedInstrument.preparePhase()
-        (outputDir / "${name}-parameters.json").writeText(Json.encodeToString<Instrument>(patchedInstrument))
 
+        writeInstrument(patchedInstrument, outputDir / "${name}-parameters.json5")
 
         val diagram = Diagram()
         drawInstrumentOntoDiagram(diagram, instrument)
@@ -682,9 +691,11 @@ abstract class InstrumentDesigner(
 
 }
 
-abstract class InstrumentDesignerWithBoreScale(override val name: String,
-                                                                                                                                      outputDir: Path):
-    InstrumentDesigner(name, outputDir) {
+abstract class InstrumentDesignerWithBoreScale<Inst: Instrument>(
+    n: String,
+    dir: Path,
+    build: InstrumentBuilder<Inst>
+   ):  InstrumentDesigner<Inst>(n, dir, build) {
 
     open fun boreScaler(value: List<Double?>, maximum: Double = 1e30): ArrayList<Double?> {
         val scale = sqrt(scale) * boreScale

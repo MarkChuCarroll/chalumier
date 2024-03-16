@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.goodmath.chalumier.design
+package org.goodmath.chalumier.design.instruments
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import org.goodmath.chalumier.config.*
+import org.goodmath.chalumier.design.*
 import org.goodmath.chalumier.util.fromEnd
 import org.kotlinmath.Complex
 import org.kotlinmath.R
@@ -52,48 +52,123 @@ data class InstrumentBoreChange(
     val position: Double, val descriptor: String, val index: Int = 0
 )
 
+
+abstract class InstrumentBuilder<Inst: Instrument> {
+    abstract fun create(
+        designer: InstrumentDesigner<Inst>,
+        name: String,
+        length: Double,
+        closedTop: Boolean,
+        coneStep: Double,
+        holeAngles: ArrayList<Double>,
+        holeDiameters: ArrayList<Double>,
+        holeLengths: ArrayList<Double>,
+        holePositions: ArrayList<Double>,
+        inner: Profile,
+        outer: Profile,
+        innerHolePositions: ArrayList<Double>,
+        numberOfHoles: Int,
+        innerKinks: ArrayList<Double>,
+        outerKinks: ArrayList<Double>
+    ): Inst
+}
+
+
+interface Instrument {
+    val name: String
+    var length: Double
+    var inner: Profile
+    var outer: Profile
+    val innerKinks: ArrayList<Double>
+    val outerKinks: ArrayList<Double>
+    val numberOfHoles: Int
+    val holePositions: ArrayList<Double>
+    val holeAngles: ArrayList<Double>
+    val innerHolePositions: ArrayList<Double>
+    val holeLengths: ArrayList<Double>
+    val holeDiameters: ArrayList<Double>
+    val closedTop: Boolean
+    val coneStep: Double
+    var emissionDivide: Double
+    var scale: Double
+    var trueLength: Double
+
+    @Transient
+    val actions: ArrayList<ActionFunction>
+
+    @Transient
+    val actionsPhase: ArrayList<PhaseActionFunction>
+
+    @Transient
+    val initialEmission: ArrayList<Double>
+
+    var steppedInner: Profile
+
+    fun dup(): Instrument
+
+    fun prepare()
+    fun preparePhase()
+
+    fun resonanceScore(
+        wavelength: Double,
+        fingers: List<Hole>,
+        calcEmission: Boolean=false
+    ): Pair<Double, ArrayList<Double>?>
+
+
+    fun resonancePhase(wavelength: Double, fingers: List<Hole>): Double
+
+    fun wavelengthNear(
+        wavelength: Double,
+        fingers: List<Hole>,
+        stepCents: Double = 1.0,
+        stepIncrease: Double = 1.05,
+        maxSteps: Int = 100,
+        scorer: (Double) -> Double
+    ): Double
+
+    fun trueWavelengthNear(
+        wavelength: Double,
+        fingers: List<Hole>,
+        stepCents: Double = 1.0,
+        stepIncrease: Double = 1.05,
+        maxSteps: Int = 100
+    ): Double
+
+    fun trueNthWavelengthNear(
+        wavelength: Double,
+        fingers: List<Hole>,
+        n: Int,
+        stepCents: Double = 1.0,
+        stepIncrease: Double = 1.5,
+        maxSteps: Int = 20
+    ): Double
+
+    fun sqrtScaler(values: List<Double?>): List<Double?>
+
+    fun scaler(values: List<Double?>): List<Double?>
+
+
+    fun powerScaler(power: Double, values: List<Double?>): List<Double?>
+
+}
+
+
+
 @Serializable
-data class Instrument(
-    val name: String,
-    open var length: Double,
-    open var inner: Profile,
-    open var outer: Profile,
-    val innerKinks: ArrayList<Double>,
-    val outerKinks: ArrayList<Double>,
-    val numberOfHoles: Int,
-    val holePositions: ArrayList<Double>,
-    val holeAngles: ArrayList<Double>,
-    val innerHolePositions: ArrayList<Double>,
-    val holeLengths: ArrayList<Double>,
-    val holeDiameters: ArrayList<Double>,
-    val closedTop: Boolean,
-    val coneStep: Double,
-    var emissionDivide: Double = 1.0,
-    var scale: Double = 1.0) {
-
-    var trueLength: Double = length
+sealed class SimpleInstrument: Instrument {
 
     @Transient
-    private val actions = ArrayList<ActionFunction>()
+    override val actions = ArrayList<ActionFunction>()
+
     @Transient
-    private val actionsPhase = ArrayList<PhaseActionFunction>()
+    override val actionsPhase = ArrayList<PhaseActionFunction>()
+
     @Transient
-    private val initialEmission = ArrayList<Double>()
+    override val initialEmission = ArrayList<Double>()
 
-    var steppedInner: Profile = inner.asStepped(0.125)
 
-    fun dup(): Instrument {
-        val result = Instrument(name,
-            length, inner, outer, innerKinks, outerKinks, numberOfHoles, holePositions,
-            holeAngles, innerHolePositions, holeLengths, holeDiameters, closedTop, coneStep)
-        result.trueLength = trueLength
-        result.emissionDivide = emissionDivide
-        result.scale = scale
-        result.steppedInner = steppedInner
-        return result
-    }
-
-    fun prepare() {
+    override fun prepare() {
         steppedInner = inner.asStepped(coneStep)
         val events = arrayListOf(
             InstrumentBoreChange(length, "end")
@@ -174,7 +249,11 @@ data class Instrument(
         emissionDivide = circleArea(diameter)
     }
 
-    fun resonanceScore(wavelength: Double, fingers: List<Hole>, calcEmission: Boolean = false): Pair<Double, ArrayList<Double>?> {
+    override fun resonanceScore(
+        wavelength: Double,
+        fingers: List<Hole>,
+        calcEmission: Boolean
+    ): Pair<Double, ArrayList<Double>?> {
         // ph: A score -1 <= score <= 1, zero if wavelength w resonates
         var reply = (-1.0).R  // ph: open end
         val emission = if (calcEmission) {
@@ -216,7 +295,7 @@ data class Instrument(
     /**
      * ph: phase version
      */
-    fun preparePhase() {
+    override fun preparePhase() {
         actionsPhase.clear()
         val events = arrayListOf(InstrumentBoreChange(length, "end"))
         steppedInner.pos.forEachIndexed { i: Int, pos: Double ->
@@ -266,7 +345,7 @@ data class Instrument(
                 val closedLength = trueLength + holeLengthCorrection(holeDiameter, diameter, true)
                 val holeFunc: PhaseActionFunction = { phase, wavelength, fingers ->
                     val holePhase = if (fingers[index] != Hole.O) {
-                        pipeReplyPhase(0.0, closedLength /wavelength)
+                        pipeReplyPhase(0.0, closedLength / wavelength)
                     } else {
                         pipeReplyPhase((-0.5), openLength / wavelength)
                     }
@@ -280,7 +359,7 @@ data class Instrument(
     /*
      * ph: score % 1 == 0 if wavelength w resonates
      */
-    fun resonancePhase(wavelength: Double, fingers: List<Hole>): Double {
+    override fun resonancePhase(wavelength: Double, fingers: List<Hole>): Double {
         var phase = 0.5 // ph: open end
         for (action in actionsPhase) {
             phase = action(phase, wavelength, fingers)
@@ -292,12 +371,12 @@ data class Instrument(
     }
 
 
-    private fun wavelengthNear(
+    override fun wavelengthNear(
         wavelength: Double,
         fingers: List<Hole>,
-        stepCents: Double = 1.0,
-        stepIncrease: Double = 1.05,
-        maxSteps: Int = 100,
+        stepCents: Double,
+        stepIncrease: Double,
+        maxSteps: Int,
         scorer: (Double) -> Double
     ): Double {
         var step = 2.0.pow(stepCents / 1200.0)
@@ -343,31 +422,31 @@ data class Instrument(
     }
 
 
-    fun trueWavelengthNear(
+    override fun trueWavelengthNear(
         wavelength: Double,
         fingers: List<Hole>,
-        stepCents: Double = 1.0,
-        stepIncrease: Double = 1.05,
-        maxSteps: Int = 100
+        stepCents: Double,
+        stepIncrease: Double,
+        maxSteps: Int
     ): Double {
         val scorer = { probe: Double -> ((resonancePhase(probe, fingers) + 0.5) % 1.0) - 0.5 }
         return wavelengthNear(wavelength, fingers, stepCents, stepIncrease, maxSteps, scorer)
     }
 
-    fun trueNthWavelengthNear(
+    override fun trueNthWavelengthNear(
         wavelength: Double,
         fingers: List<Hole>,
         n: Int,
-        stepCents: Double = 1.0,
-        stepIncrease: Double = 1.5,
-        maxSteps: Int = 20
+        stepCents: Double,
+        stepIncrease: Double,
+        maxSteps: Int
     ): Double {
         val scorer = { probe: Double -> resonancePhase(probe, fingers) - n.toDouble() }
 
         return wavelengthNear(wavelength, fingers, stepCents, stepIncrease, maxSteps, scorer)
     }
 
-    fun sqrtScaler(values: List<Double?>): List<Double?> {
+    override fun sqrtScaler(values: List<Double?>): List<Double?> {
         val scaleFactor = scale.pow(0.5)
         return values.map {
             if (it != null) {
@@ -378,7 +457,7 @@ data class Instrument(
         }
     }
 
-    fun scaler(values: List<Double?>): List<Double?> = values.map {
+    override fun scaler(values: List<Double?>): List<Double?> = values.map {
         if (it != null) {
             it * scale
         } else {
@@ -387,7 +466,7 @@ data class Instrument(
     }
 
 
-    fun powerScaler(power: Double, values: List<Double?>): List<Double?> {
+    override fun powerScaler(power: Double, values: List<Double?>): List<Double?> {
         val scaleFactor = scale.pow(power)
         return values.map {
             if (it != null) {
@@ -397,6 +476,8 @@ data class Instrument(
             }
         }
     }
+
+
 }
 
 /**
@@ -435,4 +516,3 @@ fun describeLowHigh(item: Pair<Double, Double>): String {
         "%.1f->%.1f".format(item.first, item.second)
     }
 }
-

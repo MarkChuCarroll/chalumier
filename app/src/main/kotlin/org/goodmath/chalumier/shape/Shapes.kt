@@ -15,19 +15,28 @@
  */
 package org.goodmath.chalumier.shape
 
+import eu.mihosoft.jcsg.CSG
+import eu.mihosoft.jcsg.Polyhedron
+import eu.mihosoft.vvecmath.Transform
+import eu.mihosoft.vvecmath.Vector3d
 import org.goodmath.chalumier.design.Profile
 import org.goodmath.chalumier.errors.dAssert
 import org.goodmath.chalumier.geom.XYZ
 import org.goodmath.chalumier.util.fromEnd
 
+/*
+ * A bunch of operations to create shapes and manipulate them in
+ * basicways.
+ */
 
-fun extrusion(zs: List<Double>, shapes: List<Loop>, name: String? = null): Shape {
+
+fun extrusion(zs: List<Double>, shapes: List<Loop>, name: String? = null): CSG {
     val nZ = zs.size
     val nShape = shapes[0].len()
-    val verts: MutableList<XYZ> = mutableListOf()
+    val verts: MutableList<Vector3d> = mutableListOf()
     zs.forEachIndexed { i, z ->
         shapes[i].loopValues.forEach { (x, y) ->
-            verts.add(XYZ(x, y, z))
+            verts.add(Vector3d.xyz(x, y, z))
         }
     }
     val end0 = verts.size
@@ -35,21 +44,16 @@ fun extrusion(zs: List<Double>, shapes: List<Loop>, name: String? = null): Shape
     val end1 = verts.size
     verts.add(shapes.fromEnd(1).centroid.at(zs.fromEnd(1)))
 
-    val faces = ArrayList<Triple<Int, Int, Int>>()
+    val faces = ArrayList<List<Int>>()
     for (i in (0 until nZ - 1)) {
-        for (j in (0 until nShape)) {/*ph:
-            #faces.append( (
-            #    (i+1)*nshape+j, i*nshape+j,
-            #    i*nshape+(j+1)%nshape, (i+1)*nshape+(j+1)%nshape
-            #) )
-             */
+        for (j in (0 until nShape)) {
             faces.add(
-                Triple(
+                listOf(
                     (i + 1) * nShape + j, i * nShape + j, i * nShape + (j + 1) % nShape
                 )
             )
             faces.add(
-                Triple(
+                listOf(
                     (i + 1) * nShape + j, i * nShape + (j + 1) % nShape, (i + 1) * nShape + (j + 1) % nShape
                 )
             )
@@ -57,39 +61,39 @@ fun extrusion(zs: List<Double>, shapes: List<Loop>, name: String? = null): Shape
     }
     for (i in (0 until nShape)) {
         val i1 = (i + 1) * nShape
-        faces.add(Triple(i1, i, end0))
+        faces.add(listOf(i1, i, end0))
         faces.add(
-            Triple(
+            listOf(
                 i + nShape * (nZ - 1), i1 + nShape * (nZ - 1), end1
             )
         )
     }
-    return create(verts, faces, name)
+    return Polyhedron(verts, faces).toCSG()
 }
 
 
-fun block(p1: XYZ, p2: XYZ, name: String? = null, ramp: Double = 0.0): Shape {
-    val verts = ArrayList<XYZ>()
+fun block(p1: Vector3d, p2: Vector3d, name: String? = null, ramp: Double = 0.0): CSG {
+    val verts = ArrayList<Vector3d>()
     for (x in listOf(p1.x, p2.x)) {
         for (y in listOf(p1.y, p2.y)) {
-            verts.add(XYZ(x, y, p1.z))
+            verts.add(Vector3d.xyz(x, y, p1.z))
         }
     }
     for (x in listOf(p1.x - ramp, p2.x + ramp)) {
         for (y in listOf(p1.y - ramp, p2.y + ramp)) {
-            verts.add(XYZ(x, y, p2.z))
+            verts.add(Vector3d.xyz(x, y, p2.z))
         }
     }
-    val faces = ArrayList<Triple<Int, Int, Int>>()
+    val faces = ArrayList<List<Int>>()
     fun quad(a: Int, b: Int, c: Int, d: Int) {
-        faces.add(Triple(a, b, c))
-        faces.add(Triple(a, c, d))
+        faces.add(listOf(a, b, c))
+        faces.add(listOf(a, c, d))
     }
-    for ((a, b, c) in listOf(Triple(1, 2, 4), Triple(4, 1, 2), Triple(2, 4, 1))) {
+    for ((a, b, c) in listOf(listOf(1, 2, 4), listOf(4, 1, 2), listOf(2, 4, 1))) {
         quad(0, a, a + b, b)
         quad(c + b, c + a + b, c + a, c + 0)
     }
-    return create(verts, faces, name)
+    return Polyhedron(verts, faces).toCSG()
 }
 
 fun circleCrossSection(params: List<Double>): Loop {
@@ -100,7 +104,7 @@ fun extrudeProfile(
     profiles: List<Profile>,
     crossSection: (List<Double>) -> Loop = ::circleCrossSection,
     name: String? = null
-): Shape {
+): CSG {
     val zs = ArrayList<Double>()
     val shapes = ArrayList<Loop>()
     val posSet = HashSet<Double>()
@@ -126,20 +130,20 @@ fun extrudeProfile(
 
 fun prism(
     height: Double, diameter: Double, crossSection: (List<Double>) -> Loop = ::circleCrossSection, name: String? = null
-): Shape {
+): CSG {
     val span = Profile(arrayListOf(0.0, height), arrayListOf(diameter, diameter))
     return extrudeProfile(listOf(span), crossSection = crossSection, name = name)
 }
 
 fun makeSegment(
-    instrument: Shape,
+    instrument: CSG,
     top: Boolean,
     low: Double,
     high: Double,
     radius: Double,
     pad: Double = 0.0,
     clipHalf: Boolean = true
-): Shape {
+): CSG {
     val (y1, y2) = if (!clipHalf) {
         Pair(-radius, radius)
     } else if (top) {
@@ -147,30 +151,30 @@ fun makeSegment(
     } else {
         Pair(-radius, 0.0)
     }
-    val clip = block(XYZ(-radius, y1, low - pad), XYZ(radius, y2, high + pad))
-    val segment = instrument.copy()
-    segment.clip(clip)
-    dAssert((segment.size().y - (high - low + pad * 2)) < 1e-3, "Need more padding for construction")
-    segment.move(0.0, 0.0, -low)
+    val clip = block(Vector3d.xyz(-radius, y1, low - pad), Vector3d.xyz(radius, y2, high + pad))
+    val segment = instrument.clone().intersect(clip)
+    dAssert((segment.bounds.bounds.y - (high - low + pad * 2)) < 1e-3, "Need more padding for construction")
+    val segmentTransform = Transform().translate(Vector3d.xyz(0.0, 0.0, -low))
     if (top) {
-        segment.rotate(0, 0, 1, 180.0)
+        segmentTransform.rotZ(180.0)
     }
-    segment.rotate(1, 0, 0, -90.0)
-    segment.rotate(0, 0, 1, 90.0)
-    segment.move(high - low, 0.0, 0.0)
-    return segment
+
+    segmentTransform.rotX(-90.0)
+    segmentTransform.rotZ(90.0)
+    segmentTransform.translate(high - low, 0.0, 0.0)
+    return segment.transformed(segmentTransform)
 }
 
 fun makeSegments(
-    instrument: Shape,
+    instrument: CSG,
     length: Double,
     radius: Double,
     topFractions: List<Double>,
     bottomFractions: List<Double>,
     pad: Double = 0.0,
     clipHalf: Boolean = true
-): Pair<List<Shape>, List<Double>> {
-    val parts = ArrayList<Shape>()
+): Pair<List<CSG>, List<Double>> {
+    val parts = ArrayList<CSG>()
     val lengths = ArrayList<Double>()
     val z = topFractions.map { item -> item * length }
     for (i in 0 until topFractions.size - 1) {
@@ -191,6 +195,13 @@ fun makeSegments(
         )
     }
     return Pair(parts, lengths)
+}
+
+fun CSG.positionNicely(): CSG {
+    return transformed(Transform()
+        .translate(-0.5*(bounds.min.x + bounds.max.x),
+            -0.5*(bounds.min.y + bounds.max.y),
+            -bounds.min.z))
 }
 
 

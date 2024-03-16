@@ -15,15 +15,25 @@
  */
 package org.goodmath.chalumier.design
 
+import io.github.xn32.json5k.Json5
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import org.goodmath.chalumier.design.Hole.O
 import org.goodmath.chalumier.design.Hole.X
 import org.goodmath.chalumier.config.*
+import org.goodmath.chalumier.design.instruments.Instrument
+import org.goodmath.chalumier.design.instruments.InstrumentBuilder
+import org.goodmath.chalumier.design.instruments.ReedInstrument
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
+import kotlin.io.path.readText
+import kotlin.io.path.writeText
 
-open class ReedInstrumentDesigner(override val name: String,
-                                  outputDir: Path):
-    InstrumentDesigner(name, outputDir) {
+abstract class ReedInstrumentDesigner<Inst: Instrument>(override val name: String,
+                                                        outputDir: Path,
+                                                        builder: InstrumentBuilder<Inst>
+):
+    InstrumentDesigner<Inst>(name, outputDir, builder) {
 
   open val boreBaseline = 4.0
 
@@ -45,7 +55,7 @@ open class ReedInstrumentDesigner(override val name: String,
   override var closedTop by BooleanParameter() { true }
 
   override fun patchInstrument(origInst: Instrument): Instrument {
-    val inst = origInst.copy()
+    val inst = origInst.dup()
     // MarkCC: ph originally had a "true_length" and "true_inner" defined
     // here. But "true_inner" was never used, so I dropped it. True_length
     // was just initialized to "length" before length was modified.
@@ -81,7 +91,7 @@ open class ReedInstrumentDesigner(override val name: String,
 }
 
 class ReedDroneDesigner(override val name: String,
-    outputDir: Path) : ReedInstrumentDesigner(name, outputDir) {
+                        outputDir: Path) : ReedInstrumentDesigner<ReedInstrument>(name, outputDir, ReedInstrument.builder) {
 
   override var initialLength by DoubleParameter { wavelength("C4") * 0.25 }
   override var innerDiameters by
@@ -92,8 +102,15 @@ class ReedDroneDesigner(override val name: String,
         boreScaler(listOf(24.0, 12.0)).map { Pair(it, it) }.toMutableList()
       }
   override var holeHorizAngles by ListOfDoubleParameter() { mutableListOf() }
+    override fun readInstrument(path: Path): ReedInstrument {
+        return Json5.decodeFromString(path.readText())
+    }
 
-  // I"m not sure what this is for; I"m going to leave it out until I"m
+    override fun writeInstrument(instrument: ReedInstrument, path: Path) {
+        path.writeText(Json5.encodeToString(instrument))
+    }
+
+    // I"m not sure what this is for; I"m going to leave it out until I"m
   // sure it does something.
   // withFingerPad =arrayListOf()
 
@@ -105,7 +122,16 @@ class ReedDroneDesigner(override val name: String,
 }
 
 open class ReedpipeDesigner(override val name: String, outputDir: Path):
-    ReedInstrumentDesigner(name, outputDir) {
+    ReedInstrumentDesigner<ReedInstrument>(name, outputDir, ReedInstrument.builder) {
+
+    override fun readInstrument(path: Path): ReedInstrument {
+        return Json5.decodeFromString(path.readText())
+    }
+
+    override fun writeInstrument(instrument: ReedInstrument, path: Path) {
+        path.writeText(Json5.encodeToString(instrument))
+    }
+
   override var innerDiameters by
       ListOfDoublePairParameter() {
         boreScaler(listOf(4.0, 4.0)).map { Pair(it, it) }.toMutableList()
@@ -163,8 +189,16 @@ open class ReedpipeDesigner(override val name: String, outputDir: Path):
 
 abstract class AbstractShawmDesigner(override val name: String,
                                      outputDir: Path):
-    ReedInstrumentDesigner(name, outputDir) {
-  override var innerDiameters: List<Pair<Double, Double>> by ListOfDoublePairParameter() {
+    ReedInstrumentDesigner<ReedInstrument>(name, outputDir, ReedInstrument.builder) {
+    override fun readInstrument(path: Path): ReedInstrument {
+        return Json5.decodeFromString(path.readText())
+    }
+
+    override fun writeInstrument(instrument: ReedInstrument, path: Path) {
+        path.writeText(Json5.encodeToString(instrument))
+    }
+
+    override var innerDiameters: List<Pair<Double, Double>> by ListOfDoublePairParameter() {
     boreScaler(fullRange(16.0, 4.0, 10)).map { Pair(it, it) }
     // ph:arrayListOf(  16.0, 14.0, 12.0, 10.0, 8.0, 6.0, 4.0, 1.5 )
   }

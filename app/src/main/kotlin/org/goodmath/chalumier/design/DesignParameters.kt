@@ -15,6 +15,7 @@
  */
 package org.goodmath.chalumier.design
 
+import kotlinx.serialization.Serializable
 import org.goodmath.chalumier.util.Randomizer
 import org.goodmath.chalumier.util.StandardRandomizer
 import kotlin.math.sqrt
@@ -26,6 +27,7 @@ import kotlin.math.sqrt
  * For example, the holePositions are stored in the state as fractions
  * of the instrument's body length.
  */
+@Serializable
 data class DesignParameters private constructor(
     var length: Double,
     var holePositions: ArrayList<Double>,
@@ -103,7 +105,7 @@ data class DesignParameters private constructor(
         }
 
         fun generateNewDesignParameters(candidates: List<DesignParameters>, initialAccuracy: Double, doNoiseOpt: Boolean, r: Randomizer = StandardRandomizer): DesignParameters {
-            val doNoise = doNoiseOpt || r.nextDouble() < 0.1
+            val doNoise = doNoiseOpt || r.nextDouble() < 0.2
             val numberOfCandidates = candidates.size
 
             // Calculate the weights that we'll use for the different input states
@@ -132,7 +134,6 @@ data class DesignParameters private constructor(
                     newDesignParameters[i] +=  n
                 }
             }
-            val s = (0 until newDesignParameters.size).sumOf { newDesignParameters[it] }
             return newDesignParameters
         }
 

@@ -52,7 +52,7 @@ fun frequency(noteName: String): Double {
         semitone -= 1
         note = note.substring(1)
     }
-    if (note[0] == '#') {
+    if (note[0] == '#' || note[0] == 's') {
         semitone += 1
         note = note.substring(1)
     }

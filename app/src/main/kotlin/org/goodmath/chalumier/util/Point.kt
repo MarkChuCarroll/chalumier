@@ -15,12 +15,13 @@
  */
 package org.goodmath.chalumier.util
 
+import eu.mihosoft.vvecmath.Vector3d
 import kotlinx.serialization.Serializable
 import org.goodmath.chalumier.geom.XYZ
 
 @Serializable
 data class Point(val x: Double, val y: Double) {
-    fun at(z: Double): XYZ = XYZ(x, y, z)
+    fun at(z: Double): Vector3d = Vector3d.xyz(x, y, z)
 
     operator fun compareTo(other: Point): Int {
         if (x < other.x) {

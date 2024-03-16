@@ -15,6 +15,7 @@
  */
 package org.goodmath.chalumier.design
 
+import org.goodmath.chalumier.design.instruments.TaperedFlute
 import org.goodmath.chalumier.optimize.Score
 import org.goodmath.chalumier.optimize.ScoredParameters
 import org.goodmath.chalumier.util.RecordedRandomizer
@@ -30,7 +31,7 @@ import kotlin.io.path.Path
  */
 class InstrumentDesignerTest {
 
-    fun makeDesigner(): InstrumentDesigner {
+    fun makeDesigner(): InstrumentDesigner<TaperedFlute> {
         val flute = TaperedFluteDesigner("FolkFlute",
             Path("/tmp/test"))
         flute.numberOfHoles = 7
@@ -156,7 +157,6 @@ class InstrumentDesignerTest {
         assertEquals(589.2773628488858, flute.length, 1e-5)
         var cScore = fluteDesigner.constraintScore(flute)
         assertEquals(45.88965575873958, cScore, 1e-4)
-        val r = getRecordedRandom()
         val j = DesignParameters.generateNewDesignParameters(listOf(i), 0.001, true, getRecordedRandom())
         val jFlute = fluteDesigner.makeInstrumentFromParameters(j)
         val jScore = fluteDesigner.constraintScore(jFlute)
@@ -166,7 +166,7 @@ class InstrumentDesignerTest {
     @Test
     fun testGenerateNewModel() {
         val random = Random()
-        fun getScores(designer: InstrumentDesigner, params: DesignParameters): ScoredParameters {
+        fun getScores(designer: InstrumentDesigner<TaperedFlute>, params: DesignParameters): ScoredParameters {
             val cScore = designer.constraintScorer(params)
             if (cScore > 0) {
                 return ScoredParameters(params, Score(cScore, 0.0))
@@ -175,9 +175,7 @@ class InstrumentDesignerTest {
             }
         }
         val fluteDesigner = makeDesigner()
-        val fdZero = fluteDesigner.toJsonString()
         val first = fluteDesigner.initialDesignParameters()
-        val flute = fluteDesigner.makeInstrumentFromParameters(first)
         val expected = listOf(0.9998898173154397, 0.17407786308197326, 0.2601373705724728, 0.34102067528523955, 0.4242230282229423, 0.50900159152149, 0.5928236363802941, 0.9693750980197947, 0.5628756703177703, 0.5618291850191007, 0.5630070150415227, 0.5620210808880771, 0.5623287822440561, 0.5632806936821712, 0.5634305973870392, 0.2507199731210607, 0.3003134265432306, 0.7007415036187189, 0.7990334412476638, 0.809898151920862, 0.8995915504240971, 0.010017726085196984, 0.6648511492033599)
         val up = DesignParameters.generateNewDesignParameters(listOf(first), 0.001, true, getRecordedRandom())
         for (i in 0 until up.size) {

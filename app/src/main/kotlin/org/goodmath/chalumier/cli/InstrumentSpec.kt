@@ -19,6 +19,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.goodmath.chalumier.design.Fingering
+import org.goodmath.chalumier.util.repeat
 import java.io.IOException
 import java.nio.file.Path
 import kotlin.io.path.notExists
@@ -31,7 +32,7 @@ enum class InstrumentType {
 
 
 @Serializable
-data class InstrumentSpec(
+open class InstrumentSpec(
     val name: String,
     val instrumentType: String,
     val rootNote: String,
@@ -54,9 +55,9 @@ data class InstrumentSpec(
     val minHoleSpacing: List<Double?>? = null,
     val maxHoleSpacing: List<Double?>? = null,
     val balance: List<Double?>? = null,
-    val holeAngles: List<Double>? = null,
-    val holeHorizAngles: List<Double>? = null,
-    val divisions: List<List<Pair<Int, Double>>>? = null
+    val holeAngles: List<Double> = listOf(0.0).repeat(numberOfHoles),
+    val holeHorizAngles: List<Double> = listOf(0.0).repeat(numberOfHoles),
+    val divisions: List<List<Pair<Int, Double>>> = emptyList()
 ) {
 
     override fun toString(): String =

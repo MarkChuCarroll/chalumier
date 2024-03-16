@@ -19,7 +19,7 @@ The original demakein has a couple of serious problems.
 2. It's heavily dependent on another system that pnh built, called Nesoni.
   Nesoni is a system for performing gene-sequence analysis, which happens
   to include a framework for doing parallel computation in Python. Like
-  demakein, nesoni is written in Python 2.7. It's also a very complicated,
+  demakein, nesoni is wriatten in Python 2.7. It's also a very complicated,
   tangled system; trying to make an entire genetic sequencing system work
   so that you can use it to generate musical instruments in the basis
   would be ridiculous.
@@ -53,8 +53,15 @@ in it. And as I got into the process, I kept getting really annoyed. Demakein
 is a crazy creation of incredible brilliance intermixed with utter
 bugf*ck crazy sloppiness.
 
-So I haven't just been slavishly copying code and translating into Kotlin;
-I've been trying to wrestle this code into something I can feel proud of.
+I haven't just been slavishly copying code and translating into Kotlin;
+I've been trying to understand it, refactor it, fix bugs, make it faster
+and more user-friendly.
+
+So far, the results are promising. Generating a simple major flute using 
+demakein took around 20 minutes on my laptop. Using Chalumier, it finishes
+in 5 minutes. But more impressively, when I tried to run a model for
+a B-minor flute with cross-fingerings, demakein ran for 3 days without
+completing. Giving Chalumier the same model, I had a result in 10 minutes.
 
 ## Why Chalumier?
 
@@ -74,3 +81,44 @@ I'm a clarinetist, and my eventual goal is to be able to use this
 software to help design a modern 3d-printable basset horn. The precursor
 to the entire clarinet family is called a chalumeau - so chalumier just
 feels perfect.
+
+## Building
+
+Building is simple:
+
+1. Run `gradle build`. This will compile Chalumier, and verify that all of its
+   tests pass correctly.
+2. Run `gradle shadowJar`. This will produce an executable jarfile in
+   .`./app/build/libs/chalumier-<<<VERSION>>>.jar`
+
+
+## Running Chalumier
+
+The command line tool is still a work in progress. For now, there are two commands implemented: "design"
+and "model". 
+
+### Designing an Instrument
+
+When you want to create an instrument, you'll always start with design. You create
+an instrument specification file (see app/src/test/resources for a few examples), which
+tells Chalumier the basics of what you want, and then you can run the designer with:
+
+```bash
+java -jar chalumier.jar design --output-dir _dirname_ _instrument_file_
+```
+
+The design process uses an evolutionary algorithm. It creates a pool of candidate
+designs for the instrument. Then it starts randomly combining the candidates with
+mutations. If a mutation produces something better than what's in the candidate pool,
+the mutation will be added to the candidates, and the least good candidate will be ejected.
+This process continues until it converges onto a solution. The termination point isn't
+necessary a correct instrument, but rather "the process has reached a point where it's
+no longer able to generate anything better". 
+
+In the output directory that you specified, it produces two files:
+* `_instrument_-design.svg`, which contains a diagram showing the design, and how
+   close the intonations of each fingering are to the desired pitch;
+* `_instrument_-parameters.json`, which contain the data describing the model in
+  a format that's usable by other tools, including the Chalumier model generator.
+
+

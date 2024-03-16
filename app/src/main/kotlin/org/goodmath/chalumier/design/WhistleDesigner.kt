@@ -15,28 +15,28 @@
  */
 package org.goodmath.chalumier.design
 
+import io.github.xn32.json5k.Json5
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.design.Hole.X
 import org.goodmath.chalumier.design.Hole.O
+import org.goodmath.chalumier.design.instruments.Instrument
+import org.goodmath.chalumier.design.instruments.InstrumentBuilder
+import org.goodmath.chalumier.design.instruments.Whistle
+import org.goodmath.chalumier.make.WhistleHeadMaker
 import org.goodmath.chalumier.util.fromEnd
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
+import kotlin.io.path.readText
+import kotlin.io.path.writeText
 
 
-class WhistleHeadMaker(bore: Pair<Double, Double>, outside: Pair<Double, Double>) {
-    fun effectiveGapDiameter(): Double {
-        throw NotImplementedError()
-    }
-
-    fun effectiveGapHeight(): Double {
-        throw NotImplementedError()
-    }
-}
-
-
-abstract class AbstractWhistleDesigner(override val name: String,
-                                       outputDir: Path):
-    InstrumentDesignerWithBoreScale(name, outputDir) {
+abstract class AbstractWhistleDesigner<Inst: Instrument>(n: String,
+                                                         outputDir: Path,
+                                                         builder: InstrumentBuilder<Inst>
+):
+    InstrumentDesignerWithBoreScale<Inst>(n, outputDir, builder) {
     // ph: From 2014-15-whistle-tweaking
     open var tweakGapExtra by DoubleParameter {
         0.6
@@ -53,7 +53,7 @@ abstract class AbstractWhistleDesigner(override val name: String,
     }
 
 
-    fun getWhistleHeadMaker(): WhistleHeadMaker {
+    fun getWhistleHeadProportions(): Pair<Double, Double> {
         val bore = innerDiameters.fromEnd(1)
         val baseOutside = outerDiameters.fromEnd(1)
         // As usual, ph seems to have forgetten that in some places,
@@ -64,7 +64,9 @@ abstract class AbstractWhistleDesigner(override val name: String,
             baseOutside
         }
 
-        return WhistleHeadMaker(bore, outside)
+        return  Pair(WhistleHeadMaker.effectiveGapDiameter(bore.first),
+                WhistleHeadMaker.effectiveGapHeight(bore.first, baseOutside.first))
+
     }
 
 
@@ -86,7 +88,7 @@ abstract class AbstractWhistleDesigner(override val name: String,
     }
 
     override fun patchInstrument(inst: Instrument): Instrument {
-        val patchedInst = inst.copy()
+        val patchedInst = inst.dup()
         patchedInst.trueLength = patchedInst.length
 
         // TODO
@@ -107,9 +109,9 @@ abstract class AbstractWhistleDesigner(override val name: String,
         // ph:     [ bulge_amount, 0.0 ],
         // ph:     )
 
-        val maker = getWhistleHeadMaker()
-        val diameter = maker.effectiveGapDiameter()
-        val length = (maker.effectiveGapHeight() / 2.0) + diameter * tweakGapExtra
+        val props = getWhistleHeadProportions()
+        val diameter = props.first
+        val length = (props.second/ 2.0) + diameter * tweakGapExtra
         // ph:         ^ The gap is this high on one side and a blade on the other side
         // ph:           split the difference.
 
@@ -123,8 +125,10 @@ abstract class AbstractWhistleDesigner(override val name: String,
     }
 }
 
-class SixHoleWhistleDesigner(override val name: String,
-    outputDir: Path) : AbstractWhistleDesigner(name, outputDir) {
+class SixHoleWhistleDesigner(n: String,
+                             outputDir: Path,
+                             builder: InstrumentBuilder<Whistle>
+    ) : AbstractWhistleDesigner<Whistle>(n, outputDir, builder) {
     override var transpose: Int by IntParameter { 12 }
 
     override var divisions by ListOfListOfIntDoublePairParam {
@@ -133,6 +137,14 @@ class SixHoleWhistleDesigner(override val name: String,
             listOf(Pair(1, 0.0), Pair(5, 0.0), Pair(5, 0.5)),
             listOf(Pair(-1, 0.75), Pair(1, 0.0), Pair(2, 1.0), Pair(5, 0.0), Pair(5, 0.3), Pair(5, 0.6))
         )
+    }
+
+    override fun readInstrument(path: Path): Whistle {
+        return Json5.decodeFromString<Whistle>(path.readText())
+    }
+
+    override fun writeInstrument(instrument: Whistle, path: Path) {
+        path.writeText(Json5.encodeToString(instrument))
     }
 
     override var minHoleDiameters by ListOfDoubleParameter {
@@ -191,7 +203,8 @@ class SixHoleWhistleDesigner(override val name: String,
 }
 
 fun folkWhistleDesigner(name: String, outputDir: Path): SixHoleWhistleDesigner {
-    val result = SixHoleWhistleDesigner(name,  outputDir)
+    val result = SixHoleWhistleDesigner(name,  outputDir,
+        Whistle.builder)
     result.initialLength = wavelength("D4") * 0.5
     result.fingerings = arrayListOf(
         Fingering("D4", listOf(X, X, X, X, X, X)),
@@ -216,7 +229,8 @@ fun folkWhistleDesigner(name: String, outputDir: Path): SixHoleWhistleDesigner {
 }
 
 fun dorianWhistleDesigner(outputDir: Path): SixHoleWhistleDesigner {
-    val result = SixHoleWhistleDesigner("DorianWhistle", outputDir)
+    val result = SixHoleWhistleDesigner("DorianWhistle", outputDir,
+        Whistle.builder)
     result.initialLength = wavelength("D4") * 0.5
     result.fingerings = arrayListOf(
         Fingering("D4", listOf(X, X, X, X, X, X)),
@@ -241,7 +255,7 @@ fun dorianWhistleDesigner(outputDir: Path): SixHoleWhistleDesigner {
 
 class RecorderDesigner(override val name: String,
                        outputDir: Path
-) : AbstractWhistleDesigner(name, outputDir) {
+) : AbstractWhistleDesigner<Whistle>(name, outputDir, Whistle.builder) {
 
 
     override var initialLength by DoubleParameter {
@@ -258,6 +272,14 @@ class RecorderDesigner(override val name: String,
             listOf(Pair(0, 0.0), Pair(3, 0.0), Pair(7, 0.0), Pair(7, 0.5)),
             listOf(Pair(0, 0.0), Pair(2, 0.0), Pair(4, 0.0), Pair(7, 0.0), Pair(7, 0.5))
         )
+    }
+
+    override fun readInstrument(path: Path): Whistle {
+        return Json5.decodeFromString<Whistle>(path.readText())
+    }
+
+    override fun writeInstrument(instrument: Whistle, path: Path) {
+        path.writeText(Json5.encodeToString(instrument))
     }
 
     override var minHoleDiameters by ListOfDoubleParameter {
