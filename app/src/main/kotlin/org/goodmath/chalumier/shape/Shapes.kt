@@ -33,7 +33,7 @@ import org.goodmath.chalumier.util.fromEnd
 fun extrusion(zs: List<Double>, shapes: List<Loop>, name: String? = null): CSG {
     val nZ = zs.size
     val nShape = shapes[0].len()
-    val verts: MutableList<Vector3d> = mutableListOf()
+    val verts = ArrayList<Vector3d>()
     zs.forEachIndexed { i, z ->
         shapes[i].loopValues.forEach { (x, y) ->
             verts.add(Vector3d.xyz(x, y, z))
@@ -49,18 +49,18 @@ fun extrusion(zs: List<Double>, shapes: List<Loop>, name: String? = null): CSG {
         for (j in (0 until nShape)) {
             faces.add(
                 listOf(
-                    (i + 1) * nShape + j, i * nShape + j, i * nShape + (j + 1) % nShape
+                    (i + 1) * nShape + j, i * nShape + j, i * nShape + ((j + 1)% nShape)
                 )
             )
             faces.add(
                 listOf(
-                    (i + 1) * nShape + j, i * nShape + (j + 1) % nShape, (i + 1) * nShape + (j + 1) % nShape
+                    (i + 1) * nShape + j, i * nShape + ((j + 1) % nShape), (i + 1) * nShape + ((j + 1) % nShape)
                 )
             )
         }
     }
     for (i in (0 until nShape)) {
-        val i1 = (i + 1) * nShape
+        val i1 = (i + 1) % nShape
         faces.add(listOf(i1, i, end0))
         faces.add(
             listOf(

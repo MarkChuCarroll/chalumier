@@ -18,12 +18,15 @@ package org.goodmath.chalumier.design
 import io.github.xn32.json5k.Json5
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
+import org.goodmath.chalumier.cli.InstrumentDescription
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.design.Hole.O
 import org.goodmath.chalumier.design.Hole.X
 import org.goodmath.chalumier.design.instruments.Instrument
-import org.goodmath.chalumier.design.instruments.InstrumentBuilder
+import org.goodmath.chalumier.design.instruments.InstrumentFactory
 import org.goodmath.chalumier.design.instruments.TaperedFlute
+import org.goodmath.chalumier.make.FluteMaker
+import org.goodmath.chalumier.make.InstrumentMaker
 import org.goodmath.chalumier.util.fromEnd
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
@@ -34,7 +37,7 @@ import kotlin.math.sqrt
 
 
 abstract class FluteDesigner<Inst: Instrument>(override val name: String, outputDir: Path,
-                                               builder: InstrumentBuilder<Inst>
+                                               builder: InstrumentFactory<Inst>
 ) : InstrumentDesigner<Inst>(name, outputDir, builder) {
 
     /* ph:
@@ -198,7 +201,11 @@ abstract class FluteDesigner<Inst: Instrument>(override val name: String, output
 }
 
 class TaperedFluteDesigner(override val name: String, dir: Path,
-    builder: InstrumentBuilder<TaperedFlute> = TaperedFlute.builder) : FluteDesigner<TaperedFlute>(name, dir, builder) {
+    builder: InstrumentFactory<TaperedFlute> = TaperedFlute.builder) : FluteDesigner<TaperedFlute>(name, dir, builder) {
+
+
+
+
     open var innerTaper: Double by ConfigParameter(DoubleParameterKind, "Amount of tapering of bore. Smaller = more tapered.") {
         0.75
     }
@@ -210,6 +217,14 @@ class TaperedFluteDesigner(override val name: String, dir: Path,
     override fun readInstrument(path: Path): TaperedFlute {
         return Json5.decodeFromString<TaperedFlute>(path.readText())
     }
+
+    override fun internalGetInstrumentMaker(
+        spec: TaperedFlute,
+        description: InstrumentDescription
+    ): InstrumentMaker<TaperedFlute> {
+        return FluteMaker(description.name, outputDir, spec, description)
+    }
+
 
     override fun writeInstrument(instrument: TaperedFlute, path: Path) {
         path.writeText(Json5.encodeToString(instrument))

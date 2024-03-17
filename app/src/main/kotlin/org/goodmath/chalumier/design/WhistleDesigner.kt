@@ -18,13 +18,16 @@ package org.goodmath.chalumier.design
 import io.github.xn32.json5k.Json5
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
+import org.goodmath.chalumier.cli.InstrumentDescription
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.design.Hole.X
 import org.goodmath.chalumier.design.Hole.O
 import org.goodmath.chalumier.design.instruments.Instrument
-import org.goodmath.chalumier.design.instruments.InstrumentBuilder
+import org.goodmath.chalumier.design.instruments.InstrumentFactory
 import org.goodmath.chalumier.design.instruments.Whistle
+import org.goodmath.chalumier.make.InstrumentMaker
 import org.goodmath.chalumier.make.WhistleHeadMaker
+import org.goodmath.chalumier.make.WhistleMaker
 import org.goodmath.chalumier.util.fromEnd
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
@@ -32,11 +35,11 @@ import kotlin.io.path.readText
 import kotlin.io.path.writeText
 
 
-abstract class AbstractWhistleDesigner<Inst: Instrument>(n: String,
-                                                         outputDir: Path,
-                                                         builder: InstrumentBuilder<Inst>
+abstract class AbstractWhistleDesigner(n: String,
+                                       outputDir: Path,
+                                       builder: InstrumentFactory<Whistle>
 ):
-    InstrumentDesignerWithBoreScale<Inst>(n, outputDir, builder) {
+    InstrumentDesignerWithBoreScale<Whistle>(n, outputDir, builder) {
     // ph: From 2014-15-whistle-tweaking
     open var tweakGapExtra by DoubleParameter {
         0.6
@@ -123,12 +126,19 @@ abstract class AbstractWhistleDesigner<Inst: Instrument>(n: String,
         patchedInst.length += length
         return patchedInst
     }
+
+    override fun internalGetInstrumentMaker(
+        spec: Whistle,
+        description: InstrumentDescription
+    ): InstrumentMaker<Whistle> {
+        return WhistleMaker("whistle", outputDir, spec, description)
+    }
 }
 
 class SixHoleWhistleDesigner(n: String,
                              outputDir: Path,
-                             builder: InstrumentBuilder<Whistle>
-    ) : AbstractWhistleDesigner<Whistle>(n, outputDir, builder) {
+                             builder: InstrumentFactory<Whistle>
+    ) : AbstractWhistleDesigner(n, outputDir, builder) {
     override var transpose: Int by IntParameter { 12 }
 
     override var divisions by ListOfListOfIntDoublePairParam {
@@ -189,7 +199,7 @@ class SixHoleWhistleDesigner(n: String,
     }
     override var outerAngles by ListOfOptAnglePairsParameter {
         listOf(
-            Angle(AngleDirection.Here, -15.0), Angle(AngleDirection.Here, 0.0), null, null, null
+            Angle(Angle.AngleDirection.Here, -15.0), Angle(Angle.AngleDirection.Here, 0.0), null, null, null
         ).map { angle -> angle?.let { Pair(it, it) } }
     }
 
@@ -255,7 +265,7 @@ fun dorianWhistleDesigner(outputDir: Path): SixHoleWhistleDesigner {
 
 class RecorderDesigner(override val name: String,
                        outputDir: Path
-) : AbstractWhistleDesigner<Whistle>(name, outputDir, Whistle.builder) {
+) : AbstractWhistleDesigner(name, outputDir, Whistle.builder) {
 
 
     override var initialLength by DoubleParameter {

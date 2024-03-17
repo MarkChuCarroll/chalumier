@@ -18,12 +18,15 @@ package org.goodmath.chalumier.design
 import io.github.xn32.json5k.Json5
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
+import org.goodmath.chalumier.cli.InstrumentDescription
 import org.goodmath.chalumier.design.Hole.O
 import org.goodmath.chalumier.design.Hole.X
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.design.instruments.Instrument
-import org.goodmath.chalumier.design.instruments.InstrumentBuilder
+import org.goodmath.chalumier.design.instruments.InstrumentFactory
 import org.goodmath.chalumier.design.instruments.ReedInstrument
+import org.goodmath.chalumier.make.InstrumentMaker
+import org.goodmath.chalumier.make.ReedInstrumentMaker
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
 import kotlin.io.path.readText
@@ -31,9 +34,9 @@ import kotlin.io.path.writeText
 
 abstract class ReedInstrumentDesigner<Inst: Instrument>(override val name: String,
                                                         outputDir: Path,
-                                                        builder: InstrumentBuilder<Inst>
+                                                        builder: InstrumentFactory<ReedInstrument>
 ):
-    InstrumentDesigner<Inst>(name, outputDir, builder) {
+    InstrumentDesigner<ReedInstrument>(name, outputDir, builder) {
 
   open val boreBaseline = 4.0
 
@@ -88,6 +91,11 @@ abstract class ReedInstrumentDesigner<Inst: Instrument>(override val name: Strin
       })
     }
   }
+
+    override fun internalGetInstrumentMaker(spec: ReedInstrument, description: InstrumentDescription): InstrumentMaker<ReedInstrument> {
+        return ReedInstrumentMaker("instrument", outputDir, spec, description)
+    }
+
 }
 
 class ReedDroneDesigner(override val name: String,
@@ -105,6 +113,7 @@ class ReedDroneDesigner(override val name: String,
     override fun readInstrument(path: Path): ReedInstrument {
         return Json5.decodeFromString(path.readText())
     }
+
 
     override fun writeInstrument(instrument: ReedInstrument, path: Path) {
         path.writeText(Json5.encodeToString(instrument))
@@ -127,6 +136,7 @@ open class ReedpipeDesigner(override val name: String, outputDir: Path):
     override fun readInstrument(path: Path): ReedInstrument {
         return Json5.decodeFromString(path.readText())
     }
+
 
     override fun writeInstrument(instrument: ReedInstrument, path: Path) {
         path.writeText(Json5.encodeToString(instrument))
@@ -210,7 +220,7 @@ abstract class AbstractShawmDesigner(override val name: String,
   override var minOuterFractionSep by ListOfDoubleParameter() { arrayListOf(0.19, 0.8) }
   override var initialOuterFractions by ListOfDoubleParameter() {arrayListOf(0.19) }
   override var outerAngles by ListOfOptAnglePairsParameter() {
-      ArrayList(listOf(Angle(AngleDirection.Here, -35.0), Angle(AngleDirection.Up), Angle(AngleDirection.Down))
+      ArrayList(listOf(Angle(Angle.AngleDirection.Here, -35.0), Angle(Angle.AngleDirection.Up), Angle(Angle.AngleDirection.Down))
         .map { Pair(it, it) })
   }
 }
@@ -308,6 +318,7 @@ open class ShawmDesigner(override val name: String,
        arrayListOf(Pair(0, 0.25), Pair(2, 0.5), Pair(5, 0.0))
     )
   }
+
 }
 
 /**
@@ -394,4 +405,5 @@ class FolkShawmDesigner(override val name: String,
           // ph:arrayListOf( (-X,0.45), (-X,0.9), (2,0.0), (2,0.9), (5,0.0), (5,0.5) ),
         )
   }
+
 }

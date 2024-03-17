@@ -18,24 +18,21 @@ package org.goodmath.chalumier.cli
 import io.github.xn32.json5k.Json5
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
-import org.goodmath.chalumier.design.Fingering
 import org.goodmath.chalumier.design.InstrumentDesigner
-import org.goodmath.chalumier.design.frequency
 import org.goodmath.chalumier.design.wavelength
 import org.goodmath.chalumier.errors.ChalumierException
 import java.nio.file.Path
 import kotlin.io.path.readText
 
 @OptIn(ExperimentalSerializationApi::class)
-class DesignerBuilder(val templates: Map<String, (name: String, outputDir: Path) -> InstrumentDesigner<*>>) {
+class InstrumentDesignerFactory(val templates: Map<String, (name: String, outputDir: Path) -> InstrumentDesigner<*>>) {
 
-    fun getDesigner(specFile: Path, outputDir: Path): InstrumentDesigner<*> {
-        val spec = Json5.decodeFromString<InstrumentSpec>(specFile.readText())
-        return getDesigner(spec, outputDir)
+    fun getDesigner(descriptionFile: Path, outputDir: Path): Pair<InstrumentDescription, InstrumentDesigner<*>> {
+        val desc = Json5.decodeFromString<InstrumentDescription>(descriptionFile.readText())
+        return Pair(desc, getDesigner(desc, outputDir))
     }
 
-    fun getDesigner(spec: InstrumentSpec, dir: Path): InstrumentDesigner<*> {
+    fun getDesigner(spec: InstrumentDescription, dir: Path): InstrumentDesigner<*> {
         val baseTemplate = templates[spec.instrumentType] ?: throw ChalumierException("Unknown instrument type ${spec.instrumentType}")
         val designer = baseTemplate(spec.name, dir)
         designer.initialLength = wavelength(spec.rootNote) * 0.5

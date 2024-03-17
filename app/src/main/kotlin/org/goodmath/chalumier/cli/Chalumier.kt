@@ -16,19 +16,7 @@
 package org.goodmath.chalumier.cli
 
 import com.github.ajalt.clikt.core.CliktCommand
-import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.subcommands
-import com.github.ajalt.clikt.parameters.arguments.argument
-import com.github.ajalt.clikt.parameters.options.default
-import com.github.ajalt.clikt.parameters.options.option
-import com.github.ajalt.clikt.parameters.options.required
-import com.github.ajalt.clikt.parameters.types.choice
-import com.github.ajalt.clikt.parameters.types.file
-import com.github.ajalt.clikt.parameters.types.int
-import com.github.ajalt.clikt.parameters.types.path
-import org.goodmath.chalumier.design.*
-import java.nio.file.Path
-import kotlin.io.path.div
 
 
 class Chalumier: CliktCommand() {
@@ -38,6 +26,6 @@ class Chalumier: CliktCommand() {
 
 
 fun main(args: Array<String>) {
-     Chalumier().subcommands(Design(), Model()).main(args)
+     Chalumier().subcommands(Design(), Model(), Make()).main(args)
 }
 

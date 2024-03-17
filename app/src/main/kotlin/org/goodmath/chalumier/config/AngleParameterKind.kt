@@ -19,7 +19,6 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import org.goodmath.chalumier.design.Angle
-import org.goodmath.chalumier.design.AngleDirection
 import org.goodmath.chalumier.errors.ConfigurationParameterException
 
 object AngleParameterKind: ParameterKind<Angle> {
@@ -33,13 +32,13 @@ object AngleParameterKind: ParameterKind<Angle> {
         return if (t == JsonNull) { null }
         else if (t is JsonPrimitive) {
             when (val label = t.content) {
-                "Mean" -> Angle(AngleDirection.Mean)
-                "Up" -> Angle(AngleDirection.Up)
-                "Down" -> Angle(AngleDirection.Down)
+                "Mean" -> Angle(Angle.AngleDirection.Mean)
+                "Up" -> Angle(Angle.AngleDirection.Up)
+                "Down" -> Angle(Angle.AngleDirection.Down)
                 else ->
                     if (name.startsWith("Here:")) {
                         Angle(
-                            AngleDirection.Here,
+                            Angle.AngleDirection.Here,
                             label.substring(5).toDouble()
                         )
                     } else {
@@ -54,10 +53,10 @@ object AngleParameterKind: ParameterKind<Angle> {
     override fun dump(t: Angle?): JsonElement {
         return when {
             t == null -> JsonNull
-            t.dir == AngleDirection.Up -> JsonPrimitive("Up")
-            t.dir == AngleDirection.Down -> JsonPrimitive("Down")
-            t.dir == AngleDirection.Mean -> JsonPrimitive("Mean")
-            t.dir == AngleDirection.Here -> JsonPrimitive("Here:${t.v}")
+            t.dir == Angle.AngleDirection.Up -> JsonPrimitive("Up")
+            t.dir == Angle.AngleDirection.Down -> JsonPrimitive("Down")
+            t.dir == Angle.AngleDirection.Mean -> JsonPrimitive("Mean")
+            t.dir == Angle.AngleDirection.Here -> JsonPrimitive("Here:${t.v}")
             else -> throw ConfigurationParameterException("invalid value for Angle parameter: '${t}'")
         }
     }

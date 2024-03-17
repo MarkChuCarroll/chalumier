@@ -16,11 +16,14 @@
 package org.goodmath.chalumier.design
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import org.goodmath.chalumier.config.ListOfDoubleParameterKind
 import org.goodmath.chalumier.config.ParameterKind
-import org.goodmath.chalumier.errors.ConfigurationParameterException
 import org.goodmath.chalumier.errors.ChalumierException
+import org.goodmath.chalumier.errors.ConfigurationParameterException
 import kotlin.math.*
 
 /*
@@ -31,7 +34,7 @@ import kotlin.math.*
  *
  * Where relevant, the original comments from the Python are here, prefixed with "ph:".
  */
-typealias DoubleList = ArrayList<Double>
+
 
 /**
  * A reproduction of Python's "bisect" function.
@@ -50,14 +53,11 @@ fun List<Double>.bisect(target: Double): Int {
     }
 }
 
-enum class AngleDirection {
-    Here, Mean, Up, Down
-}
 
 /**
- * In some of the profile transformers, the code expects a
- * profile description that includes what I'm interpreting as
- * angles.
+ * In addition to the diameters of its segments, a profile can
+ * have a _direction" parameter. I'm interpreting that as an angle
+ * that describes how the transitions between segments are shaped.
  *
  * In python, these "angle" specs are characterized by:
  * 1. an integer index which is their position in the list of angles that
@@ -76,7 +76,11 @@ enum class AngleDirection {
  * but rather a connection to how the angle is placed into a list.
  */
 class Angle(val dir: AngleDirection, val v: Double? = null) {
-    fun interpret(i: Int, a: DoubleList): Double {
+    enum class AngleDirection {
+        Here, Mean, Up, Down
+    }
+
+    fun interpret(i: Int, a: List<Double>): Double {
         return when (dir) {
             AngleDirection.Mean -> (a[i - 1] + a[i]) * 0.5
 
@@ -100,13 +104,15 @@ class Angle(val dir: AngleDirection, val v: Double? = null) {
 data class Solution(val t1: Double, val t2: Double, val mirror: Boolean)
 
 /**
- * A profile is a description of a 3 dimensional tube, whose diameter can
- * vary along its length. It's used to model the body of instruments.
+ * A profile is basically a set of stacked cylinders (or actually
+ * stacked conics - the upper and lower diameters may vary). The
+ * pos of each cylinder is its elevation from the bottom; the 'low'
+ * value is diameter at the lower end; the "high" is the diameter at
+ * the upper end.
  *
  * @param pos a position along the tube where the diameter changes.
- * @param low the new diameter at this position.
- * @param high sadly, I'm not sure. Most of the time, high is a duplicate
- *     of low.
+ * @param low the diameter at the bottom of the segment.
+ * @param high the diameter at the top of the segment.
  */
 @Serializable
 data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val high: ArrayList<Double> = low) {
@@ -139,6 +145,8 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
     fun maximum(): Double = max(low.max(), high.max())
 
     /**
+     * Combine two profiles.
+     *
      * ph: Fairly dumb way to combine profiles. Won't work perfectly for min, max.
      */
     fun morph(other: Profile, op: (Double, Double) -> Double): Profile {
@@ -209,29 +217,30 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
     }
 
     fun asStepped(maxStep: Double): Profile {
-        val newPos = ArrayList<Double>()
+        val stepPositions = ArrayList<Double>()
         for (i in 0 until pos.size - 1) {
-            newPos.add(pos[i])
-            val ax = pos[i]
-            val ay = high[i]
-            val bx = pos[i + 1]
-            val by = low[i + 1]
-            val n = ((by - ay).absoluteValue / maxStep).toInt() + 1
-            if (n != 0) {
-                newPos.addAll((1 until n).map { j -> (bx - ax) * j / n + ax })
+            stepPositions.add(pos[i])
+            val numberOfSteps = ((low[i+1] - high[i]).absoluteValue / maxStep).toInt() + 1
+            if (numberOfSteps != 0) {
+                stepPositions.addAll((1 until numberOfSteps).map { j -> (pos[i+1] - pos[i]) * j / numberOfSteps + pos[i] })
             }
         }
-        newPos.add(pos.last())
-        val diams = (0 until (newPos.size - 1)).map { i ->
-            this(0.5 * (newPos[i] + newPos[i + 1]))
+        stepPositions.add(pos.last())
+        val diams = (0 until (stepPositions.size - 1)).map { i ->
+            this(0.5 * (stepPositions[i] + stepPositions[i + 1]))
         }
         val newLow = ArrayList(listOf(diams[0]) + diams)
         val newHigh = ArrayList(diams + listOf(diams.last()))
-        return Profile(newPos, newLow, newHigh)
+        return Profile(stepPositions, newLow, newHigh)
     }
 
     companion object {
 
+        /**
+         * Solve. As usual, ph didn't write down what he was solving.
+         * It's some segment of the cornu/clothoid curve as a transition
+         * between profile segments, but beyond that? No clue.
+         */
         fun solve(a1: Double, a2: Double): Solution {
             fun score(t1: Double, t2: Double, mirror: Boolean): Double {
                 if (abs(t1 - t2) < 1e-6 || max(abs(t1), abs(t2)) > PI * 10.0) {
@@ -300,14 +309,14 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
         }
 
         fun curvedProfile(
-            pos: DoubleList,
-            low: DoubleList,
-            high: DoubleList,
+            pos: List<Double>,
+            low: List<Double>,
+            high: List<Double>,
             lowAngle: ArrayList<Angle?>,
             highAngle: ArrayList<Angle?>,
             quality: Int = 512
         ): Profile {
-            val a = DoubleList()
+            val a = ArrayList<Double>()
             val n = pos.size
             for (i in 0 until n - 1) {
                 val x1 = pos[i]
@@ -321,9 +330,9 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
             }
             val interpretedHighAngle = highAngle.mapIndexed { i, angle -> angle?.interpret(i, a) }
 
-            val ppos = DoubleList()
-            val plow = DoubleList()
-            val phigh = DoubleList()
+            val ppos = ArrayList<Double>()
+            val plow = ArrayList<Double>()
+            val phigh = ArrayList<Double>()
 
             for (i in 0 until n - 1) {
                 ppos.add(pos[i])
@@ -369,9 +378,9 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
 
 
         fun makeProfile(spec: List<List<Double>>): Profile {
-            val pos = DoubleList()
-            val low = DoubleList()
-            val high = DoubleList()
+            val pos = ArrayList<Double>()
+            val low = ArrayList<Double>()
+            val high = ArrayList<Double>()
             for (item in spec) {
                 var thisPos = 0.0
                 var thisLow = 0.0

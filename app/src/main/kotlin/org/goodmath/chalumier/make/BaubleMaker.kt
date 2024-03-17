@@ -1,13 +1,12 @@
 package org.goodmath.chalumier.make
 
 import eu.mihosoft.jcsg.CSG
+import org.goodmath.chalumier.cli.InstrumentDescription
 import org.goodmath.chalumier.design.Angle
-import org.goodmath.chalumier.design.AngleDirection
 import org.goodmath.chalumier.design.Profile
+import org.goodmath.chalumier.design.instruments.ReedInstrument
 import org.goodmath.chalumier.shape.Loop
-import org.goodmath.chalumier.shape.circleCrossSection
 import org.goodmath.chalumier.shape.extrudeProfile
-import org.goodmath.chalumier.shape.extrusion
 import org.goodmath.chalumier.util.Point
 import java.nio.file.Path
 import kotlin.math.PI
@@ -15,12 +14,13 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 class BaubleMaker(
-    override val outputPrefix: String,
-    override val specFile: Path,
-    override val parameterFile: Path,
-    override val workingDir: Path,
-    val dockDiameter: Double = 40.0,
-    val dockLength: Double = 5.0): InstrumentMaker(outputPrefix, specFile, parameterFile, workingDir) {
+    outputPrefix: String,
+    workingDir: Path,
+    spec: ReedInstrument,
+    instrument: InstrumentDescription):  InstrumentMaker<ReedInstrument>(outputPrefix, workingDir, spec, instrument) {
+
+    val dockDiameter: Double by lazy { instrument.getDoubleOption("dockDiameter", 40.0,) }
+    val dockLength: Double by lazy { instrument.getDoubleOption("dockLength", 5.0) }
 
         fun wobble(diameter: Double = 1.0, wobble: Double = 0.5, spin: Double = 0.0,
                    period: Double = 16.0, n: Int = 256): Loop {
@@ -43,7 +43,7 @@ class BaubleMaker(
             val posOuter = arrayListOf(0.0, length)
             val diamOuter = arrayListOf(dockDiameter + 2.0, 0.0)
             val angle: ArrayList<Angle?> = arrayListOf(
-                Angle(AngleDirection.Here, 20.0), Angle(AngleDirection.Here, -10.0))
+                Angle(Angle.AngleDirection.Here, 20.0), Angle(Angle.AngleDirection.Here, -10.0))
             val pOuter = Profile.curvedProfile(
                 posOuter, diamOuter, diamOuter, angle, angle
             )

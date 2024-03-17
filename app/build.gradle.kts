@@ -18,7 +18,7 @@ plugins {
     application
     kotlin("plugin.serialization") version "1.9.22"
     id("com.github.johnrengelman.shadow") version "8.1.1"
-
+    id("org.openjfx.javafxplugin") version "0.1.0"
 
 }
 
@@ -36,7 +36,7 @@ dependencies {
     implementation("io.github.xn32:json5k:0.3.0")
     implementation("eu.mihosoft.vrl.jcsg:jcsg:0.5.7")
     implementation("com.github.ajalt.clikt:clikt:4.2.2")
-
+    implementation("com.github.ajalt.mordant:mordant:2.4.0")
 
 }
 
@@ -48,6 +48,10 @@ testing {
             useKotlinTest("1.8.10")
         }
     }
+}
+
+javafx {
+    modules("javafx.controls", "javafx.fxml")
 }
 
 application {

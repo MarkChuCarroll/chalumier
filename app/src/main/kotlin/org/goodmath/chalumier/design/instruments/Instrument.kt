@@ -17,6 +17,7 @@ package org.goodmath.chalumier.design.instruments
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
+import org.goodmath.chalumier.cli.InstrumentDescription
 import org.goodmath.chalumier.design.*
 import org.goodmath.chalumier.util.fromEnd
 import org.kotlinmath.Complex
@@ -53,9 +54,10 @@ data class InstrumentBoreChange(
 )
 
 
-abstract class InstrumentBuilder<Inst: Instrument> {
+abstract class InstrumentFactory<Inst: Instrument> {
     abstract fun create(
         designer: InstrumentDesigner<Inst>,
+        parameters: DesignParameters,
         name: String,
         length: Double,
         closedTop: Boolean,
@@ -69,7 +71,8 @@ abstract class InstrumentBuilder<Inst: Instrument> {
         innerHolePositions: ArrayList<Double>,
         numberOfHoles: Int,
         innerKinks: ArrayList<Double>,
-        outerKinks: ArrayList<Double>
+        outerKinks: ArrayList<Double>,
+        divisions: List<List<Pair<Int,Double>>>
     ): Inst
 }
 
@@ -92,6 +95,7 @@ interface Instrument {
     var emissionDivide: Double
     var scale: Double
     var trueLength: Double
+    var divisions: List<List<Pair<Int, Double>>>
 
     @Transient
     val actions: ArrayList<ActionFunction>

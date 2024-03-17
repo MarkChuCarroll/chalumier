@@ -7,7 +7,7 @@
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing, software
+ * Unless required by applicable law or agreed to iun writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
@@ -15,15 +15,14 @@
  */
 package org.goodmath.chalumier.design
 
-import io.github.xn32.json5k.Json5
 import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.encodeToString
-
+import org.goodmath.chalumier.cli.InstrumentDescription
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.design.instruments.*
 import org.goodmath.chalumier.diagram.Diagram
 import org.goodmath.chalumier.errors.RequiredParameterException
 import org.goodmath.chalumier.errors.dAssert
+import org.goodmath.chalumier.make.InstrumentMaker
 import org.goodmath.chalumier.optimize.Optimizer
 import org.goodmath.chalumier.optimize.Score
 import org.goodmath.chalumier.optimize.ScoredParameters
@@ -47,13 +46,8 @@ import kotlin.math.*
  */
 abstract class InstrumentDesigner<Inst: Instrument>(
     override val name: String,
-    private val outputDir: Path,
-    val builder: InstrumentBuilder<Inst>
-): Configurable<InstrumentDesigner<Inst>>(name) {
-
-    abstract fun readInstrument(path: Path): Inst
-
-    abstract fun writeInstrument(instrument: Inst, path: Path)
+    val outputDir: Path,
+    val builder: InstrumentFactory<Inst>): Configurable<InstrumentDesigner<Inst>>(name) {
 
     /*
      * Start off with the configurable parameters that describe
@@ -202,7 +196,18 @@ abstract class InstrumentDesigner<Inst: Instrument>(
             "All fingerings must have the same number of holes")
     }
 
+    abstract fun readInstrument(path: Path): Inst
 
+    abstract fun writeInstrument(instrument: Inst, path: Path)
+
+    fun getInstrumentMaker(specFilePath: Path,
+                           description: InstrumentDescription): InstrumentMaker<Inst> {
+        val inst = readInstrument(specFilePath)
+        return internalGetInstrumentMaker(inst, description)
+    }
+
+    abstract fun internalGetInstrumentMaker(spec: Inst,
+                                            description: InstrumentDescription): InstrumentMaker<Inst>
 
     /**
      * The instrument designer and the template instrument define the basic
@@ -275,6 +280,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         }
         return builder.create(
             this,
+            from,
             name,
             length = length,
             closedTop=closedTop,
@@ -290,7 +296,8 @@ abstract class InstrumentDesigner<Inst: Instrument>(
             innerHolePositions = instInnerHolePositions,
             numberOfHoles = numberOfHoles,
             innerKinks = innerKinks,
-            outerKinks = outerKinks)
+            outerKinks = outerKinks,
+            divisions=divisions)
     }
 
 
@@ -691,10 +698,10 @@ abstract class InstrumentDesigner<Inst: Instrument>(
 
 }
 
-abstract class InstrumentDesignerWithBoreScale<Inst: Instrument>(
+abstract class InstrumentDesignerWithBoreScale<Inst: Instrument> (
     n: String,
     dir: Path,
-    build: InstrumentBuilder<Inst>
+    build: InstrumentFactory<Inst>
    ):  InstrumentDesigner<Inst>(n, dir, build) {
 
     open fun boreScaler(value: List<Double?>, maximum: Double = 1e30): ArrayList<Double?> {

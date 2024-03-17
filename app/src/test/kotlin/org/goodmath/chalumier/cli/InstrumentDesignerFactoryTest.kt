@@ -13,22 +13,22 @@ import java.nio.file.Path
 import kotlin.io.path.Path
 import kotlin.io.path.readText
 
-class DesignerBuilderTest {
+class InstrumentDesignerFactoryTest {
 
-    lateinit var designerBuilder: DesignerBuilder
+    lateinit var instrumentDesignerFactory: InstrumentDesignerFactory
     val outputPath = Path("/tmp/junk")
 
     @BeforeEach
     fun setUp() {
         val templates = mapOf("folkFlute" to { n: String, _: Path ->  org.goodmath.chalumier.design.folkFluteDesigner(n, outputPath) },
             "pFlute" to { n: String, _: Path -> org.goodmath.chalumier.design.pFluteDesigner(n, outputPath)})
-        designerBuilder = DesignerBuilder(templates)
+        instrumentDesignerFactory = InstrumentDesignerFactory(templates)
     }
 
     @Test
     fun testLoadSpec() {
-        val spec = Json5.decodeFromString<InstrumentSpec>(Path("src/test/resources/flute.json5").readText())
-        val expected = InstrumentSpec("majorFlute",
+        val spec = Json5.decodeFromString<InstrumentDescription>(Path("src/test/resources/flute.json5").readText())
+        val expected = InstrumentDescription("majorFlute",
             instrumentType = "folkFlute",
             rootNote = "D4",
             fingerings = listOf(
@@ -53,7 +53,7 @@ class DesignerBuilderTest {
 
     @Test
     fun testGetDesigner() {
-        val d = designerBuilder.getDesigner(Path("src/test/resources/flute.json5"), outputPath)
+        val (_, d) = instrumentDesignerFactory.getDesigner(Path("src/test/resources/flute.json5"), outputPath)
         assertTrue(d is TaperedFluteDesigner)
         assertEquals("majorFlute", d.name)
         assertEquals(7, d.numberOfHoles)

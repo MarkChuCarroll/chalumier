@@ -64,7 +64,7 @@ fun squaredCircle(xPad: Double, yPad: Double, diameter: Double = 1.0): Loop {
         }
         Pair(x, y)
     }
-    val area = PI * xPad * yPad + xPad * 2 + yPad * 2
+    val area = PI + xPad * yPad + xPad * 2 + yPad * 2
     val want = PI * (diameter * 0.5).pow(2)
     val scale = sqrt(want / area)
     return Loop(result.map { (x, y) -> Point(x * scale, y * scale) })

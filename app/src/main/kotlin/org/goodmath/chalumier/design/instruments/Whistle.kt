@@ -1,6 +1,22 @@
+/*
+ * Copyright 2024 Mark C. Chu-Carroll
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.goodmath.chalumier.design.instruments
 
 import kotlinx.serialization.Serializable
+import org.goodmath.chalumier.design.DesignParameters
 import org.goodmath.chalumier.design.InstrumentDesigner
 import org.goodmath.chalumier.design.Profile
 
@@ -28,7 +44,8 @@ class Whistle(
     override val coneStep: Double,
     override var trueLength: Double,
     override var emissionDivide: Double = 1.0,
-    override var scale: Double = 1.0) : SimpleInstrument() {
+    override var scale: Double = 1.0,
+    override var divisions: List<List<Pair<Int, Double>>>) : SimpleInstrument() {
 
     override val actions = ArrayList<ActionFunction>()
     override val actionsPhase = ArrayList<PhaseActionFunction>()
@@ -48,13 +65,15 @@ class Whistle(
             coneStep,
             trueLength,
             emissionDivide,
-            scale)
+            scale,
+            divisions)
     }
 
     companion object {
-        val builder = object : InstrumentBuilder<Whistle>() {
+        val builder = object : InstrumentFactory<Whistle>() {
             override fun create(
                 designer: InstrumentDesigner<Whistle>,
+                parameters: DesignParameters,
                 name: String,
                 length: Double,
                 closedTop: Boolean,
@@ -68,7 +87,8 @@ class Whistle(
                 innerHolePositions: ArrayList<Double>,
                 numberOfHoles: Int,
                 innerKinks: ArrayList<Double>,
-                outerKinks: ArrayList<Double>
+                outerKinks: ArrayList<Double>,
+                divisions: List<List<Pair<Int, Double>>>
             ): Whistle {
                 return Whistle(
                     name = name,
@@ -85,7 +105,8 @@ class Whistle(
                     numberOfHoles = numberOfHoles,
                     innerKinks = innerKinks,
                     outerKinks = outerKinks,
-                    trueLength = length
+                    trueLength = length,
+                    divisions = divisions
                 )
             }
         }

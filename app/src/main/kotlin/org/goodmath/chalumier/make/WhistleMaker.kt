@@ -3,7 +3,9 @@ package org.goodmath.chalumier.make
 import eu.mihosoft.jcsg.CSG
 import eu.mihosoft.vvecmath.Transform
 import eu.mihosoft.vvecmath.Vector3d
+import org.goodmath.chalumier.cli.InstrumentDescription
 import org.goodmath.chalumier.design.Profile
+import org.goodmath.chalumier.design.instruments.Whistle
 import org.goodmath.chalumier.errors.dAssert
 import org.goodmath.chalumier.shape.*
 import org.goodmath.chalumier.util.Point
@@ -14,14 +16,15 @@ import kotlin.math.sqrt
 
 
 class WhistleHeadMaker(
-    override val outputPrefix: String,
-    override val specFile: Path,
-    override val parameterFile: Path,
-    override val workingDir: Path,
-    val boreDiam: Double = 15.0,
-    val outsideDiam: Double = 21.0,
-    val gapWidth: Double = 0.6,
-    val gapLength: Double = 0.25): InstrumentMaker(outputPrefix, specFile, parameterFile, workingDir) {
+    prefix: String,
+    dir: Path,
+    spec: Whistle,
+    desc: InstrumentDescription): InstrumentMaker<Whistle>(prefix, dir, spec, desc) {
+
+    val boreDiam: Double by lazy { instrument.getDoubleOption("boreDiam", 15.0,) }
+    val outsideDiam: Double by lazy { instrument.getDoubleOption("outsideDiam",  21.0) }
+    val gapWidth: Double by lazy { instrument.getDoubleOption("gapWidth", 0.6) }
+    val gapLength: Double by lazy { instrument.getDoubleOption("gapLength", 0.25) }
 
     companion object {
 
@@ -162,7 +165,7 @@ class WhistleHeadMaker(
         body = body.difference(cutawaySpace)
         space = space.union(cutawaySpace)
 
-        val d = airwayXLow * 2
+        var d = airwayXLow * 2
         val jawClipper = extrudeProfile(
             listOf(
                 Profile.makeProfile(
@@ -171,7 +174,7 @@ class WhistleHeadMaker(
             ),
             crossSection = { xs ->
                 dAssert(xs.size == 1, "Expected 1 parameter extruding jawclipper")
-                val d = xs[0]
+                d = xs[0]
                 halfRoundedRectangle(
                     Point(-0.001, zAirway0 - d * 0.5),
                     Point(airwayXLow * 1.001, zMax + d * 0.5)
@@ -194,18 +197,10 @@ class WhistleHeadMaker(
     }
 }
 class WhistleMaker(
-    override val outputPrefix: String,
-    override val specFile: Path,
-    override val parameterFile: Path,
-    override val workingDir: Path,
-    override val generatePads: Boolean = false,
-    override val gap: Double = 0.2,
-    override val thickSockets: Boolean = false,
-    override val dilate: Double = 0.0,
-    override val join: JoinType = JoinType.StraightJoin,
-    override val draft: Boolean = false
-): InstrumentMaker(outputPrefix, specFile, parameterFile, workingDir,
-    generatePads, gap, thickSockets, dilate, join, draft) {
+    prefix: String,
+    workingDir: Path,
+    spec: Whistle,
+    desc: InstrumentDescription): InstrumentMaker<Whistle>(prefix, workingDir, spec, desc) {
 
     override fun getCuts(): List<List<Double>> {
         val cuts = super.getCuts()
@@ -213,27 +208,22 @@ class WhistleMaker(
     }
 
     override fun run(): List<CSG> {
-        val boreDiam = instrument.inner(instrument.length)
-        val outsideDiam = instrument.outer(instrument.length)
-        val headMaker = WhistleHeadMaker(outputPrefix, specFile, parameterFile, workingDir,
-            boreDiam, outsideDiam )
-        var (whistleOuter, whistleInner, whistleJawClipper) = headMaker.construct()
+        val headMaker = WhistleHeadMaker(outputPrefix,workingDir, spec, instrument)
+
+        var (whistleOuter, whistleInner, _) = headMaker.construct()
 
         whistleInner = whistleInner.transformed(Transform()
             .translate(0.0, 0.0, instrument.length)
             .rotZ(90.0))
         whistleOuter = whistleOuter.transformed(Transform()
             .translate(0.0, 0.0, instrument.length).rotZ(90.0))
-        whistleJawClipper = whistleJawClipper.transformed(Transform()
-            .translate(0.0, 0.0, instrument.length)
-            .rotZ(90.0))
         val inst = makeInstrument(
-            innerProfile = instrument.inner.clipped(-50.0, instrument.length),
-            outerProfile = instrument.outer.clipped(0.0, instrument.length - headMaker.boreDiam*1.5),
-            holePositions = instrument.holePositions,
-            holeDiameters = instrument.holeDiameters,
+            innerProfile = spec.inner.clipped(-50.0, instrument.length),
+            outerProfile = spec.outer.clipped(0.0, instrument.length - headMaker.boreDiam*1.5),
+            holePositions = spec.holePositions,
+            holeDiameters = spec.holeDiameters,
             holeVertAngles = instrument.holeAngles,
-            holeHorizAngles = spec.holeHorizAngles,
+            holeHorizAngles = instrument.holeHorizAngles,
             withFingerpad = listOf(true).repeat(instrument.numberOfHoles),
             outsideExtras = listOf(whistleOuter),
             boreExtras = listOf(whistleInner),

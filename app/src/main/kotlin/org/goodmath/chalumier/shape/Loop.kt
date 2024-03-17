@@ -15,6 +15,9 @@
  */
 package org.goodmath.chalumier.shape
 
+import io.github.xn32.json5k.Json5
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.*
 import org.goodmath.chalumier.config.Configurable
 import org.goodmath.chalumier.config.DoubleParameter
 import org.goodmath.chalumier.util.Point
@@ -35,9 +38,39 @@ import kotlin.math.sqrt
  */
 
 // Internal measurements are all mm.
-
+val pretty = Json {
+    prettyPrint = true
+    prettyPrintIndent = "  "
+}
 
 class Loop(valueList: List<Point>): Configurable<Loop>("loop") {
+
+    override fun toString(): String {
+
+        val j = buildJsonObject {
+            putJsonArray("values") {
+                for (p in loopValues) {
+                    addJsonObject {
+                        if (p.x.isNaN()) {
+                            put("x", JsonPrimitive("NaN"))
+                        } else if (p.x.isInfinite()) {
+                            put("x", JsonPrimitive("INF"))
+                        } else {
+                            put("x", JsonPrimitive(p.x))
+                        }
+                        if (p.y.isNaN()) {
+                            put("y", JsonPrimitive("NaN"))
+                        } else if (p.y.isInfinite()) {
+                            put("y", "INF")
+                        } else {
+                            put("y", JsonPrimitive(p.y))
+                        }
+                    }
+                }
+            }
+        }
+        return pretty.encodeToString(j)
+    }
 
     val loopValues = ArrayList(valueList)
 
@@ -84,12 +117,12 @@ class Loop(valueList: List<Point>): Configurable<Loop>("loop") {
         for (point in loopValues) {
             val value = last.x * point.y - point.x * last.y
             div += value
-            sumX += last.x * point.x * value
-            sumY += last.y * point.y * value
+            sumX += (last.x + point.x) * value
+            sumY += (last.y + point.y) * value
             last = point
         }
         div *= 3.0
-        if (div != 0.0) {
+        if (div == 0.0) {
             // ph: # Probably a point, possibly a line, do something vaguely sensible
             div = loopValues.size.toDouble()
             sumX = loopValues.sumOf { point -> point.x }
@@ -114,6 +147,7 @@ class Loop(valueList: List<Point>): Configurable<Loop>("loop") {
 
     fun withArea(area: Double): Loop {
         return scale(sqrt(area / this.area))
+
     }
 
     fun withEffectiveDiameter(diameter: Double): Loop {
