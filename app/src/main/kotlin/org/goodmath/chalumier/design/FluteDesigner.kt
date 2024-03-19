@@ -18,7 +18,6 @@ package org.goodmath.chalumier.design
 import io.github.xn32.json5k.Json5
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
-import org.goodmath.chalumier.cli.InstrumentDescription
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.design.Hole.O
 import org.goodmath.chalumier.design.Hole.X
@@ -36,9 +35,9 @@ import kotlin.math.pow
 import kotlin.math.sqrt
 
 
-abstract class FluteDesigner<Inst: Instrument>(override val name: String, outputDir: Path,
+abstract class FluteDesigner<Inst: Instrument>(override val instrumentName: String, outputDir: Path,
                                                builder: InstrumentFactory<Inst>
-) : InstrumentDesigner<Inst>(name, outputDir, builder) {
+) : InstrumentDesigner<Inst>(instrumentName, outputDir, builder) {
 
     /* ph:
       2.5/8 = 0.3    ~ 20 cents flat
@@ -56,6 +55,11 @@ abstract class FluteDesigner<Inst: Instrument>(override val name: String, output
 
     override var initialLength by DoubleParameter { wavelength("D4") * 0.5 }
 
+    open var openBothEnds by BooleanParameter { false }
+
+    open var embAspect by DoubleParameter { 1.5 }
+
+    open var embSquareness by DoubleParameter { 0.0 }
 
     override fun patchInstrument(inst: Instrument): Instrument {
         val newInst = inst.dup()
@@ -70,7 +74,7 @@ abstract class FluteDesigner<Inst: Instrument>(override val name: String, output
         return sqrt(emission.subList(0, emission.size - 1).map { it * it }.sum() / emission.fromEnd(-1))
     }
 
-    override var initialHoleFractions by ListOfDoubleParameter() { it ->
+    override var initialHoleFractions by ListOfDoubleParameter() { _ ->
         val l = ArrayList((0 until numberOfHoles - 1).map { i -> 0.175 + 0.5 * i / (numberOfHoles - 1) })
         l.add(0.97)
         l.toMutableList()
@@ -200,10 +204,8 @@ abstract class FluteDesigner<Inst: Instrument>(override val name: String, output
     }
 }
 
-class TaperedFluteDesigner(override val name: String, dir: Path,
-    builder: InstrumentFactory<TaperedFlute> = TaperedFlute.builder) : FluteDesigner<TaperedFlute>(name, dir, builder) {
-
-
+open class TaperedFluteDesigner(override val instrumentName: String, dir: Path,
+                           builder: InstrumentFactory<TaperedFlute> = TaperedFlute.builder) : FluteDesigner<TaperedFlute>(instrumentName, dir, builder) {
 
 
     open var innerTaper: Double by ConfigParameter(DoubleParameterKind, "Amount of tapering of bore. Smaller = more tapered.") {
@@ -218,13 +220,9 @@ class TaperedFluteDesigner(override val name: String, dir: Path,
         return Json5.decodeFromString<TaperedFlute>(path.readText())
     }
 
-    override fun internalGetInstrumentMaker(
-        spec: TaperedFlute,
-        description: InstrumentDescription
-    ): InstrumentMaker<TaperedFlute> {
-        return FluteMaker(description.name, outputDir, spec, description)
+    override fun getInstrumentMaker(spec: TaperedFlute): InstrumentMaker<TaperedFlute> {
+        return FluteMaker(name, outputDir, spec, this)
     }
-
 
     override fun writeInstrument(instrument: TaperedFlute, path: Path) {
         path.writeText(Json5.encodeToString(instrument))

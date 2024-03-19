@@ -32,11 +32,11 @@ import java.nio.file.Path
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
 
-abstract class ReedInstrumentDesigner<Inst: Instrument>(override val name: String,
+abstract class ReedInstrumentDesigner<Inst: ReedInstrument>(override val instrumentName: String,
                                                         outputDir: Path,
                                                         builder: InstrumentFactory<ReedInstrument>
 ):
-    InstrumentDesigner<ReedInstrument>(name, outputDir, builder) {
+    InstrumentDesigner<ReedInstrument>(instrumentName, outputDir, builder) {
 
   open val boreBaseline = 4.0
 
@@ -56,6 +56,13 @@ abstract class ReedInstrumentDesigner<Inst: Instrument>(override val name: Strin
 
   override var transpose by IntParameter() { 0 }
   override var closedTop by BooleanParameter() { true }
+
+    open var dock by BooleanParameter { false }
+    open var dockTop by DoubleParameter { 8.5 }
+    open var dockBottom by DoubleParameter { 5.5 }
+    open var dockLength by DoubleParameter { 15.0 }
+    open var dockDiameter by DoubleParameter { 40.0 }
+    open var addBauble by BooleanParameter { false }
 
   override fun patchInstrument(origInst: Instrument): Instrument {
     val inst = origInst.dup()
@@ -92,14 +99,10 @@ abstract class ReedInstrumentDesigner<Inst: Instrument>(override val name: Strin
     }
   }
 
-    override fun internalGetInstrumentMaker(spec: ReedInstrument, description: InstrumentDescription): InstrumentMaker<ReedInstrument> {
-        return ReedInstrumentMaker("instrument", outputDir, spec, description)
-    }
-
 }
 
-class ReedDroneDesigner(override val name: String,
-                        outputDir: Path) : ReedInstrumentDesigner<ReedInstrument>(name, outputDir, ReedInstrument.builder) {
+class ReedDroneDesigner(override val instrumentName: String,
+                        outputDir: Path) : ReedInstrumentDesigner<ReedInstrument>(instrumentName, outputDir, ReedInstrument.builder) {
 
   override var initialLength by DoubleParameter { wavelength("C4") * 0.25 }
   override var innerDiameters by
@@ -119,6 +122,10 @@ class ReedDroneDesigner(override val name: String,
         path.writeText(Json5.encodeToString(instrument))
     }
 
+    override fun getInstrumentMaker(spec: ReedInstrument): InstrumentMaker<ReedInstrument> {
+        return ReedInstrumentMaker(name, outputDir, spec, this)
+    }
+
     // I"m not sure what this is for; I"m going to leave it out until I"m
   // sure it does something.
   // withFingerPad =arrayListOf()
@@ -130,8 +137,8 @@ class ReedDroneDesigner(override val name: String,
   override var divisions by ListOfListOfIntDoublePairParam { emptyList() }
 }
 
-open class ReedpipeDesigner(override val name: String, outputDir: Path):
-    ReedInstrumentDesigner<ReedInstrument>(name, outputDir, ReedInstrument.builder) {
+open class ReedpipeDesigner(override val instrumentName: String, outputDir: Path):
+    ReedInstrumentDesigner<ReedInstrument>(instrumentName, outputDir, ReedInstrument.builder) {
 
     override fun readInstrument(path: Path): ReedInstrument {
         return Json5.decodeFromString(path.readText())
@@ -142,7 +149,11 @@ open class ReedpipeDesigner(override val name: String, outputDir: Path):
         path.writeText(Json5.encodeToString(instrument))
     }
 
-  override var innerDiameters by
+    override fun getInstrumentMaker(spec: ReedInstrument): InstrumentMaker<ReedInstrument> {
+        return ReedInstrumentMaker(name, outputDir, spec, this)
+    }
+
+    override var innerDiameters by
       ListOfDoublePairParameter() {
         boreScaler(listOf(4.0, 4.0)).map { Pair(it, it) }.toMutableList()
       }
@@ -197,9 +208,9 @@ open class ReedpipeDesigner(override val name: String, outputDir: Path):
       }
 }
 
-abstract class AbstractShawmDesigner(override val name: String,
+abstract class AbstractShawmDesigner(override val instrumentName: String,
                                      outputDir: Path):
-    ReedInstrumentDesigner<ReedInstrument>(name, outputDir, ReedInstrument.builder) {
+    ReedInstrumentDesigner<ReedInstrument>(instrumentName, outputDir, ReedInstrument.builder) {
     override fun readInstrument(path: Path): ReedInstrument {
         return Json5.decodeFromString(path.readText())
     }
@@ -231,9 +242,9 @@ abstract class AbstractShawmDesigner(override val name: String,
  *
  * The flare at the end is purely decorative.
  */
-open class ShawmDesigner(override val name: String,
+open class ShawmDesigner(override val instrumentName: String,
                          outputDir: Path):
-    AbstractShawmDesigner(name, outputDir) {
+    AbstractShawmDesigner(instrumentName, outputDir) {
 
   override var minHoleDiameters by ListOfDoubleParameter() {
     boreScaler(listOf(2.0).repeat(9))
@@ -319,15 +330,19 @@ open class ShawmDesigner(override val name: String,
     )
   }
 
+    override fun getInstrumentMaker(spec: ReedInstrument): InstrumentMaker<ReedInstrument> {
+        return ReedInstrumentMaker(name, outputDir, spec, this)
+    }
+
 }
 
 /**
  * Designer for a shawm/haut-bois/oboe/bombard with a simple fingering system and compact hole
  * placement. The flare at the end is purely decorative.
  */
-class FolkShawmDesigner(override val name: String,
+class FolkShawmDesigner(override val instrumentName: String,
                         outputDir: Path
-): AbstractShawmDesigner(name, outputDir) {
+): AbstractShawmDesigner(instrumentName, outputDir) {
 
   override var minHoleDiameters by ListOfDoubleParameter() {
     boreScaler(listOf(12.0).repeat(7))
@@ -405,5 +420,9 @@ class FolkShawmDesigner(override val name: String,
           // ph:arrayListOf( (-X,0.45), (-X,0.9), (2,0.0), (2,0.9), (5,0.0), (5,0.5) ),
         )
   }
+
+    override fun getInstrumentMaker(spec: ReedInstrument): InstrumentMaker<ReedInstrument> {
+        return ReedInstrumentMaker(name, outputDir, spec, this)
+    }
 
 }

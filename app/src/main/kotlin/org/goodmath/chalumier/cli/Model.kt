@@ -33,9 +33,8 @@ class Model: ChalumierCommand(name="model", help="Generate a 3d model of a desig
     val output: Path by option("--output", help="The path to write the OpenSCAD file to").path(mustExist = false).required()
 
     override fun run() {
-        val (inst, des) = builder.getDesigner(descFile, workDir)
+        val des = builder.getDesigner(descFile, workDir)
         val spec = des.readInstrument(specFile)
-
         output.writeText(FluteModel(spec, facets).render())
     }
 }

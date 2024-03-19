@@ -2,9 +2,10 @@ package org.goodmath.chalumier.make
 
 import eu.mihosoft.jcsg.CSG
 import eu.mihosoft.vvecmath.Transform
-import org.goodmath.chalumier.cli.InstrumentDescription
+import org.goodmath.chalumier.design.InstrumentDesigner
 import org.goodmath.chalumier.design.instruments.Instrument
 import org.goodmath.chalumier.design.Profile
+import org.goodmath.chalumier.errors.ConfigurationParameterException
 import org.goodmath.chalumier.shape.*
 import org.goodmath.chalumier.util.Point
 import java.nio.file.Path
@@ -24,6 +25,16 @@ enum class JoinType {
         }
     }
 
+    companion object {
+        fun fromString(s: String): JoinType {
+            return when(s) {
+                "Straight", "StraightJoin" -> StraightJoin
+                "Tapered", "TaperedJoin" -> TaperedJoin
+                "Weld", "Welded", "WeldedJoin" -> WeldedJoin
+                else -> throw ConfigurationParameterException("Invalid value ${s }for jointype")
+            }
+        }
+    }
 }
 
 /**
@@ -40,8 +51,8 @@ enum class JoinType {
 abstract class InstrumentMaker<Inst: Instrument>(
     open val outputPrefix: String,
     open val workingDir: Path,
-    open val spec: Inst,
-    open val instrument: InstrumentDescription,
+    open val instrument: Inst,
+    open val designer: InstrumentDesigner<Inst>,
 ) {
     val bodyCost: Int = 21
     val boreCost: Int = 23
@@ -75,26 +86,22 @@ abstract class InstrumentMaker<Inst: Instrument>(
     }
 
     var top: Double = 0.0
-    val dilate: Double by lazy { instrument.getDoubleOption("dilate", 0.0) }
-    val generatePads: Boolean by lazy { instrument.getBooleanOption("generatePads", false)}
-    val thickSockets: Boolean by lazy { instrument.getBooleanOption("thickSockets", false)}
-    val gap: Double by lazy { instrument.getDoubleOption("gap", 0.2)}
 
     open fun makeParts(up: Boolean = false, flipTop: Boolean = false): List<CSG> {
         return makeSegments(up, flipTop)
     }
 
     open fun getCuts(): List<List<Double>> {
-        return instrument.divisions.map { divisions ->
+        return designer.divisions.map { divisions ->
             divisions.map { (hole, above) ->
                 progress += cutCost
                 val lower = if (hole >= 0) {
-                    spec.holePositions[hole] + 2 * spec.holeDiameters[hole]
+                    instrument.holePositions[hole] + 2 * instrument.holeDiameters[hole]
                 } else {
                     0.0
                 }
-                val upper = if (hole < instrument.divisions.size - 1) {
-                    spec.holePositions[hole + 1] - 2 * spec.holeDiameters[hole]
+                val upper = if (hole < designer.divisions.size - 1) {
+                    instrument.holePositions[hole + 1] - 2 * instrument.holeDiameters[hole]
                 } else {
                     top
                 }
@@ -122,7 +129,7 @@ abstract class InstrumentMaker<Inst: Instrument>(
         var outside = extrudeProfile(listOf(outerProfile))
         progress += bodyCost
         var instrumentBody = outside.clone()
-        var bore = extrudeProfile(listOf(innerProfile + instrument.getDoubleOption("dilate")))
+        var bore = extrudeProfile(listOf(innerProfile + designer.dilate))
         progress += boreCost
         holePositions.forEachIndexed { i, pos ->
             val angle = holeVertAngles[i]
@@ -148,7 +155,7 @@ abstract class InstrumentMaker<Inst: Instrument>(
                 .rotX(-90.0)
                 .rotY(holeHorizAngles[i])
                 .translate(0.0, pos + shift, 0.0))
-            if (withFingerpad[i] && generatePads) {
+            if (withFingerpad[i] && designer.generatePads) {
                 val padHeight = height * 0.5 + 0.5 * sqrt(height * height - (holeDiameters[i] * 0.5).pow(2))
                 val padDepth = padHeight - insideHeight
                 val padMid = padDepth / 4.0
@@ -224,14 +231,14 @@ abstract class InstrumentMaker<Inst: Instrument>(
         val length = top
         var remainder = instrumentBody!!.clone()
         var workingBore = bore
-        var inner = spec.inner
-        var outer = spec.outer
+        var inner = instrument.inner
+        var outer = instrument.outer
         var cuts = originalCuts
 
         if (up) {
             cuts = cuts.reversed().map { length - it }
             remainder = remainder.transformed(Transform().rotY(180.0).translate(0.0, length, 0.0))
-            if (thickSockets) {
+            if (designer.thickSockets) {
                 workingBore = workingBore!!.transformed(
                     Transform().rotY(180.0).translate(0.0, length, 0.0))
             }
@@ -239,7 +246,7 @@ abstract class InstrumentMaker<Inst: Instrument>(
             outer = outer.reversed().moved(length)
             progress += 11
         }
-        val socket = instrument.join.joiner(this)
+        val socket = JoinType.fromString(designer.join).joiner(this)
         val shapes = ArrayList<CSG>()
         for (cut in cuts) {
             val d1 = inner(cut)
@@ -248,11 +255,11 @@ abstract class InstrumentMaker<Inst: Instrument>(
             val sockLength = d4 * 0.8
             var p1 = cut - sockLength
             var p3 = cut
-            if (!up && instrument.join != JoinType.WeldedJoin) {
+            if (!up && JoinType.fromString(designer.join) != JoinType.WeldedJoin) {
                 p1 += sockLength
                 p3 += sockLength
             }
-            if (thickSockets) {
+            if (designer.thickSockets) {
                 val d4Orig = d4
                 d4 += min(d4 * 0.2, (d4 - d1) * 0.5)
                 val profThicker = Profile(
@@ -300,13 +307,13 @@ abstract class InstrumentMaker<Inst: Instrument>(
             Point(0.0, sqrt(0.75)),
             Point(-0.5, 0.0)
         ))
-        val triangleUpper = triangle.scale(d0*0.5+gap)
-        val triangleLower  = triangle.scale(d0*0.5-gap)
+        val triangleUpper = triangle.scale(d0*0.5+designer.gap)
+        val triangleLower  = triangle.scale(d0*0.5-designer.gap)
         val d1_3 = d0*0.6666+d1*0.3334
         val d2_3 = d0*0.3334+d1*0.6666
         for (i in (1 until 5)) {
             val upperBump = extrusion(
-                arrayListOf(d1_3 * 0.5 - gap * 0.5, d2_3 * 0.5 - gap * 0.5, dMax * 0.5),
+                arrayListOf(d1_3 * 0.5 - designer.gap * 0.5, d2_3 * 0.5 - designer.gap * 0.5, dMax * 0.5),
                 arrayListOf(triangleUpper.scale(0.0), triangleUpper, triangleUpper)
             )
             val ubTransform = Transform()
@@ -315,7 +322,7 @@ abstract class InstrumentMaker<Inst: Instrument>(
                 .translate(0.0, z1, 0.0)
             maskUpper = maskUpper.union(upperBump.transformed(ubTransform))
             val lowerBump = extrusion(
-                arrayListOf(d1_3 * 0.5 + gap * 0.5, d2_3 * 0.5 + gap * 0.5, 0.5),
+                arrayListOf(d1_3 * 0.5 + designer.gap * 0.5, d2_3 * 0.5 + designer.gap * 0.5, 0.5),
                 arrayListOf(triangleLower.scale(0.0), triangleLower, triangleLower)
             )
             val lbTransform = Transform()
@@ -330,10 +337,10 @@ abstract class InstrumentMaker<Inst: Instrument>(
     fun straightSocket(p1: Double, p3: Double, length: Double, d1: Double, d3: Double, d4: Double): Pair<CSG, CSG> {
         val d2 = (d1 + d3) / 2.0
         val p2 = p1 + (d2 - d1) / 2.0
-        val d1a = d1 - gap
-        val p1b = p1 - gap
-        val d2a = d2 - gap
-        val d2b = d2 + gap
+        val d1a = d1 - designer.gap
+        val p1b = p1 - designer.gap
+        val d2a = d2 - designer.gap
+        val d2b = d2 + designer.gap
         val profInside = Profile(
             arrayListOf(p1, p2, p3, length + 50),
             arrayListOf(d1a, d2a, d2a, d4),
@@ -355,14 +362,14 @@ abstract class InstrumentMaker<Inst: Instrument>(
 
         val p2 = p1 + (d2-d1)
 
-        val d1a = d1 - gap
-        val p1b = p1 - gap
+        val d1a = d1 - designer.gap
+        val p1b = p1 - designer.gap
 
-        val d2a = d2 - gap
-        val d2b = d2 + gap
+        val d2a = d2 - designer.gap
+        val d2b = d2 + designer.gap
 
-        val d3a = d3 - gap
-        val d3b = d3 + gap
+        val d3a = d3 - designer.gap
+        val d3b = d3 + designer.gap
 
         val profInside = Profile(
             arrayListOf(p1,  p2,  p3,  length+50.0),
@@ -390,12 +397,12 @@ abstract class InstrumentMaker<Inst: Instrument>(
     abstract fun run(): List<CSG>
 
     open fun totalSteps(): Long {
-        val numberOfCuts = instrument.divisions.sumOf { d -> d.size }
-        val numberOfParts = numberOfCuts + instrument.divisions.size
+        val numberOfCuts = designer.divisions.sumOf { d -> d.size }
+        val numberOfParts = numberOfCuts + designer.divisions.size
                 return (bodyCost + boreCost +
                 numberOfParts*segmentCost +
                 numberOfCuts * (cutCost + socketCost) +
-                instrument.numberOfHoles*holeCost
+                designer.numberOfHoles*holeCost
                 + bodyMinusBoreCost + bodyRotateCost).toLong()
     }
 

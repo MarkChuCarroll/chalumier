@@ -57,3 +57,9 @@ fun<T: Configurable<T>> BooleanParameter(help: String = "", gen: (T) -> Boolean)
 fun<T: Configurable<T>> OptBooleanParameter(help: String = "", gen: (T) -> Boolean?): ConfigParameter<T, Boolean?> {
     return ConfigParameter(OptBooleanParameterKind, help, gen=gen)
 }
+
+val ListOfBooleanParameterKind = ListParameterKind(BooleanParameterKind)
+
+fun <T: Configurable<T>> ListOfBooleanParameter(help: String = "", gen: (T) -> ArrayList<Boolean>): ConfigParameter<T, ArrayList<Boolean>> {
+    return ConfigParameter(ListOfBooleanParameterKind, help, gen=gen)
+}

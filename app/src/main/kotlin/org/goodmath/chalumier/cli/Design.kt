@@ -45,7 +45,7 @@ class Design: ChalumierCommand(name = "design", help="Compute an instrument desi
 
 
     override fun run() {
-        val (inst, des) = builder.getDesigner(specFile, outputDir)
+        val des = builder.getDesigner(specFile, outputDir)
         val i = des.run(::echo, reportingInterval)
         echo("Execution complete! Designed ${i.name}; diagram in ${outputDir / "diagram.svg"}")
     }

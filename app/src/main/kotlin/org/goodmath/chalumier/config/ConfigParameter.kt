@@ -60,7 +60,16 @@ open class ConfigParameter<T: Configurable<T>, V>(
         } else {
             v as V
         }
+    }
 
+    @Suppress("UNCHECKED_CAST")
+    fun setChecking(v: Any): Boolean {
+        if (kind.checkValue(v)) {
+            set(kind.fromConfigValue(v))
+            return true
+        } else {
+            return false
+        }
     }
 
     fun set(value: V) {

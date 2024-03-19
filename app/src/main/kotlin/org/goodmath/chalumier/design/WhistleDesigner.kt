@@ -59,8 +59,6 @@ abstract class AbstractWhistleDesigner(n: String,
     fun getWhistleHeadProportions(): Pair<Double, Double> {
         val bore = innerDiameters.fromEnd(1)
         val baseOutside = outerDiameters.fromEnd(1)
-        // As usual, ph seems to have forgetten that in some places,
-        // the outer diameters are pairs.
         val outside = if (outerAdd) {
             Pair(baseOutside.first + bore.first, baseOutside.second + bore.second)
         } else {
@@ -68,7 +66,7 @@ abstract class AbstractWhistleDesigner(n: String,
         }
 
         return  Pair(WhistleHeadMaker.effectiveGapDiameter(bore.first),
-                WhistleHeadMaker.effectiveGapHeight(bore.first, baseOutside.first))
+                WhistleHeadMaker.effectiveGapHeight(bore.first, outside.first))
 
     }
 
@@ -127,11 +125,10 @@ abstract class AbstractWhistleDesigner(n: String,
         return patchedInst
     }
 
-    override fun internalGetInstrumentMaker(
+    override fun getInstrumentMaker(
         spec: Whistle,
-        description: InstrumentDescription
     ): InstrumentMaker<Whistle> {
-        return WhistleMaker("whistle", outputDir, spec, description)
+        return WhistleMaker("whistle", outputDir, spec, this)
     }
 }
 
@@ -263,9 +260,9 @@ fun dorianWhistleDesigner(outputDir: Path): SixHoleWhistleDesigner {
     return result
 }
 
-class RecorderDesigner(override val name: String,
+class RecorderDesigner(override val instrumentName: String,
                        outputDir: Path
-) : AbstractWhistleDesigner(name, outputDir, Whistle.builder) {
+) : AbstractWhistleDesigner(instrumentName, outputDir, Whistle.builder) {
 
 
     override var initialLength by DoubleParameter {

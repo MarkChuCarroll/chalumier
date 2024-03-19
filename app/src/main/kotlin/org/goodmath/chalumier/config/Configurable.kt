@@ -45,7 +45,7 @@ import java.nio.file.Path
  * kotlin vars, but which have this infrastructure backing them.
  *
  */
-abstract class Configurable<T: Configurable<T>>(open val name: String) {
+abstract class Configurable<T: Configurable<T>>(open val instrumentName: String) {
     val configParameters = HashMap<String, ConfigParameter<T, *>>()
 
     fun listConfigParameters(): List<Pair<String, String>> {
@@ -53,7 +53,6 @@ abstract class Configurable<T: Configurable<T>>(open val name: String) {
             Pair(k, v.kind.name)
         }
     }
-
 
     fun getConfigParameterByName(name: String): ConfigParameter<T, *>? {
         return configParameters[name]
@@ -106,7 +105,7 @@ abstract class Configurable<T: Configurable<T>>(open val name: String) {
     open fun toJson(): JsonObject {
         val me: T = this as T
         return buildJsonObject {
-            put("typeName", me.name)
+            put("typeName", me.instrumentName)
             putJsonArray("parameters") {
                 for ((name, param) in configParameters) {
                     addJsonObject {
@@ -127,8 +126,8 @@ abstract class Configurable<T: Configurable<T>>(open val name: String) {
                 it.content
             } else throw ConfigurationParameterException("Parameter set must have a typeName")
         }
-        if (this.name != paramsName) {
-            throw ConfigurationParameterException("Trying to load a parameter set for type |${this.name}|, but found one for type |${jsonParams["typeName"]}|")
+        if (this.instrumentName != paramsName) {
+            throw ConfigurationParameterException("Trying to load a parameter set for type |${this.instrumentName}|, but found one for type |${jsonParams["typeName"]}|")
         }
         val params = jsonParams["parameters"]
         if (params is JsonArray) {
@@ -154,4 +153,23 @@ abstract class Configurable<T: Configurable<T>>(open val name: String) {
             throw ConfigurationParameterException("Expected an array of parameter list entries, but found '$params'")
         }
     }
+
+//    open fun readConfigDict(path: Path) {
+//        val js = Json5.decodeFromString(path.readText())
+//    }
+
+    open fun updateFromConfig(instrumentConfig: InstrumentDescription) {
+        for ((k, v) in instrumentConfig.values) {
+            val param = getConfigParameterByName(k)
+            if (param == null) {
+                System.err.println("Configuration contained unknown key ${k}; skipping")
+            } else {
+                if (!param.setChecking(v)) {
+                    System.err.println("Configuration expected a value of type ${param.kind.name} for ${k}, but found ${v}")
+                }
+            }
+        }
+    }
+
 }
+

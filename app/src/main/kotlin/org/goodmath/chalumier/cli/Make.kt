@@ -38,8 +38,8 @@ class Make: ChalumierCommand(name = "make", help="Generate an STL model of an in
     val desc by option("--description-file", help="The path to the description file used by the generator to produce the model").path(mustExist = true).required()
     val spec by option("--model-file", help="The path to a file containing a generated model from the designer").path(mustExist = true).required()
     override fun run() {
-        val (description, designer) = builder.getDesigner(desc, workDir)
-        val maker =  designer.getInstrumentMaker(spec, description)
+        val designer = builder.getDesigner(desc, workDir)
+        val maker =  designer.getInstrumentMaker(spec)
         val term = Terminal()
         val height = term.info.height
         term.cursor.move {

@@ -29,6 +29,10 @@ interface ParameterKind<T> {
      */
     fun checkValue(v: Any?): Boolean
 
+    open fun fromConfigValue(v: Any?): T {
+        return v as T
+    }
+
     fun dump(t: T?): JsonElement
 
 

@@ -3,7 +3,7 @@ package org.goodmath.chalumier.make
 import eu.mihosoft.jcsg.CSG
 import eu.mihosoft.vvecmath.Transform
 import eu.mihosoft.vvecmath.Vector3d
-import org.goodmath.chalumier.cli.InstrumentDescription
+import org.goodmath.chalumier.design.AbstractWhistleDesigner
 import org.goodmath.chalumier.design.Profile
 import org.goodmath.chalumier.design.instruments.Whistle
 import org.goodmath.chalumier.errors.dAssert
@@ -18,14 +18,13 @@ import kotlin.math.sqrt
 class WhistleHeadMaker(
     prefix: String,
     dir: Path,
-    spec: Whistle,
-    desc: InstrumentDescription): InstrumentMaker<Whistle>(prefix, dir, spec, desc) {
+    instrument: Whistle,
+    override val designer: AbstractWhistleDesigner,
+    val boreDiam: Double = 15.0,
+    val outsideDiam: Double = 21.0): InstrumentMaker<Whistle>(prefix, dir, instrument, designer) {
 
-    val boreDiam: Double by lazy { instrument.getDoubleOption("boreDiam", 15.0,) }
-    val outsideDiam: Double by lazy { instrument.getDoubleOption("outsideDiam",  21.0) }
-    val gapWidth: Double by lazy { instrument.getDoubleOption("gapWidth", 0.6) }
-    val gapLength: Double by lazy { instrument.getDoubleOption("gapLength", 0.25) }
-
+    val gapWidth: Double = effectiveGapDiameter(boreDiam)
+    val gapLength: Double = effectiveGapHeight(boreDiam, outsideDiam)
     companion object {
 
         fun effectiveGapDiameter(boreDiam: Double,
@@ -200,35 +199,39 @@ class WhistleMaker(
     prefix: String,
     workingDir: Path,
     spec: Whistle,
-    desc: InstrumentDescription): InstrumentMaker<Whistle>(prefix, workingDir, spec, desc) {
+    override val designer: AbstractWhistleDesigner): InstrumentMaker<Whistle>(prefix, workingDir, spec, designer) {
 
     override fun getCuts(): List<List<Double>> {
         val cuts = super.getCuts()
-        return cuts.map { item -> item + listOf(instrument.length) }
+        return cuts.map { item -> item + listOf(designer.length) }
     }
 
     override fun run(): List<CSG> {
-        val headMaker = WhistleHeadMaker(outputPrefix,workingDir, spec, instrument)
+        val headMaker = WhistleHeadMaker(outputPrefix,workingDir, instrument, designer,
+            boreDiam = instrument.inner(instrument.length),
+            outsideDiam = instrument.outer(instrument.length)
+
+            )
 
         var (whistleOuter, whistleInner, _) = headMaker.construct()
 
         whistleInner = whistleInner.transformed(Transform()
-            .translate(0.0, 0.0, instrument.length)
+            .translate(0.0, 0.0, designer.length)
             .rotZ(90.0))
         whistleOuter = whistleOuter.transformed(Transform()
-            .translate(0.0, 0.0, instrument.length).rotZ(90.0))
+            .translate(0.0, 0.0, designer.length).rotZ(90.0))
         val inst = makeInstrument(
-            innerProfile = spec.inner.clipped(-50.0, instrument.length),
-            outerProfile = spec.outer.clipped(0.0, instrument.length - headMaker.boreDiam*1.5),
-            holePositions = spec.holePositions,
-            holeDiameters = spec.holeDiameters,
-            holeVertAngles = instrument.holeAngles,
-            holeHorizAngles = instrument.holeHorizAngles,
-            withFingerpad = listOf(true).repeat(instrument.numberOfHoles),
+            innerProfile = instrument.inner.clipped(-50.0, designer.length),
+            outerProfile = instrument.outer.clipped(0.0, designer.length - headMaker.boreDiam*1.5),
+            holePositions = instrument.holePositions,
+            holeDiameters = instrument.holeDiameters,
+            holeVertAngles = designer.holeAngles,
+            holeHorizAngles = designer.holeHorizAngles,
+            withFingerpad = listOf(true).repeat(designer.numberOfHoles),
             outsideExtras = listOf(whistleOuter),
             boreExtras = listOf(whistleInner),
-            xPad = listOf(0.0).repeat(instrument.numberOfHoles),
-            yPad =listOf(0.0).repeat(instrument.numberOfHoles)
+            xPad = listOf(0.0).repeat(designer.numberOfHoles),
+            yPad =listOf(0.0).repeat(designer.numberOfHoles)
         )
         val parts = makeParts(true)
         return listOf(inst) + parts

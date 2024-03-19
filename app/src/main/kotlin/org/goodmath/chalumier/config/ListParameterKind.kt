@@ -33,6 +33,15 @@ class ListParameterKind<T>(val pk: ParameterKind<T>): ParameterKind<ArrayList<T>
         }
     }
 
+    override fun fromConfigValue(v: Any?): ArrayList<T> {
+        if (v is List<*>) {
+            val contents = v.map { it -> pk.fromConfigValue(it) }
+            return ArrayList(contents)
+        } else {
+            throw ConfigurationParameterException("Invalid list parameter ${v}")
+        }
+    }
+
     override fun load(t: JsonElement): ArrayList<T>? {
         if (t ==  JsonNull) {
             return null

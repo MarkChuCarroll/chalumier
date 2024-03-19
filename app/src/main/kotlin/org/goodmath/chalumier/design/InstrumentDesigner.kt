@@ -16,13 +16,13 @@
 package org.goodmath.chalumier.design
 
 import kotlinx.serialization.ExperimentalSerializationApi
-import org.goodmath.chalumier.cli.InstrumentDescription
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.design.instruments.*
 import org.goodmath.chalumier.diagram.Diagram
 import org.goodmath.chalumier.errors.RequiredParameterException
 import org.goodmath.chalumier.errors.dAssert
 import org.goodmath.chalumier.make.InstrumentMaker
+import org.goodmath.chalumier.make.JoinType
 import org.goodmath.chalumier.optimize.Optimizer
 import org.goodmath.chalumier.optimize.Score
 import org.goodmath.chalumier.optimize.ScoredParameters
@@ -45,17 +45,35 @@ import kotlin.math.*
  * new states.
  */
 abstract class InstrumentDesigner<Inst: Instrument>(
-    override val name: String,
+    override val instrumentName: String,
     val outputDir: Path,
-    val builder: InstrumentFactory<Inst>): Configurable<InstrumentDesigner<Inst>>(name) {
+    val builder: InstrumentFactory<Inst>): Configurable<InstrumentDesigner<Inst>>(instrumentName) {
 
     /*
-     * Start off with the configurable parameters that describe
-     * our instrument.
+     * Basic definitional parameters of the instrument.
      */
+    open var name by StringParameter {
+        instrumentName
+    }
+
+    open var rootNote by OptStringParameter {
+        null
+    }
+
+    open var closedTop by BooleanParameter("Is this a closed top instrument?") { false }
+
+    open var transpose by IntParameter("an optional transposition, in chromatic steps, to apply to the instrument specification") { 0 }
+
+    open var numberOfHoles by IntParameter("the number of holes, including embouchure") { c -> c.maxHoleDiameters.size }
+
     open var fingerings by ConfigParameter(ListOfFingeringsKind,"list of specifications of fingerings and the notes they should produce") {
         throw RequiredParameterException("fingerings")
     }
+
+
+    /*
+    * Parameters that define the profile/size/shape of the instrument.
+    */
 
     open var length by DoubleParameter("the length of the instrument") { it.initialLength * it.scale }
 
@@ -64,11 +82,11 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         null
     }
 
-    open var closedTop by BooleanParameter("Is this a closed top instrument?") { false }
 
     open var initialLength by DoubleParameter("the initial length of the instrument before modeling") {
         throw RequiredParameterException("initialLength")
     }
+
 
     open var innerDiameters by ListOfDoublePairParameter("the diameters of the inner bore from bottom to top") {
         throw RequiredParameterException("innerDiameters")
@@ -77,10 +95,6 @@ abstract class InstrumentDesigner<Inst: Instrument>(
     open var outerDiameters by ListOfDoublePairParameter("the diameters of the outer body, from bottom to top") {
         throw RequiredParameterException("outerDiameters", "must have at least two elements")
     }
-
-    open var transpose by IntParameter("an optional transposition, in chromatic steps, to apply to the instrument specification") { 0 }
-
-    open var tweakEmissions by DoubleParameter("Experimental term added to the optimization to try to make instrument louder, possibly at the cost of intonation") {  0.0 }
 
     open var innerAngles by ListOfOptAnglePairsParameter {
         innerDiameters.map { null }.toMutableList()
@@ -92,7 +106,20 @@ abstract class InstrumentDesigner<Inst: Instrument>(
 
     open var coneStep by DoubleParameter("The size of the step used when translating conic sections into curves") { 0.125 }
 
-    open var numberOfHoles by IntParameter("the number of holes, including embouchure") { c -> c.maxHoleDiameters.size }
+    open var topClearanceFraction by DoubleParameter( "how close to the top are finger holes allowed to be placed?") { 0.0 }
+
+    open var bottomClearanceFraction by DoubleParameter("how close to the bottom are finger holes allowed to be placed?") { 0.0 }
+
+    open var scale: Double by DoubleParameter("Scaling factor to apply to the instrument specification") {
+        2.0.pow(-transpose/12.0)
+    }
+
+    /*
+     * Characteristics of holes that effect optimization.
+     */
+
+    open var tweakEmissions by DoubleParameter("Experimental term added to the optimization to try to make instrument louder, possibly at the cost of intonation") {  0.0 }
+
 
     open var minHoleDiameters by ListOfDoubleParameter("the minimum acceptable diameters of holes") { c -> c.numberOfHoles.repeat { 0.5 }.toMutableList() }
 
@@ -100,15 +127,6 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         throw RequiredParameterException("maxHoleDiameters")
     }
 
-    open var outerAdd by ConfigParameter(BooleanParameterKind, "Should the body thickness be automatically increased?") { false }
-
-    open var topClearanceFraction by DoubleParameter( "how close to the top are finger holes allowed to be placed?") { 0.0 }
-
-    open var bottomClearanceFraction by DoubleParameter("how close to the bottom are finger holes allowed to be placed?") { 0.0 }
-
-  open var scale: Double by DoubleParameter("Scaling factor to apply to the instrument specification") {
-        2.0.pow(-transpose/12.0)
-    }
 
     open var minHoleSpacing by ListOfOptDoubleParameter(
         "a list of values specifying the minimum distance between pairs of holes") {
@@ -165,6 +183,28 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         (0 until numberOfHoles).map { 0.0 }.toMutableList()
     }
 
+    /*
+     * Parameters for the 3d model of the instrument.
+     */
+    open var decorate by BooleanParameter { false }
+
+    open var dilate by DoubleParameter("Dilate the body of the instrument by this much") { 0.0 }
+
+    open var join by StringParameter("The type of join in a multi-part model: one of (StraightJoin, WeldJoin, TaperedJoin)") {
+        JoinType.StraightJoin.toString()
+    }
+
+    open var generatePads by BooleanParameter("Generate pads around holes?") {
+        true
+    }
+
+    open var thickSockets by BooleanParameter("Make the body thicker around socket joins?") {
+        false
+    }
+
+    open var gap by DoubleParameter("Size of the gap between sockets")  {  0.0 }
+
+    open var outerAdd by ConfigParameter(BooleanParameterKind, "Should the body thickness be automatically increased?") { false }
 
     open var divisions by ListOfListOfIntDoublePairParam {
         listOf(
@@ -174,6 +214,12 @@ abstract class InstrumentDesigner<Inst: Instrument>(
             listOf(Pair(-1, 0.9), Pair(2, 0.0), Pair(5, 0.0), Pair(5, 0.7))
         )
     }
+
+
+
+
+
+
 
     /**
      * All the validations scattered in ph's code are moved here, and called before anything gets
@@ -200,14 +246,12 @@ abstract class InstrumentDesigner<Inst: Instrument>(
 
     abstract fun writeInstrument(instrument: Inst, path: Path)
 
-    fun getInstrumentMaker(specFilePath: Path,
-                           description: InstrumentDescription): InstrumentMaker<Inst> {
+    fun getInstrumentMaker(specFilePath: Path): InstrumentMaker<Inst> {
         val inst = readInstrument(specFilePath)
-        return internalGetInstrumentMaker(inst, description)
+        return getInstrumentMaker(inst)
     }
 
-    abstract fun internalGetInstrumentMaker(spec: Inst,
-                                            description: InstrumentDescription): InstrumentMaker<Inst>
+    abstract fun getInstrumentMaker(spec: Inst): InstrumentMaker<Inst>
 
     /**
      * The instrument designer and the template instrument define the basic
@@ -281,7 +325,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         return builder.create(
             this,
             from,
-            name,
+            instrumentName,
             length = length,
             closedTop=closedTop,
             coneStep=coneStep,
@@ -518,13 +562,13 @@ abstract class InstrumentDesigner<Inst: Instrument>(
     @OptIn(ExperimentalSerializationApi::class)
     fun save(params: ScoredParameters,
              others: List<DesignParameters> = emptyList()) {
-        twiddleFiles(outputDir / "${name}-parameters.json5")
+        twiddleFiles(outputDir / "${instrumentName}-parameters.json5")
         val instrument = makeInstrumentFromParameters(params.parameters)
         val patchedInstrument = patchInstrument(instrument) as Inst
         patchedInstrument.prepare()
         patchedInstrument.preparePhase()
 
-        writeInstrument(patchedInstrument, outputDir / "${name}-parameters.json5")
+        writeInstrument(patchedInstrument, outputDir / "${instrumentName}-parameters.json5")
 
         val diagram = Diagram()
         drawInstrumentOntoDiagram(diagram, instrument)
@@ -635,8 +679,8 @@ abstract class InstrumentDesigner<Inst: Instrument>(
                 describeLowHigh(item) + "mm at %.1fmm".format(innerKinks[i])
             )
         }
-        twiddleFiles(outputDir / "${name}-design.svg")
-        diagram.save(outputDir / "${name}-design.svg")
+        twiddleFiles(outputDir / "${instrumentName}-design.svg")
+        diagram.save(outputDir / "${instrumentName}-design.svg")
     }
 
     fun run(echo: (Any?) -> Unit,
@@ -690,7 +734,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
                           initialDesignParameters: DesignParameters,
                           reportingInterval: Int,
                           monitor: (ScoredParameters, List<DesignParameters>) -> Unit): DesignParameters {
-        val optimizer = Optimizer(name, echo, initialDesignParameters,  constrainer, scorer, reportingInterval, monitor=monitor)
+        val optimizer = Optimizer(instrumentName, echo, initialDesignParameters,  constrainer, scorer, reportingInterval, monitor=monitor)
         return optimizer.optimizeInstrument()
 
     }

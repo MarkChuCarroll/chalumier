@@ -41,7 +41,19 @@ object FingeringParameterKind: ParameterKind<Fingering> {
     override val name: String = "Fingering"
 
     override fun checkValue(v: Any?): Boolean {
-        return v is Fingering
+        return v is Fingering || (v is Map<*, *> && v.containsKey("noteName"))
+    }
+
+    override fun fromConfigValue(v: Any?): Fingering {
+        if (v is Map<*, *>) {
+            val name = v["noteName"] as String
+            val fingers = (v["fingers"] as List<String>).map { if (it == "X") { Hole.X} else { Hole.O } }
+
+            val nth = v["nth"] as Int?
+            return Fingering(name, fingers, nth)
+        } else {
+            throw ConfigurationParameterException("Invalid fingering entry ${v}")
+        }
     }
 
     override fun load(f: JsonElement): Fingering? {
@@ -52,7 +64,6 @@ object FingeringParameterKind: ParameterKind<Fingering> {
             throw ConfigurationParameterException("Expected a loadable json  ${name} object, but found ${f}")
         }
         val noteName = f["noteName"]?.toString() ?: throw ConfigurationParameterException("Expected a noteName field in $f")
-
         val fingersStr = f["fingers"]?.toString() ?: throw ConfigurationParameterException("Expected a fingers field in $f")
         val nth = f["nth"]?.toString()?.toInt()
         val fingers = fingersStr.split(",").map { if (it == "O") { Hole.O } else {Hole.X } }

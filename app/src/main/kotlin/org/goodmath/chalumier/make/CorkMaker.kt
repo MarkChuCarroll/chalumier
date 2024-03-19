@@ -1,9 +1,8 @@
 package org.goodmath.chalumier.make
 
 import eu.mihosoft.jcsg.CSG
-import org.goodmath.chalumier.cli.InstrumentDescription
-import org.goodmath.chalumier.design.InstrumentDesigner
 import org.goodmath.chalumier.design.Profile
+import org.goodmath.chalumier.design.TaperedFluteDesigner
 import org.goodmath.chalumier.design.instruments.TaperedFlute
 import org.goodmath.chalumier.shape.extrudeProfile
 import java.nio.file.Path
@@ -11,13 +10,13 @@ import java.nio.file.Path
 class CorkMaker(
     outputPrefix: String,
     workingDir: Path,
-    spec: TaperedFlute,
-    desc: InstrumentDescription,
+    instrument: TaperedFlute,
+    override val designer: TaperedFluteDesigner,
     val length: Double = 10.0,
     val diameter: Double = 10.0,
     val taperIn: Double = 0.25,
     val taperOut: Double = 0.125,
-): InstrumentMaker<TaperedFlute>(outputPrefix,workingDir, spec, desc) {
+): InstrumentMaker<TaperedFlute>(outputPrefix,workingDir, instrument, designer) {
 
     override fun run(): List<CSG> {
         val d1 = diameter - taperOut
