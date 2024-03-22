@@ -1,0 +1,66 @@
+# A simple, bog-standard D pennywhistle.
+folkWhistle {
+    name = "d-whistle",
+    rootNote = "D4",
+    transpose = 12,
+    numberOfHoles = 6,
+
+    fingerings = [
+        {
+            noteName = "D4",
+            fingers = ["X", "X", "X", "X", "X", "X"]
+        },
+        {
+            noteName = "E4",
+            fingers = ["O", "X", "X", "X", "X", "X"]
+        },
+        {
+            noteName = "F#4",
+            fingers = ["O", "O", "X", "X", "X", "X"]
+        },
+        {
+            noteName = "G4",
+            fingers = ["O", "O", "O", "X", "X", "X"]
+        },
+        {
+            noteName = "A4",
+            fingers = ["O", "O", "O", "O", "X", "X"]
+        },
+        {
+            noteName = "B4",
+            fingers = ["O", "O", "O", "O", "O", "X"]
+        },
+        {
+            noteName = "C#5",
+            fingers = ["O", "O", "O", "O", "O", "O"]
+        },
+        {
+            noteName = "D5",
+            fingers = ["X", "X", "X", "X", "X", "O"]
+        },
+        {
+            noteName = "D5",
+            fingers = ["X", "X", "X", "X", "X", "X"]
+        },
+        {
+            noteName = "E5",
+            fingers = ["O", "X", "X", "X", "X", "X"]
+        },
+        {
+            noteName = "F#5",
+            fingers = ["O", "O", "X", "X", "X", "X"]
+        },
+        {
+            noteName = "G5",
+            fingers = ["O", "O", "O", "X", "X", "X"]
+        },
+        {
+            noteName = "A5",
+            fingers = ["O", "O", "O", "O", "X", "X"]
+        },
+        {
+            noteName = "B5",
+            fingers = ["O", "O", "O", "O", "O", "X"]
+        }
+    ]
+}

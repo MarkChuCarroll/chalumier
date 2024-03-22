@@ -1,7 +1,6 @@
 package org.goodmath.chalumier.make
 
 import eu.mihosoft.jcsg.CSG
-import org.goodmath.chalumier.cli.InstrumentDescription
 import org.goodmath.chalumier.design.Angle
 import org.goodmath.chalumier.design.Profile
 import org.goodmath.chalumier.design.ReedInstrumentDesigner
@@ -21,7 +20,7 @@ class BaubleMaker(
     override val designer: ReedInstrumentDesigner<ReedInstrument>):  InstrumentMaker<ReedInstrument>(outputPrefix, workingDir, spec, designer) {
 
 
-        fun wobble(diameter: Double = 1.0, wobble: Double = 0.5, spin: Double = 0.0,
+        private fun wobble(diameter: Double = 1.0, wobble: Double = 0.5, spin: Double = 0.0,
                    period: Double = 16.0, n: Int = 256): Loop {
            val radius = diameter * 0.5
           return Loop((0 until n).map { i ->

@@ -18,9 +18,9 @@ package org.goodmath.chalumier.config
 import kotlinx.serialization.json.*
 import org.goodmath.chalumier.errors.ConfigurationParameterException
 
-class PairParameterKind<T, U>(
-    val tKind: ParameterKind<T>,
-    val uKind: ParameterKind<U>): ParameterKind<Pair<T, U>> {
+open class PairParameterKind<T, U>(
+    private val tKind: ParameterKind<T>,
+    private val uKind: ParameterKind<U>): ParameterKind<Pair<T, U>> {
     override val name: String = "Pair<${tKind.name}, ${uKind.name}>"
 
     override fun checkValue(v: Any?): Boolean {
@@ -42,7 +42,7 @@ class PairParameterKind<T, U>(
                 ?: throw ConfigurationParameterException("Expected a ${uKind.name} but found null")
             Pair(first, second)
         } else {
-            throw ConfigurationParameterException("Expected a pair, found ${t}")
+            throw ConfigurationParameterException("Expected a pair, found '$t'")
         }
     }
 

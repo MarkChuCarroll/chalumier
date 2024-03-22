@@ -15,62 +15,51 @@
  */
 package org.goodmath.chalumier.config
 
-import kotlinx.serialization.json.*
 import org.goodmath.chalumier.errors.ConfigurationParameterException
 
-object DoublePairListParameterKind: ParameterKind<List<Pair<Double, Double>>> {
-    override val name: String = "List<Pair<Double, Double>>"
+object DoublePairParameterKind: PairParameterKind<Double, Double>(DoubleParameterKind, DoubleParameterKind) {
+    override fun fromConfigValue(v: Any?): Pair<Double, Double> {
+        when (v) {
+            is Pair<*,*> -> {
+                val first = v.first
+                val second = v.second
+                return if (first is Double && second is Double) {
+                    Pair(first, second)
+                } else if (first is String && second is String) {
+                    Pair(first.toDouble(), second.toDouble())
+                } else {
+                    throw ConfigurationParameterException("Expected either a pair of strings or a pair of doubles, but found $v")
+                }
+            }
+
+            is Double -> {
+                return Pair(v, v)
+            }
+
+            is String -> {
+                val d = v.toDouble()
+                return Pair(d, d)
+            }
+
+            else -> {
+                throw ConfigurationParameterException("Expected either a pair of strings or a pair of doubles, but found $v")
+            }
+        }
+    }
 
     override fun checkValue(v: Any?): Boolean {
-        return when {
-            v == null -> false
-            v is List<*> && !v.isEmpty() -> {
-                val v0 = v[0]
-                v0 != null && v0 is Pair<*, *>  && v0.first is Double
-            }
-            v is List<*> && v.isEmpty() -> true
-            else ->  false
-        }
-    }
-
-    override fun load(t: JsonElement): List<Pair<Double, Double>>? {
-        if (t ==  JsonNull) {
-            return null
-        }
-        if (t !is JsonArray) {
-            throw ConfigurationParameterException("Parameter of type ${name} cannot be read from invalid json '${t}'")
+        return if (v is Pair<*, *>) {
+            (v.first is Double && v.second is Double) ||
+                    (v.first is String && v.second is String)
         } else {
-            val tArray = t as JsonArray
-            return tArray.map { jsonElement ->
-                if (jsonElement !is JsonObject) {
-                    throw ConfigurationParameterException("Parameter elements of a ${name} cannot be read from invalid json${jsonElement}")
-                } else {
-                    Pair(
-                        DoubleParameterKind.load(jsonElement["first"]!!)!!,
-                        DoubleParameterKind.load(jsonElement["second"]!!)!!
-                    )
-                }
-            }
-        }
-    }
-
-    override fun dump(t: List<Pair<Double, Double>>?): JsonElement {
-        return if (t == null) {
-            JsonNull
-        } else {
-            buildJsonArray {
-                t.map { pair ->
-                    addJsonObject {
-                        put("first", pair.first.toString())
-                        put("second", pair.second.toString())
-                    }
-                }
-            }
+            v is Double || v is String
         }
     }
 }
 
+val DoublePairListParameterKind: ParameterKind<List<Pair<Double, Double>>> = ListParameterKind(DoublePairParameterKind)
+
 fun<T: Configurable<T>> ListOfDoublePairParameter(
     help: String = "", gen: (T) -> List<Pair<Double, Double>>): ConfigParameter<T, List<Pair<Double, Double>>> {
-        return ConfigParameter<T, List<Pair<Double, Double>>>(DoublePairListParameterKind, help, gen=gen)
+        return ConfigParameter(DoublePairListParameterKind, help, gen=gen)
 }

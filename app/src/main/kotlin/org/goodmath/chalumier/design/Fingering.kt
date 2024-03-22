@@ -47,25 +47,25 @@ object FingeringParameterKind: ParameterKind<Fingering> {
     override fun fromConfigValue(v: Any?): Fingering {
         if (v is Map<*, *>) {
             val name = v["noteName"] as String
-            val fingers = (v["fingers"] as List<String>).map { if (it == "X") { Hole.X} else { Hole.O } }
+            val fingers = (v["fingers"] as List<*>).map { if (it == "X") { Hole.X } else { Hole.O } }
 
             val nth = v["nth"] as Int?
             return Fingering(name, fingers, nth)
         } else {
-            throw ConfigurationParameterException("Invalid fingering entry ${v}")
+            throw ConfigurationParameterException("Invalid fingering entry $v")
         }
     }
 
-    override fun load(f: JsonElement): Fingering? {
-        if (f == JsonNull) {
+    override fun load(t: JsonElement): Fingering? {
+        if (t == JsonNull) {
             return null
         }
-        if (f !is JsonObject) {
-            throw ConfigurationParameterException("Expected a loadable json  ${name} object, but found ${f}")
+        if (t !is JsonObject) {
+            throw ConfigurationParameterException("Expected a loadable json  $name object, but found $t")
         }
-        val noteName = f["noteName"]?.toString() ?: throw ConfigurationParameterException("Expected a noteName field in $f")
-        val fingersStr = f["fingers"]?.toString() ?: throw ConfigurationParameterException("Expected a fingers field in $f")
-        val nth = f["nth"]?.toString()?.toInt()
+        val noteName = t["noteName"]?.toString() ?: throw ConfigurationParameterException("Expected a noteName field in $t")
+        val fingersStr = t["fingers"]?.toString() ?: throw ConfigurationParameterException("Expected a fingers field in $t")
+        val nth = t["nth"]?.toString()?.toInt()
         val fingers = fingersStr.split(",").map { if (it == "O") { Hole.O } else {Hole.X } }
         return Fingering(noteName, fingers, nth)
     }
@@ -81,8 +81,8 @@ object FingeringParameterKind: ParameterKind<Fingering> {
 }
 
 val ListOfFingeringsKind = ListParameterKind(FingeringParameterKind)
-fun<T: Configurable<T>> ListOfFingeringsParam(help: String = "", gen: (T) -> List<Fingering>): ConfigParameter<T, ArrayList<Fingering>> {
-    val mutGen: (T) -> ArrayList<Fingering> = { target ->
+fun<T: Configurable<T>> ListOfFingeringsParam(help: String = "", gen: (T) -> List<Fingering>): ConfigParameter<T, List<Fingering>> {
+    val mutGen: (T) -> List<Fingering> = { target ->
         ArrayList(gen(target))
     }
     return ConfigParameter(ListOfFingeringsKind, help, gen=mutGen)

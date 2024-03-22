@@ -18,7 +18,6 @@ package org.goodmath.chalumier.design
 import io.github.xn32.json5k.Json5
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
-import org.goodmath.chalumier.cli.InstrumentDescription
 import org.goodmath.chalumier.design.Hole.O
 import org.goodmath.chalumier.design.Hole.X
 import org.goodmath.chalumier.config.*
@@ -54,8 +53,8 @@ abstract class ReedInstrumentDesigner<Inst: ReedInstrument>(override val instrum
   open var reedVirtualTop by
       DoubleParameter("Virtual diameter of top of reed, proportion of bore diameter.") { 1.0 }
 
-  override var transpose by IntParameter() { 0 }
-  override var closedTop by BooleanParameter() { true }
+  override var transpose by IntParameter { 0 }
+  override var closedTop by BooleanParameter { true }
 
     open var dock by BooleanParameter { false }
     open var dockTop by DoubleParameter { 8.5 }
@@ -64,18 +63,18 @@ abstract class ReedInstrumentDesigner<Inst: ReedInstrument>(override val instrum
     open var dockDiameter by DoubleParameter { 40.0 }
     open var addBauble by BooleanParameter { false }
 
-  override fun patchInstrument(origInst: Instrument): Instrument {
-    val inst = origInst.dup()
+  override fun patchInstrument(inst: Instrument): Instrument {
+    val patchedInst = inst.dup()
     // MarkCC: ph originally had a "true_length" and "true_inner" defined
     // here. But "true_inner" was never used, so I dropped it. True_length
     // was just initialized to "length" before length was modified.
-    inst.trueLength = length
+    patchedInst.trueLength = length
     val reedLength = bore * reedVirtualLength
     val reedTop = bore * reedVirtualTop
     val reed = Profile.makeProfile(listOf(listOf(0.0, bore),arrayListOf(reedLength, reedTop)))
-    inst.inner += reed
-    inst.length += reedLength
-    return inst
+    patchedInst.inner += reed
+    patchedInst.length += reedLength
+    return patchedInst
   }
 
   fun boreScaler(value: List<Double>): ArrayList<Double> {
@@ -106,13 +105,13 @@ class ReedDroneDesigner(override val instrumentName: String,
 
   override var initialLength by DoubleParameter { wavelength("C4") * 0.25 }
   override var innerDiameters by
-      ListOfDoublePairParameter() {
+      ListOfDoublePairParameter {
         boreScaler(listOf(4.0, 4.0)).map { Pair(it, it) }.toMutableList()
       }
-  override var outerDiameters by ListOfDoublePairParameter() {
+  override var outerDiameters by ListOfDoublePairParameter {
         boreScaler(listOf(24.0, 12.0)).map { Pair(it, it) }.toMutableList()
       }
-  override var holeHorizAngles by ListOfDoubleParameter() { mutableListOf() }
+  override var holeHorizAngles by ListOfDoubleParameter { mutableListOf() }
     override fun readInstrument(path: Path): ReedInstrument {
         return Json5.decodeFromString(path.readText())
     }
@@ -131,13 +130,13 @@ class ReedDroneDesigner(override val instrumentName: String,
   // withFingerPad =arrayListOf()
 
   override var fingerings by ListOfFingeringsParam {
-          listOf(Fingering("C4", ArrayList<Hole>(), 1)).toMutableList()
+          listOf(Fingering("C4", ArrayList(), 1)).toMutableList()
   }
 
   override var divisions by ListOfListOfIntDoublePairParam { emptyList() }
 }
 
-open class ReedpipeDesigner(override val instrumentName: String, outputDir: Path):
+open class ReedPipeDesigner(override val instrumentName: String, outputDir: Path):
     ReedInstrumentDesigner<ReedInstrument>(instrumentName, outputDir, ReedInstrument.builder) {
 
     override fun readInstrument(path: Path): ReedInstrument {
@@ -153,37 +152,36 @@ open class ReedpipeDesigner(override val instrumentName: String, outputDir: Path
         return ReedInstrumentMaker(name, outputDir, spec, this)
     }
 
-    override var innerDiameters by
-      ListOfDoublePairParameter() {
+    override var innerDiameters by ListOfDoublePairParameter {
         boreScaler(listOf(4.0, 4.0)).map { Pair(it, it) }.toMutableList()
       }
 
   override var outerDiameters by
-      ListOfDoublePairParameter() { boreScaler(listOf(12.0, 12.0)).map { Pair(it, it) } }
+      ListOfDoublePairParameter { boreScaler(listOf(12.0, 12.0)).map { Pair(it, it) } }
 
   override var minHoleDiameters by
-      ListOfDoubleParameter() { boreScaler(listOf(2.5).repeat(8)).toMutableList() }
+      ListOfDoubleParameter { boreScaler(listOf(2.5).repeat(8)).toMutableList() }
 
   override var maxHoleDiameters by
-      ListOfDoubleParameter() { boreScaler(listOf(4.0).repeat(8)).toMutableList() }
+      ListOfDoubleParameter { boreScaler(listOf(4.0).repeat(8)).toMutableList() }
 
   // ph: max_hole_spacing = design.scaler([ 8O, 4O,4O,4O,None,4O,4O, 20 ])
 
   override var balance by
-      ListOfOptDoubleParameter() { mutableListOf(0.2, 0.075, 0.3, 0.3, 0.075, null) }
+      ListOfOptDoubleParameter { mutableListOf(0.2, 0.075, 0.3, 0.3, 0.075, null) }
 
   // ph: balance = [ None, 0.1, 0.1, 0.3, 0.3, 0.1, None ]
   // ph: balance = [ 0.2, 0.1, None, None, 0.1, None ]
 
   override var holeAngles by
-      ListOfDoubleParameter() { mutableListOf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0) }
+      ListOfDoubleParameter { mutableListOf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0) }
 
   override var holeHorizAngles by
-      ListOfDoubleParameter() { mutableListOf(-25.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 180.0) }
+      ListOfDoubleParameter { mutableListOf(-25.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 180.0) }
 
   // with_fingerpad = [1,1,1,1,1,1,1,1]
 
-  override var initialLength by DoubleParameter() { wavelength("C4") * 0.25 }
+  override var initialLength by DoubleParameter { wavelength("C4") * 0.25 }
 
   override var fingerings by ListOfFingeringsParam {
         mutableListOf(
@@ -219,18 +217,18 @@ abstract class AbstractShawmDesigner(override val instrumentName: String,
         path.writeText(Json5.encodeToString(instrument))
     }
 
-    override var innerDiameters: List<Pair<Double, Double>> by ListOfDoublePairParameter() {
+    override var innerDiameters: List<Pair<Double, Double>> by ListOfDoublePairParameter {
     boreScaler(fullRange(16.0, 4.0, 10)).map { Pair(it, it) }
     // ph:arrayListOf(  16.0, 14.0, 12.0, 10.0, 8.0, 6.0, 4.0, 1.5 )
   }
-  override var initialInnerFractions by ListOfDoubleParameter() { fullRange(0.2, 0.9, 8) }
-  override var minInnerFractionSep by ListOfDoubleParameter() { ArrayList(listOf(0.02).repeat(9)) }
-  override var outerDiameters by ListOfDoublePairParameter() {
+  override var initialInnerFractions by ListOfDoubleParameter { fullRange(0.2, 0.9, 8) }
+  override var minInnerFractionSep by ListOfDoubleParameter { ArrayList(listOf(0.02).repeat(9)) }
+  override var outerDiameters by ListOfDoublePairParameter {
     boreScaler(listOf(70.0, 25.0, 25.0)).map { Pair(it, it) }
   }
-  override var minOuterFractionSep by ListOfDoubleParameter() { arrayListOf(0.19, 0.8) }
-  override var initialOuterFractions by ListOfDoubleParameter() {arrayListOf(0.19) }
-  override var outerAngles by ListOfOptAnglePairsParameter() {
+  override var minOuterFractionSep by ListOfDoubleParameter { arrayListOf(0.19, 0.8) }
+  override var initialOuterFractions by ListOfDoubleParameter {arrayListOf(0.19) }
+  override var outerAngles by ListOfOptAnglePairsParameter {
       ArrayList(listOf(Angle(Angle.AngleDirection.Here, -35.0), Angle(Angle.AngleDirection.Up), Angle(Angle.AngleDirection.Down))
         .map { Pair(it, it) })
   }
@@ -246,44 +244,44 @@ open class ShawmDesigner(override val instrumentName: String,
                          outputDir: Path):
     AbstractShawmDesigner(instrumentName, outputDir) {
 
-  override var minHoleDiameters by ListOfDoubleParameter() {
+  override var minHoleDiameters by ListOfDoubleParameter {
     boreScaler(listOf(2.0).repeat(9))
   }
 
-  override var maxHoleDiameters by ListOfDoubleParameter() {
+  override var maxHoleDiameters by ListOfDoubleParameter {
     // ph:  max_hole_diameters = bore_scaler([ 12.0 ] * 8)
     boreScaler(listOf(6.0).repeat(9))
   }
 
-  override var initialHoleDiameterFractions by ListOfDoubleParameter() {
+  override var initialHoleDiameterFractions by ListOfDoubleParameter {
       ArrayList(listOf(0.5).repeat(9))
   }
 
-  override var initialHoleFractions by ListOfDoubleParameter() {
+  override var initialHoleFractions by ListOfDoubleParameter {
    ArrayList(arrayListOf(7, 6, 5, 4, 3, 2, 1, 0, 0).map { i -> 0.5 - (0.6 * i.toDouble()) })
   }
 
-  override var maxHoleSpacing by ListOfOptDoubleParameter(){
-    scaler(listOf(80.0, 40.0, 40.0, 40.0, null, 40.0, 40.0, 20.0))
+  override var maxHoleSpacing by ListOfOptDoubleParameter {
+      scaler(listOf(80.0, 40.0, 40.0, 40.0, null, 40.0, 40.0, 20.0))
   }
 
-  override var balance by ListOfOptDoubleParameter() {
+  override var balance by ListOfOptDoubleParameter {
     // ph: balance = [0.2, 0.1, 0.3, 0.3, 0.1, None]
    arrayListOf(null, 0.1, 0.1, 0.3, 0.3, 0.1, null)
     // ph: balance = [0.2, 0.1, None, None, 0.1, None]
   }
 
-  override var holeAngles by ListOfDoubleParameter() {
+  override var holeAngles by ListOfDoubleParameter {
       arrayListOf(0.0, -30.0, -30.0, -30.0, 30.0, 0.0, 0.0, 0.0, 0.0)
   }
 
-  override var holeHorizAngles by ListOfDoubleParameter() {
+  override var holeHorizAngles by ListOfDoubleParameter {
       arrayListOf(30.0, -25.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 180.0)
   }
 
   // with_fingerpad = [0,1,1,1,1,1,1,1,1]
 
-  override var initialLength by DoubleParameter() { wavelength("B3") * 0.35 }
+  override var initialLength by DoubleParameter { wavelength("B3") * 0.35 }
 
   override var fingerings by ConfigParameter(ListOfFingeringsKind) {
     arrayListOf(
@@ -322,7 +320,7 @@ open class ShawmDesigner(override val instrumentName: String,
         )
   }
 
-  override var divisions by ConfigParameter(ListOfListOfIntDoublePairKind) {
+  override var divisions by ListOfListOfIntDoublePairParam {
    arrayListOf(
        arrayListOf(Pair(4, 0.5)),
        arrayListOf(Pair(1, 0.25), Pair(4, 0.5)),
@@ -344,33 +342,40 @@ class FolkShawmDesigner(override val instrumentName: String,
                         outputDir: Path
 ): AbstractShawmDesigner(instrumentName, outputDir) {
 
-  override var minHoleDiameters by ListOfDoubleParameter() {
-    boreScaler(listOf(12.0).repeat(7))
+  override var minHoleDiameters by ListOfDoubleParameter {
+    boreScaler(listOf(2.0).repeat(7))
   }
 
-  override var maxHoleDiameters by ListOfDoubleParameter() {
+  override var maxHoleSpacing by ListOfOptDoubleParameter {
+      scaler(listOf(80.0, 40.0, 40.0, 40.0, 40.0, 20.0))
+  }
+
+  override var maxHoleDiameters by ListOfDoubleParameter {
     boreScaler(listOf(12.0).repeat(7))
   }
 
   override var initialHoleDiameterFractions by ListOfDoubleParameter {
-    inRange(1.0, 0.5, 7)
+    inRange(1.0, 0.5, numberOfHoles)
   }
 
-  override var initialHoleFractions by ListOfDoubleParameter() {
-   listOf(6, 5, 4, 3, 2, 1, 0).map { i -> 0.75 - 0.1 * i.toDouble() }
+  override var initialHoleFractions by ListOfDoubleParameter {
+      (numberOfHoles - 1 downTo 0).map { i ->
+          0.75 - 0.1 * i.toDouble()
+      }
   }
 
-  override var balance by ListOfOptDoubleParameter() {arrayListOf(null, 0.05, null, null, 0.05) }
 
-  override var holeHorizAngles by ListOfDoubleParameter() {
-   arrayListOf(45.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+  override var balance by ListOfOptDoubleParameter {arrayListOf(null, 0.05, null, null, 0.05) }
+
+  override var holeHorizAngles by ListOfDoubleParameter {
+      listOf(45.0) + listOf(0.0).repeat(numberOfHoles-1)
   }
 
   // with_fingerpad = [0,1,1,1,1,1,1]
 
   override var initialLength by DoubleParameter { wavelength("C4") * 0.5 }
 
-  override var fingerings: ArrayList<Fingering> by ConfigParameter(ListOfFingeringsKind) {
+  override var fingerings: List<Fingering> by ConfigParameter(ListOfFingeringsKind) {
    arrayListOf(
         Fingering("C4",arrayListOf(X, X, X, X, X, X, X), 1),
         Fingering("C5",arrayListOf(X, X, X, X, X, X, X), 2),
@@ -419,6 +424,7 @@ class FolkShawmDesigner(override val instrumentName: String,
           arrayListOf(Pair(-1, 0.5), Pair(0, 0.5), Pair(3, 0.25), Pair(5, 0.5))
           // ph:arrayListOf( (-X,0.45), (-X,0.9), (2,0.0), (2,0.9), (5,0.0), (5,0.5) ),
         )
+
   }
 
     override fun getInstrumentMaker(spec: ReedInstrument): InstrumentMaker<ReedInstrument> {

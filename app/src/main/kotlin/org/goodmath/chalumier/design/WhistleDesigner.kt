@@ -18,7 +18,6 @@ package org.goodmath.chalumier.design
 import io.github.xn32.json5k.Json5
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
-import org.goodmath.chalumier.cli.InstrumentDescription
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.design.Hole.X
 import org.goodmath.chalumier.design.Hole.O
@@ -56,7 +55,7 @@ abstract class AbstractWhistleDesigner(n: String,
     }
 
 
-    fun getWhistleHeadProportions(): Pair<Double, Double> {
+    private fun getWhistleHeadProportions(): Pair<Double, Double> {
         val bore = innerDiameters.fromEnd(1)
         val baseOutside = outerDiameters.fromEnd(1)
         val outside = if (outerAdd) {
@@ -73,10 +72,10 @@ abstract class AbstractWhistleDesigner(n: String,
 
     /* ph:
     # For gap_width 0.5, gap_length 0.25, from soprano
-    # tweak_gapextra = 0.37
+    # tweak_gapExtra = 0.37
 
     # From soprano recorder
-    #tweak_gapextra = 0.75 #0.71
+    #tweak_gapExtra = 0.75 #0.71
     #tweak_boreless = 0.65 #0.49
     */
 
@@ -99,11 +98,11 @@ abstract class AbstractWhistleDesigner(n: String,
         patchedInst.length -= (boreDiameter * tweakBoreLess)
         patchedInst.inner = patchedInst.inner.clipped(0.0, patchedInst.length)
 
-        // ph: #bulge_pos1 = self.tweak_bulgepos1 * inst.length
-        // ph: #bulge_pos2 = self.tweak_bulgepos2 * inst.length
+        // ph: #bulge_pos1 = self.tweak_bulgePos1 * inst.length
+        // ph: #bulge_pos2 = self.tweak_bulgePos2 * inst.length
         // ph: if bulge_pos1 > bulge_pos2:
         // ph:     bulge_pos1, bulge_pos2 = bulge_pos2, bulge_pos1
-        // ph: bulge_amount = (self.tweak_bulgediameter-1.0) * bore_diameter
+        // ph: bulge_amount = (self.tweak_bulgeDiameter-1.0) * bore_diameter
         // ph: inst.inner = inst.inner + profile.Profile(
         // ph:     [ bulge_pos1, bulge_pos2 ],
         // ph:     [ 0.0, bulge_amount ],
@@ -151,7 +150,7 @@ class SixHoleWhistleDesigner(n: String,
     }
 
     override fun writeInstrument(instrument: Whistle, path: Path) {
-        path.writeText(Json5.encodeToString(instrument))
+        path.writeText(Json5.encodeToString<Whistle>(instrument))
     }
 
     override var minHoleDiameters by ListOfDoubleParameter {
@@ -210,9 +209,8 @@ class SixHoleWhistleDesigner(n: String,
 }
 
 fun folkWhistleDesigner(name: String, outputDir: Path): SixHoleWhistleDesigner {
-    val result = SixHoleWhistleDesigner(name,  outputDir,
-        Whistle.builder)
-    result.initialLength = wavelength("D4") * 0.5
+    val result = SixHoleWhistleDesigner(name,  outputDir, Whistle.builder)
+    result.rootNote = "D4"
     result.fingerings = arrayListOf(
         Fingering("D4", listOf(X, X, X, X, X, X)),
         Fingering("E4", listOf(O, X, X, X, X, X)),
@@ -340,7 +338,7 @@ class RecorderDesigner(override val instrumentName: String,
     override var fingerings by ListOfFingeringsParam {
         listOf(
             Fingering("C4", listOf(X, X, X, X, X, X, X, X)),
-            // ph:  Inter-regisoter locking
+            // ph:  Inter-register locking
             Fingering("C5", listOf(X, X, X, X, X, X, X, X)),
             Fingering("G5", listOf(X, X, X, X, X, X, X, X)),
 

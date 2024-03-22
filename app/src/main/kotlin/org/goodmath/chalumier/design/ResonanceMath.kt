@@ -40,7 +40,6 @@ import kotlin.math.*
  */
 fun Complex.absoluteValue(): Double = mod
 
-
 /**
  * ph: frequency response of a tree of connected pipes depends on area.
  */
@@ -70,21 +69,21 @@ fun pipeReply(replyEnd: Complex, lengthOnWavelength: Double): Complex {
 
 /**
  * ph: Relative phase reply for pipe 0 of two pipe junction
- * with pipe cross section areas a0 and a1
+ * with pipe cross-section areas a0 and a1
  * and pipe 1 relative phase reply r1.
  *
  */
 fun junction2Reply(a0: Double, a1: Double, r1: Complex): Pair<Complex, Double> {
     val ca0 = a0.R
     val ca1 = a1.R
-    val pJunc = 2.0 * ca0 / (ca0 - ca1 * ((r1 - 1.0) / (r1 + 1.0)))
-    val mag1 = (pJunc / (r1 + 1.0)).mod
-    return Pair(pJunc - 1.0, mag1)
+    val pJunction = 2.0 * ca0 / (ca0 - ca1 * ((r1 - 1.0) / (r1 + 1.0)))
+    val mag1 = (pJunction / (r1 + 1.0)).mod
+    return Pair(pJunction - 1.0, mag1)
 }
 
 /**
  * ph: Relative phase reply for pipe 0 of three pipe junction
- * with pipe cross section areas a0, a1 and a2
+ * with pipe cross-section areas a0, a1 and a2
  * and relative phase replies r1 and r2.
  */
 fun junction3Reply(a0: Double, a1: Double, a2: Double, r1: Complex, r2: Complex): Triple<Complex, Double, Double> {
@@ -92,10 +91,10 @@ fun junction3Reply(a0: Double, a1: Double, a2: Double, r1: Complex, r2: Complex)
     val ca1 = a1.R
     val ca2 = a2.R
 
-    val pjunc = 2.0 * ca0 / (ca0 - ca1 * ((r1 - 1.0) / (r1 + 1.0)) - ca2 * ((r2 - 1.0) / (r2 + 1.0)))
-    val mag1 = (pjunc / (r1 + 1.0)).mod
-    val mag2 = (pjunc / (r2 + 1.0)).mod
-    return Triple(pjunc - 1.0, mag1, mag2)
+    val pJunction = 2.0 * ca0 / (ca0 - ca1 * ((r1 - 1.0) / (r1 + 1.0)) - ca2 * ((r2 - 1.0) / (r2 + 1.0)))
+    val mag1 = (pJunction / (r1 + 1.0)).mod
+    val mag2 = (pJunction / (r2 + 1.0)).mod
+    return Triple(pJunction - 1.0, mag1, mag2)
 }
 
 // ph: Phase in[0,1] plus number of nodes
@@ -109,8 +108,6 @@ fun tanner(phase: Double): Double {
 }
 
 fun floor(c: Complex): Complex = complex(floor(c.re), floor(c.im))
-
-fun ceil(c: Complex): Complex = complex(ceil(c.re), ceil(c.im))
 
 fun signedSqrt(x: Double) = sqrt(abs(x)) * (x.sign)
 
@@ -158,7 +155,7 @@ fun holeLengthCorrection(holeDiameter: Double, boreDiameter: Double, closed: Boo
     }
 
     // As per p.63-64 of Nederveen
-    val outerCorrection: Double = 0.7
+    val outerCorrection = 0.7
     val innerCorrection: Double = 1.3 - 0.9 * holeDiameter / boreDiameter
     val a: Double = holeDiameter / 2.0
 
@@ -168,7 +165,7 @@ fun holeLengthCorrection(holeDiameter: Double, boreDiameter: Double, closed: Boo
 const val FourPi = PI * 4
 
 fun cornuYx(t: Double, mirror: Boolean): Pair<Double, Double> {
-    // ph: Reparamaterize for constant absolute rate of turning
+    // ph: Re-parameterize for constant absolute rate of turning
     val newT = sqrt(abs(t)) * (if (t > 0) 1 else -1)
     val (y, x) = evalCornu(newT)
     return if (mirror) {

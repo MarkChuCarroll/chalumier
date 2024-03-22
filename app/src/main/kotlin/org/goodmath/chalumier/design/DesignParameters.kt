@@ -21,14 +21,14 @@ import org.goodmath.chalumier.util.StandardRandomizer
 import kotlin.math.sqrt
 
 /**
- * The design parameters represents the current state of the mutable parameters
+ * The design parameters represent the current state of the mutable parameters
  * that can be varied by the design optimizer. Each of these values
  * is, in some form, normalized relative to the size of the instrument.
  * For example, the holePositions are stored in the state as fractions
  * of the instrument's body length.
  */
 @Serializable
-data class DesignParameters private constructor(
+data class DesignParameters(
     var length: Double,
     var holePositions: ArrayList<Double>,
     var holeAreas: ArrayList<Double>,
@@ -40,12 +40,12 @@ data class DesignParameters private constructor(
 
     // Get and set methods are provided to make it easier to actually
     // perform the mutations during optimization. In order to make it
-    // easier to implement those, it's useful to have these guidepoints
+    // easier to implement those, it's useful to have these guide-points
     // for the beginning of each block.
-    val holePositionsStart = 1
-    val holeAreasStart = holePositionsStart + holePositions.size
-    val innerKinksStart = holeAreasStart + holeAreas.size
-    val outerKinksStart = innerKinksStart + innerKinks.size
+    private val holePositionsStart = 1
+    private val holeAreasStart = holePositionsStart + holePositions.size
+    private val innerKinksStart = holeAreasStart + holeAreas.size
+    private val outerKinksStart = innerKinksStart + innerKinks.size
 
     operator fun get(idx: Int): Double {
         return when(idx) {
@@ -89,10 +89,10 @@ data class DesignParameters private constructor(
     companion object {
 
         fun make(length: Double,
-                 holePositions: ArrayList<Double>,
-                 holeAreas: ArrayList<Double>,
-                 innerKinks: ArrayList<Double>,
-                 outerKinks: ArrayList<Double>): DesignParameters {
+                 holePositions: List<Double>,
+                 holeAreas: List<Double>,
+                 innerKinks: List<Double>,
+                 outerKinks: List<Double>): DesignParameters {
             val hpCopy = ArrayList<Double>()
             hpCopy.addAll(holePositions)
             val haCopy = ArrayList<Double>()
@@ -110,14 +110,14 @@ data class DesignParameters private constructor(
 
             // Calculate the weights that we'll use for the different input states
             // to update our instrument.  We're going to try for a gaussian distribution of
-            // weights, so we'll start by setting a threshold for the stddev.
+            // weights, so we'll start by setting a threshold for the standard deviation.
             val weightStdDev = (1.0 + 2.0 * r.nextDouble()) / sqrt(numberOfCandidates.toDouble())
             val randomWeights = (0 until numberOfCandidates).map { r.nextGaussian(0.0, weightStdDev) }.toList()
             // We're looking for the weights to be distributed around zero, so we compute the
             // mean, and then subtract it from each weight.
             val offset = (0.0 - randomWeights.sum()) / numberOfCandidates
             val weights = ArrayList(randomWeights.map { weight -> weight + offset })
-            // Randomly pick one parameter set and increase it's weight.
+            // Randomly pick one parameter set and increase its weight.
             weights[ r.nextInt(numberOfCandidates)] += 1.0
             // Maybe inject extra noise.
             val noise = if (doNoise) { r.nextDouble() * initialAccuracy} else { 0.0 }

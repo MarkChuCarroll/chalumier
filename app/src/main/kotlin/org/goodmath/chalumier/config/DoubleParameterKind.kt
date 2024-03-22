@@ -24,17 +24,38 @@ import org.goodmath.chalumier.errors.ConfigurationParameterException
 object DoubleParameterKind: ParameterKind<Double> {
     override val name: String = "Double"
 
+    override fun fromConfigValue(v: Any?): Double {
+        return when (v) {
+            is String -> {
+                v.toDouble()
+            }
+
+            is Double -> {
+                v
+            }
+
+            else -> {
+                throw ConfigurationParameterException("Expected a number value, but found '$v'")
+            }
+        }
+    }
+
     override fun checkValue(v: Any?): Boolean {
         return v != null && v is Double
     }
 
     override fun load(t: JsonElement): Double? {
-        return if (t == JsonNull) {
-            null
-        } else if (t is JsonPrimitive) {
-            return t.double
-        } else {
-            throw ConfigurationParameterException("Parameter expected a double, but found ${t}")
+        return when (t) {
+            JsonNull -> {
+                null
+            }
+            is JsonPrimitive -> {
+                return t.double
+            }
+
+            else -> {
+                throw ConfigurationParameterException("Parameter expected a double, but found $t")
+            }
         }
     }
 
@@ -52,18 +73,18 @@ val ListOfDoubleParameterKind = ListParameterKind(DoubleParameterKind)
 val ListOfOptDoubleParameterKind = ListOfOptParameterKind(OptDoubleParameterKind)
 
 fun<T: Configurable<T>> DoubleParameter(help: String = "", gen: (T) -> Double): ConfigParameter<T, Double> =
-    ConfigParameter<T, Double>(DoubleParameterKind, help, gen=gen)
+    ConfigParameter(DoubleParameterKind, help, gen=gen)
 
 fun<T: Configurable<T>> OptDoubleParameter(help: String = "", gen: (T) -> Double?): ConfigParameter<T, Double?> =
-    ConfigParameter<T, Double?>(OptDoubleParameterKind, help, gen=gen)
+    ConfigParameter(OptDoubleParameterKind, help, gen=gen)
 
-fun<T: Configurable<T>> ListOfDoubleParameter(help: String = "", gen: (T) -> List<Double>): ConfigParameter<T, ArrayList<Double>> {
+fun<T: Configurable<T>> ListOfDoubleParameter(help: String = "", gen: (T) -> List<Double>): ConfigParameter<T, List<Double>> {
     val genMutable = { target: T -> ArrayList(gen(target)) }
-    return ConfigParameter<T, ArrayList<Double>>(ListOfDoubleParameterKind, help, gen=genMutable)
+    return ConfigParameter(ListOfDoubleParameterKind, help, gen=genMutable)
 }
 
-fun<T: Configurable<T>> ListOfOptDoubleParameter(help: String = "", gen: (T) -> List<Double?>): ConfigParameter<T, ArrayList<Double?>> {
+fun<T: Configurable<T>> ListOfOptDoubleParameter(help: String = "", gen: (T) -> List<Double?>): ConfigParameter<T, List<Double?>> {
     val genMutable = { target: T -> ArrayList(gen(target)) }
-    return ConfigParameter<T, ArrayList<Double?>>(ListOfOptDoubleParameterKind, help, gen=genMutable)
+    return ConfigParameter(ListOfOptDoubleParameterKind, help, gen=genMutable)
 }
 

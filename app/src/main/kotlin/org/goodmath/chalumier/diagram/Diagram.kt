@@ -28,8 +28,8 @@ import kotlin.math.min
 // $5=transX
 // $6=negTransX
 // $7=negTransY
-fun PREAMBLE(width: Double, height: Double, scale: Double, transX: Double,
-             transY: Double, negTransX: Double, negTransY: Double): String = """
+fun generateSvgPreamble(width: Double, height: Double, scale: Double, transX: Double,
+                        transY: Double, negTransX: Double, negTransY: Double): String = """
 <?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
 "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
@@ -40,21 +40,21 @@ fun PREAMBLE(width: Double, height: Double, scale: Double, transX: Double,
     viewbox="0 0 ${width}mm ${height}mm"
     version="1.1"
     xmlns="http://www.w3.org/2000/svg">
-<g transform="scale(${scale}, ${scale}) translate(${transX}, ${transY})">
-<rect x="${negTransX}" y="${negTransY}" width="${width}" height="${height}" style="fill:#ffffff"/>
-"""
+<g transform="scale($scale, $scale) translate(${transX}, ${transY})">
+<rect x="$negTransX" y="$negTransY" width="$width" height="$height" style="fill:#ffffff"/>
+""".trim()
 
 
-val POSTAMBLE = """\
+val generateSvgPostamble = """\
 </g></svg>
-"""
+""".trim()
 
 class Diagram {
     private val commands = ArrayList<String>()
-    var minX = 0.0
-    var minY = 0.0
-    var maxY = 0.0
-    var maxX = 0.0
+    private var minX = 0.0
+    private var minY = 0.0
+    private var maxY = 0.0
+    private var maxX = 0.0
 
     fun save(filename: Path) {
         // ph: Assume 90dpi (inkscape default
@@ -68,15 +68,15 @@ class Diagram {
         val negTransY = -transY
 
         val output = FileWriter(filename.toFile())
-        output.write(PREAMBLE(width, height, scale, transX, transY, negTransX, negTransY))
+        output.write(generateSvgPreamble(width, height, scale, transX, transY, negTransX, negTransY))
         commands.forEach { cmd ->
             output.write(cmd + "\n")
         }
-        output.write(POSTAMBLE)
+        output.write(generateSvgPostamble)
         output.close()
     }
 
-    fun require(x: Double, y: Double) {
+    private fun require(x: Double, y: Double) {
         minX = min(minX, x)
         maxX = max(maxX, x)
         minY = min(minY, y)
@@ -96,7 +96,7 @@ class Diagram {
         for ((x, y) in points) {
             require(x, y)
         }
-        val allPoints = points.map { "${it.first},${it.second}" }.joinToString(" ")
+        val allPoints = points.joinToString(" ") { "${it.first},${it.second}" }
         commands.add("<polyline points=\"${allPoints}\" style=\"fill:none;stroke:${color};stroke-width:${width}mm\" />")
     }
 

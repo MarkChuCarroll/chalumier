@@ -31,7 +31,7 @@ object IntDoublePairParameterKind: ParameterKind<Pair<Int, Double>> {
             Pair(IntParameterKind.load(t["first"]!!)!!,
                 DoubleParameterKind.load(t["second"]!!)!!)
         } else {
-            throw ConfigurationParameterException("Parameter of type ${name} expected a JSON object, but found ${t}")
+            throw ConfigurationParameterException("Parameter of type $name expected a JSON object, but found $t")
         }
     }
 
@@ -47,8 +47,8 @@ object IntDoublePairParameterKind: ParameterKind<Pair<Int, Double>> {
 val ListOfIntDoublePairKind = ListParameterKind(IntDoublePairParameterKind)
 val ListOfListOfIntDoublePairKind = ListParameterKind(ListOfIntDoublePairKind)
 
-fun<T: Configurable<T>> ListOfListOfIntDoublePairParam(help: String = "", gen: (T) -> List<List<Pair<Int, Double>>>): ConfigParameter<T, ArrayList<ArrayList<Pair<Int, Double>>>> {
-    val mutGen: (T) -> ArrayList<ArrayList<Pair<Int, Double>>> = { target ->
+fun<T: Configurable<T>> ListOfListOfIntDoublePairParam(help: String = "", gen: (T) -> List<List<Pair<Int, Double>>>): ConfigParameter<T, List<List<Pair<Int, Double>>>> {
+    val mutGen: (T) -> List<List<Pair<Int, Double>>> = { target ->
         ArrayList(gen(target).map { ArrayList(it) })
     }
     return ConfigParameter(ListOfListOfIntDoublePairKind, help, gen=mutGen)

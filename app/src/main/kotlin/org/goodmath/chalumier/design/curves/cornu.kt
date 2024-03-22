@@ -24,13 +24,13 @@ import kotlin.math.*
  * because they have the property that curvature of a point on the curve is
  * proportional to that points distance along the spiral (or, if this makes it
  * easier to understand, a vehicle travelling along the spiral at constant speed
- * will experience a constant acceleration.
+ * will experience a constant acceleration).
  *
  * This curve is computed using fresnel integrals - the clothoid is produced by
  * plotting the fresnel S and C integrals on the two axes of a grid.
  *
  * All of that is an elaborate way of saying that this is an implementation
- * of a really good transition curve for profiles.
+ * of a nice transition curve for profiles.
  */
 
 // ph: implementation adapted from cephes
@@ -40,7 +40,7 @@ import kotlin.math.*
  *
  * @param x the value of x
  * @param coeff the polynomial represented as a set of coefficients.
- *   The coefficient of x^n is at coeff[n].
+ *   The coefficient of x^index is at `coeff[index]`.
  */
 fun evalPolynomial(x: Double, coeff: List<Double>): Double {
     return coeff.reversed()
@@ -48,7 +48,7 @@ fun evalPolynomial(x: Double, coeff: List<Double>): Double {
 }
 
 // Approximations of a bunch of fresnel power series, I think?
-val sNumerator = listOf(
+val sNumerator: List<Double> = listOf(
     -2.99181919401019853726E3,
     7.08840045257738576863E5,
     -6.29741486205862506537E7,
@@ -155,8 +155,8 @@ fun Double.squared(): Double = this * this
  * but differential equations are always going to be tricky.
  */
 fun fresnel(signedX: Double): Pair<Double, Double> {
-    var sResult = 0.0
-    var cResult = 0.0
+    var sResult: Double
+    var cResult: Double
 
     val x = signedX.absoluteValue
     if (x.squared() < 2.5625) {
@@ -180,11 +180,11 @@ fun fresnel(signedX: Double): Pair<Double, Double> {
         cResult = -cResult
         sResult = -sResult
     }
-    return Pair<Double, Double>(sResult, cResult)
+    return Pair(sResult, cResult)
 }
 
 fun evalCornu(t: Double): Pair<Double, Double> {
     val sqrtPiOver2 = sqrt(PI * .5)
     val (s, c) = fresnel(t / sqrtPiOver2)
-    return Pair<Double, Double>(s * sqrtPiOver2, c * sqrtPiOver2)
+    return Pair(s * sqrtPiOver2, c * sqrtPiOver2)
 }

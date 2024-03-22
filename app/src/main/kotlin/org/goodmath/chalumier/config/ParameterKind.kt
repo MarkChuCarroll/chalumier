@@ -13,13 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+@file:Suppress("UNCHECKED_CAST")
+
 package org.goodmath.chalumier.config
 
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 
 /**
- * The marhsaler/demarshaller for a parameter of type T.
+ * The serializer/deserializer for a parameter of type T.
  */
 interface ParameterKind<T> {
     val name: String
@@ -29,7 +31,7 @@ interface ParameterKind<T> {
      */
     fun checkValue(v: Any?): Boolean
 
-    open fun fromConfigValue(v: Any?): T {
+    fun fromConfigValue(v: Any?): T {
         return v as T
     }
 
@@ -50,6 +52,14 @@ interface ParameterKind<T> {
 fun<T> opt(pk: ParameterKind<T>): ParameterKind<T?> {
     return object: ParameterKind<T?> {
         override val name: String = "${pk.name}?"
+
+        override fun fromConfigValue(v: Any?): T? {
+            return if (v == null) {
+                null
+            } else {
+                 pk.fromConfigValue(v)
+            }
+        }
 
         override fun checkValue(v: Any?): Boolean {
             return pk.checkValue(v) || v == null

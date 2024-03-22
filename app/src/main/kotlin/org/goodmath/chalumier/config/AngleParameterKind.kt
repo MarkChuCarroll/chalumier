@@ -24,29 +24,49 @@ import org.goodmath.chalumier.errors.ConfigurationParameterException
 object AngleParameterKind: ParameterKind<Angle> {
     override val name: String = "Angle"
 
+    override fun fromConfigValue(v: Any?): Angle {
+        return if (v is Angle) { v }
+        else if (v is Map<*, *>) {
+            val dirStr = v["dir"]!! as String
+            val optVal = v["v"]
+            if (optVal == null) {
+                Angle(Angle.AngleDirection.valueOf(dirStr))
+            } else {
+                Angle(Angle.AngleDirection.valueOf(dirStr), optVal as Double)
+            }
+        } else {
+            throw ConfigurationParameterException("Expected an angle, but found $v")
+        }
+    }
+
     override fun checkValue(v: Any?): Boolean {
-        return v != null && v is Angle
+        return v != null && (v is Angle ||
+                v is Map<*, *> && v.containsKey("dir"))
     }
 
     override fun load(t: JsonElement): Angle? {
-        return if (t == JsonNull) { null }
-        else if (t is JsonPrimitive) {
-            when (val label = t.content) {
-                "Mean" -> Angle(Angle.AngleDirection.Mean)
-                "Up" -> Angle(Angle.AngleDirection.Up)
-                "Down" -> Angle(Angle.AngleDirection.Down)
-                else ->
-                    if (name.startsWith("Here:")) {
-                        Angle(
-                            Angle.AngleDirection.Here,
-                            label.substring(5).toDouble()
-                        )
-                    } else {
-                        throw ConfigurationParameterException("Angle parameter expected an Angle, but found ${t}")
-                    }
+        return when (t) {
+            JsonNull -> { null }
+            is JsonPrimitive -> {
+                when (val label = t.content) {
+                    "Mean" -> Angle(Angle.AngleDirection.Mean)
+                    "Up" -> Angle(Angle.AngleDirection.Up)
+                    "Down" -> Angle(Angle.AngleDirection.Down)
+                    else ->
+                        if (name.startsWith("Here:")) {
+                            Angle(
+                                Angle.AngleDirection.Here,
+                                label.substring(5).toDouble()
+                            )
+                        } else {
+                            throw ConfigurationParameterException("Angle parameter expected an Angle, but found $t")
+                        }
+                }
             }
-        } else {
-            throw ConfigurationParameterException("Angle parameter expected an Angle, but found ${t}")
+
+            else -> {
+                throw ConfigurationParameterException("Angle parameter expected an Angle, but found $t")
+            }
         }
     }
 
@@ -62,19 +82,13 @@ object AngleParameterKind: ParameterKind<Angle> {
     }
 }
 
-val ListOfAngleKind = ListParameterKind(AngleParameterKind)
-
-fun<T: Configurable<T>> AngleParameter(help: String = "", gen: (T) -> Angle): ConfigParameter<T, Angle> {
-    return ConfigParameter(AngleParameterKind, help, gen=gen)
-}
-
 val PairOfAnglesParameterKind = PairParameterKind(AngleParameterKind, AngleParameterKind)
 val ListOfOptAnglePairsKind = ListOfOptParameterKind(opt(PairOfAnglesParameterKind))
 fun<T: Configurable<T>> PairOfAnglesParameter(help: String = "", gen: (T) -> Pair<Angle, Angle>): ConfigParameter<T, Pair<Angle, Angle>> {
     return ConfigParameter(PairOfAnglesParameterKind, help, gen=gen)
 }
 
-fun<T: Configurable<T>> ListOfOptAnglePairsParameter(help: String = "", gen: (T) -> List<Pair<Angle, Angle>?>): ConfigParameter<T, ArrayList<Pair<Angle, Angle>?>> {
+fun<T: Configurable<T>> ListOfOptAnglePairsParameter(help: String = "", gen: (T) -> List<Pair<Angle, Angle>?>): ConfigParameter<T, List<Pair<Angle, Angle>?>> {
     val mutGen = { t: T -> ArrayList(gen(t))}
     return ConfigParameter(ListOfOptAnglePairsKind, help, gen=mutGen)
 }

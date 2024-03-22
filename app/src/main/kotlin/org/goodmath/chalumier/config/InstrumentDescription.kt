@@ -1,26 +1,51 @@
+/*
+ * Copyright 2024 Mark C. Chu-Carroll
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.goodmath.chalumier.config
 
 import java.io.Reader
 import java.io.StreamTokenizer
 
-/* Rough grammar
-file: IDENT object
-object:  "{"  field+ "}"
-field: IDENT "="  value
-value: string | double | int | array | object | none
-array: "[" value(,) "]"
-comment: # ......
+/*
+ * What's going on here is that I was really unhappy with the way
+ * that Json and its variations were working as a configuration/description
+ * language for Chalumier instruments.
+ *
+ * So being a nerd, I wrote my own. It's similar to something like
+ * JSon5, except that it's deeply hooked into the Chalumier
+ * configuration parameter scheme, and it's capable of generating
+ * less hostile error messages.
+ *
+ * ## Rough grammar
+ *
+ * ```
+ *  file ::= IDENT object
+ *  object ::=  "{"  field+ "}"
+ *  field ::=  IDENT "="  value
+ *  value ::= string | double | int | array | object | none | true | false
+ *  array: "[" (value (, value)*)? "]"
+ *  comment: # ......
  */
 
-class DescriptionParseException(msg: String, line: Int) : Exception("$msg at $line")
+class DescriptionParseException(msg: String, line: Int) : Exception("Error in instrument description at line $line: $msg")
 
-class InstrumentDescription(val name: String, val values: Map<String, Any>) {
+class InstrumentDescription(val name: String, val values: Map<String, Any?>)
 
-}
-
-class DescriptionParser(val input: Reader) {
-  val tokenizer = setupTokenizer()
-  fun setupTokenizer(): StreamTokenizer {
+class DescriptionParser(private val input: Reader) {
+  private val tokenizer = setupTokenizer()
+  private fun setupTokenizer(): StreamTokenizer {
       val t = StreamTokenizer(input).also {
           it.commentChar('#'.code)
           it.eolIsSignificant(false)
@@ -44,17 +69,20 @@ class DescriptionParser(val input: Reader) {
     TStr,
     TComma,
     TEq,
-    TLBrack,
-    TRBrack,
+    TLBracket,
+    TRBracket,
     TLCurly,
     TRCurly,
     TEof
   }
 
-  var currentTokenType: TokenType = TokenType.TEof
-  var tokStr: String? = null
-  var tokNum: Double? = null
-  fun nextToken(): TokenType {
+  private var currentTokenType: TokenType = TokenType.TEof
+
+  private var tokStr: String? = null
+
+  private var tokNum: Double? = null
+
+  private fun nextToken(): TokenType {
     val t = tokenizer.nextToken()
     currentTokenType = when (t) {
       StreamTokenizer.TT_EOF -> {
@@ -80,12 +108,12 @@ class DescriptionParser(val input: Reader) {
       '['.code -> {
         tokStr = "["
         tokNum = null
-        TokenType.TLBrack
+        TokenType.TLBracket
       }
       ']'.code -> {
         tokStr = "]"
         tokNum = null
-        TokenType.TRBrack
+        TokenType.TRBracket
       }
       '{'.code -> {
         tokStr = "{"
@@ -107,14 +135,15 @@ class DescriptionParser(val input: Reader) {
         tokNum = null
         TokenType.TEq
       }
-      else -> throw DescriptionParseException("Unknown token type ${t}", tokenizer.lineno())
+      else -> throw DescriptionParseException("Unknown token type $t", tokenizer.lineno())
     }
     return currentTokenType
   }
 
-  fun expect(t: TokenType) {
+  @Throws(DescriptionParseException::class)
+  private fun expect(t: TokenType) {
     if (currentTokenType != t) {
-      throw DescriptionParseException("Expected a ${t}, but found ${currentTokenType}",
+      throw DescriptionParseException("Expected a $t, but found $currentTokenType",
         tokenizer.lineno())
     }
   }
@@ -130,46 +159,42 @@ class DescriptionParser(val input: Reader) {
     return InstrumentDescription(name, body)
   }
 
-  fun parseField(): Pair<String, Any> {
-    expect(TokenType.TIdent)
-    val name = tokStr!!
-    nextToken()
-    expect(TokenType.TEq)
-    nextToken()
-    val v = parseValue()
-    return Pair(name, v)
-  }
-
-  fun parseValue(): Any {
+  private fun parseValue(): Any? {
     return when(currentTokenType) {
       TokenType.TStr -> tokStr!!
-      TokenType.TIdent -> tokStr!!
+      TokenType.TIdent -> {
+        val s = tokStr!!
+        if (s == "null") {
+          null
+        } else {
+          s
+        }
+      }
       TokenType.TNumber -> tokNum!!
-      TokenType.TLBrack -> parseList()
+      TokenType.TLBracket -> parseList()
       TokenType.TLCurly -> parseObject()
-      else -> throw DescriptionParseException("Expected a value, but found ${currentTokenType}",
+      else -> throw DescriptionParseException("Expected a value, but found $currentTokenType",
         tokenizer.lineno())
     }
   }
 
-  fun parseList(): List<Any> {
+  private fun parseList(): List<Any?> {
     nextToken()
-    if (currentTokenType == TokenType.TRBrack) {
-      nextToken()
+    if (currentTokenType == TokenType.TRBracket) {
       return emptyList()
     }
-    val result = ArrayList<Any>()
+    val result = ArrayList<Any?>()
     do {
       val v = parseValue()
       result.add(v)
       nextToken()
     } while ((currentTokenType == TokenType.TComma).also { if(it) { nextToken() } })
-    expect(TokenType.TRBrack)
+    expect(TokenType.TRBracket)
     return result
   }
 
-  fun parseObject(): Map<String, Any> {
-    val result = HashMap<String, Any>()
+  private fun parseObject(): Map<String, Any?> {
+    val result = HashMap<String, Any?>()
     nextToken()
     if (currentTokenType == TokenType.TRCurly) {
       return result

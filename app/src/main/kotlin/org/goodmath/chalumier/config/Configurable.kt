@@ -46,7 +46,7 @@ import java.nio.file.Path
  *
  */
 abstract class Configurable<T: Configurable<T>>(open val instrumentName: String) {
-    val configParameters = HashMap<String, ConfigParameter<T, *>>()
+    private val configParameters = HashMap<String, ConfigParameter<T, *>>()
 
     fun listConfigParameters(): List<Pair<String, String>> {
         return configParameters.map { (k, v) ->
@@ -54,7 +54,7 @@ abstract class Configurable<T: Configurable<T>>(open val instrumentName: String)
         }
     }
 
-    fun getConfigParameterByName(name: String): ConfigParameter<T, *>? {
+    private fun getConfigParameterByName(name: String): ConfigParameter<T, *>? {
         return configParameters[name]
     }
 
@@ -62,7 +62,7 @@ abstract class Configurable<T: Configurable<T>>(open val instrumentName: String)
         configParameters[name] = option
     }
 
-    fun getConfigParameterKind(name: String): ParameterKind<*>? {
+    private fun getConfigParameterKind(name: String): ParameterKind<*>? {
         return getConfigParameterByName(name)?.kind
     }
 
@@ -72,7 +72,7 @@ abstract class Configurable<T: Configurable<T>>(open val instrumentName: String)
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun <V> setConfigParameterValue(name: String, value: V) {
+    private fun <V> setConfigParameterValue(name: String, value: V) {
         val opt = configParameters[name] as? ConfigParameter<T, V>
         if (opt != null) {
             opt.set(value)
@@ -88,7 +88,7 @@ abstract class Configurable<T: Configurable<T>>(open val instrumentName: String)
         prettyPrintIndent = " "
     }
 
-    fun toJsonString(): String {
+    private fun toJsonString(): String {
         val js = toJson()
         val out = js.toString()
         val pr = prettyJson.parseToJsonElement(out)
@@ -165,7 +165,7 @@ abstract class Configurable<T: Configurable<T>>(open val instrumentName: String)
                 System.err.println("Configuration contained unknown key ${k}; skipping")
             } else {
                 if (!param.setChecking(v)) {
-                    System.err.println("Configuration expected a value of type ${param.kind.name} for ${k}, but found ${v}")
+                    System.err.println("Configuration expected a value of type ${param.kind.name} for $k, but found $v")
                 }
             }
         }

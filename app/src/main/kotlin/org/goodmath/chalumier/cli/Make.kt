@@ -15,7 +15,6 @@
  */
 package org.goodmath.chalumier.cli
 
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.path
@@ -23,20 +22,17 @@ import com.github.ajalt.mordant.animation.animation
 import com.github.ajalt.mordant.animation.progress.advance
 import com.github.ajalt.mordant.animation.progress.animateOnThread
 import com.github.ajalt.mordant.animation.progress.execute
-import com.github.ajalt.mordant.rendering.TextColors
 import com.github.ajalt.mordant.terminal.Terminal
 import com.github.ajalt.mordant.widgets.Text
 import com.github.ajalt.mordant.widgets.Viewport
 import com.github.ajalt.mordant.widgets.progress.*
-import com.github.ajalt.mordant.widgets.progressLayout
-import java.awt.Color.magenta
 
 import kotlin.concurrent.thread
 
 class Make: ChalumierCommand(name = "make", help="Generate an STL model of an instrument") {
-    val workDir by option("--workdir", help="The directory to use  for saving files").path(mustExist = false).required()
-    val desc by option("--description-file", help="The path to the description file used by the generator to produce the model").path(mustExist = true).required()
-    val spec by option("--model-file", help="The path to a file containing a generated model from the designer").path(mustExist = true).required()
+    private val workDir by option("--workdir", help="The directory to use  for saving files").path(mustExist = false).required()
+    private val desc by option("--description-file", help="The path to the description file used by the generator to produce the model").path(mustExist = true).required()
+    private val spec by option("--model-file", help="The path to a file containing a generated model from the designer").path(mustExist = true).required()
     override fun run() {
         val designer = builder.getDesigner(desc, workDir)
         val maker =  designer.getInstrumentMaker(spec)
@@ -65,7 +61,7 @@ class Make: ChalumierCommand(name = "make", help="Generate an STL model of an in
             term.cursor.move {
                 setPosition(0, height-5)
             }
-            text = text + s
+            text += s
             transcript.update(text)
         }
         val th = thread {

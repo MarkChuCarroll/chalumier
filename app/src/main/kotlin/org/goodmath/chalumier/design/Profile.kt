@@ -16,14 +16,8 @@
 package org.goodmath.chalumier.design
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import org.goodmath.chalumier.config.ListOfDoubleParameterKind
-import org.goodmath.chalumier.config.ParameterKind
-import org.goodmath.chalumier.errors.ChalumierException
-import org.goodmath.chalumier.errors.ConfigurationParameterException
+import org.goodmath.chalumier.design.instruments.dup
+import org.goodmath.chalumier.util.fromEnd
 import kotlin.math.*
 
 /*
@@ -56,7 +50,7 @@ fun List<Double>.bisect(target: Double): Int {
 
 /**
  * In addition to the diameters of its segments, a profile can
- * have a _direction" parameter. I'm interpreting that as an angle
+ * have a _direction_ parameter. I'm interpreting that as an angle
  * that describes how the transitions between segments are shaped.
  *
  * In python, these "angle" specs are characterized by:
@@ -75,27 +69,11 @@ fun List<Double>.bisect(target: Double): Int {
  * The index isn't included, because it's contextual - it's not a fixed value,
  * but rather a connection to how the angle is placed into a list.
  */
-class Angle(val dir: AngleDirection, val v: Double? = null) {
+data class Angle(val dir: AngleDirection, val v: Double? = null) {
     enum class AngleDirection {
         Here, Mean, Up, Down
     }
-
-    fun interpret(i: Int, a: List<Double>): Double {
-        return when (dir) {
-            AngleDirection.Mean -> (a[i - 1] + a[i]) * 0.5
-
-            AngleDirection.Up -> a[i]
-
-            AngleDirection.Down -> a[i - 1]
-
-            AngleDirection.Here -> if (v == null) {
-                throw ChalumierException("Invalid angle: value of here-angle must be non-null")
-            } else {
-                v * PI / 180
-            }
-        }
-    }
-}
+ }
 
 /**
  * The solve function returns a three-tuple. Kotlin represents that
@@ -115,7 +93,11 @@ data class Solution(val t1: Double, val t2: Double, val mirror: Boolean)
  * @param high the diameter at the top of the segment.
  */
 @Serializable
-data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val high: ArrayList<Double> = low) {
+data class Profile(val pos: List<Double>, val low: List<Double>, val high: List<Double> = low) {
+
+    fun dup(): Profile {
+        return Profile(pos.dup(), low.dup(), high.dup())
+    }
 
     /**
      * Compute the diameter of the profile at a location.
@@ -128,10 +110,10 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
         }
         val i = pos.bisect(location)
         if (pos[i] == location) {
-            if (useHigh) {
-                return high[i]
+            return if (useHigh) {
+                high[i]
             } else {
-                return low[i]
+                low[i]
             }
         }
         val t = (location - pos[i - 1]) / (pos[i] - pos[i - 1])
@@ -149,7 +131,7 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
      *
      * ph: Fairly dumb way to combine profiles. Won't work perfectly for min, max.
      */
-    fun morph(other: Profile, op: (Double, Double) -> Double): Profile {
+    private fun morph(other: Profile, op: (Double, Double) -> Double): Profile {
         val combinedPos = ArrayList((pos + other.pos).sorted())
         val combinedLow = ArrayList(combinedPos.map { p -> op(this(p, false), other(p, false)) }.toMutableList())
 
@@ -157,15 +139,13 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
         return Profile(combinedPos, combinedLow, combinedHigh)
     }
 
-    fun morph(other: Double, op: (Double, Double) -> Double): Profile {
+    private fun morph(other: Double, op: (Double, Double) -> Double): Profile {
         val otherProfile = Profile(arrayListOf(0.0), arrayListOf(other), arrayListOf(other))
         return morph(otherProfile, op)
     }
 
 
     fun maxWith(other: Profile): Profile = morph(other) { a, b -> max(a, b) }
-
-    fun minWith(other: Profile): Profile = morph(other) { a, b -> min(a, b) }
 
     operator fun plus(other: Profile): Profile = morph(other) { a, b -> a + b }
 
@@ -185,11 +165,12 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
         val clHigh = arrayListOf(this(start, true))
 
         pos.forEachIndexed { position: Int, value: Double ->
-            if (!(position < start || position > end)) {
-                clPos.add(end)
+            if (!(value <= start || value >= end)) {
+                clPos.add(value)
                 clLow.add(low[position])
                 clHigh.add(high[position])
             }
+
         }
         clPos.add(end)
         clLow.add(this(end, false))
@@ -217,21 +198,25 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
     }
 
     fun asStepped(maxStep: Double): Profile {
-        val stepPositions = ArrayList<Double>()
+        val newPos = ArrayList<Double>()
+
         for (i in 0 until pos.size - 1) {
-            stepPositions.add(pos[i])
-            val numberOfSteps = ((low[i+1] - high[i]).absoluteValue / maxStep).toInt() + 1
-            if (numberOfSteps != 0) {
-                stepPositions.addAll((1 until numberOfSteps).map { j -> (pos[i+1] - pos[i]) * j / numberOfSteps + pos[i] })
+            newPos.add(pos[i])
+            val ax = pos[i]
+            val ay = high[i]
+            val bx = pos[i + 1]
+            val by = low[i + 1]
+            val n = ((by - ay).absoluteValue / maxStep).toInt() + 1
+            if (n == 0) {
+                continue
             }
+            newPos.addAll((1 until n).map { j -> (bx - ax) * j.toDouble() / n + ax })
         }
-        stepPositions.add(pos.last())
-        val diams = (0 until (stepPositions.size - 1)).map { i ->
-            this(0.5 * (stepPositions[i] + stepPositions[i + 1]))
-        }
-        val newLow = ArrayList(listOf(diams[0]) + diams)
-        val newHigh = ArrayList(diams + listOf(diams.last()))
-        return Profile(stepPositions, newLow, newHigh)
+        newPos.add(pos.fromEnd(1))
+        val newDiams = (0 until newPos.size- 1 ).map { i -> this(0.5*(newPos[i] + newPos[i+1])) }
+        val newLow = ArrayList(listOf(newDiams[0])+ newDiams)
+        val newHigh = ArrayList(newDiams + listOf(newDiams.fromEnd(1)))
+        return Profile(newPos, newLow, newHigh)
     }
 
     companion object {
@@ -241,7 +226,7 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
          * It's some segment of the cornu/clothoid curve as a transition
          * between profile segments, but beyond that? No clue.
          */
-        fun solve(a1: Double, a2: Double): Solution {
+        private fun solve(a1: Double, a2: Double): Solution {
             fun score(t1: Double, t2: Double, mirror: Boolean): Double {
                 if (abs(t1 - t2) < 1e-6 || max(abs(t1), abs(t2)) > PI * 10.0) {
                     return 1e30
@@ -249,7 +234,6 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
                 val (y1, x1) = cornuYx(t1, mirror)
                 val (y2, x2) = cornuYx(t2, mirror)
                 val chordA = atan2(y2 - y1, x2 - x1)
-                val chordL = distance(y2 - y1, x2 - x1)
                 var thisA1 = abs(t1)  // ph: t1*t1
                 var thisA2 = abs(t2) // ph: #t2*t2
                 if (mirror) {
@@ -267,9 +251,9 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
 
             var s: Double? = null
             val n = 2
-            var t1: Double = 0.0
-            var t2: Double = 0.0
-            var mirror: Boolean = false
+            var t1 = 0.0
+            var t2 = 0.0
+            var mirror = false
             for (newMirror in listOf(false, true)) {
                 for (i in -n..n) {
                     for (j in -n..n) {
@@ -288,10 +272,10 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
             var step: Double = PI * n * 0.5
             while (step >= 1e-4) {
                 for ((newT1, newT2) in listOf(
-                    Pair<Double, Double>(t1 + step, t2 + step),
-                    Pair<Double, Double>(t1 - step, t2 - step),
-                    Pair<Double, Double>(t1 - step, t2 + step),
-                    Pair<Double, Double>(t1 + step, t2 - step)
+                    Pair(t1 + step, t2 + step),
+                    Pair(t1 - step, t2 - step),
+                    Pair(t1 - step, t2 + step),
+                    Pair(t1 + step, t2 - step)
                 )) {
                     val newS = score(newT1, newT2, mirror)
                     val t = s!!
@@ -325,11 +309,23 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
                 val y2 = low[i + 1] * 0.5
                 a.add((atan2(y2 - y1, x2 - x1) + PI) % (PI * 2) - PI)
             }
-            val interpretedLowAngle = lowAngle.mapIndexed { i, angle ->
-                angle?.interpret(i, a)
+            fun interpret(idx: Int, value: Angle?): Double? {
+                return if (value == null) {
+                    null
+                } else if (value.dir == Angle.AngleDirection.Mean) {
+                    (a[idx - 1] + a[idx]) * 0.5
+                } else if (value.dir == Angle.AngleDirection.Up) {
+                    a[idx]
+                } else if (value.dir == Angle.AngleDirection.Down) {
+                    a[idx - 1]
+                } else {
+                    value.v!! * PI / 180
+                }
             }
-            val interpretedHighAngle = highAngle.mapIndexed { i, angle -> angle?.interpret(i, a) }
-
+            val interpretedLowAngle = lowAngle.mapIndexed { i, angle ->
+                interpret(i, angle)
+            }
+            val interpretedHighAngle = highAngle.mapIndexed { i, angle -> interpret(i, angle) }
             val ppos = ArrayList<Double>()
             val plow = ArrayList<Double>()
             val phigh = ArrayList<Double>()
@@ -339,26 +335,26 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
                 plow.add(low[i])
                 phigh.add(high[i])
                 val x1 = pos[i]
-                val y1 = high[i]
+                val y1 = high[i] * 0.5
                 val x2 = pos[i + 1]
-                val y2 = low[i + 1]
+                val y2 = low[i + 1] * 0.5
                 val l = distance(x2 - x1, y2 - y1)
                 val ang = atan2(y2 - y1, x2 - x1)
                 val a1 = interpretedHighAngle[i]?.let { ha -> ha - ang } ?: 0.0
                 val a2 = interpretedLowAngle[i + 1]?.let { la -> la - ang } ?: 0.0
-                if ((a1 - a2).absoluteValue < PI * quality) {
+                if ((a1 - a2).absoluteValue < PI * 2 / quality) {
                     continue
                 }
                 val (t1, t2, mirror) = solve(a1, a2)
                 val (cy1, cx1) = cornuYx(t1, mirror)
                 val (cy2, cx2) = cornuYx(t2, mirror)
-                val cl = distance(cy2 - cy1, cx2 - cx1).absoluteValue
-                if (cl < 1e-10) {
+                val cl = distance(cy2 - cy1, cx2 - cx1)
+                if (cl.absoluteValue < 1e-10) {
                     continue
                 }
                 val ca = atan2(cy2 - cy1, cx2 - cx1)
-                val steps = ((t2 - t1).absoluteValue / PI * quality).toInt()
-                repeat((1 until steps).count()) {
+                val steps = ((t2 - t1).absoluteValue / (PI * 2 * quality)).toInt()
+                repeat(steps) {
                     val t = t1 + i * (t2 - t1) / steps
                     val (yy, xx) = cornuYx(t, mirror)
                     val aa = atan2(yy - cy1, xx - cx1)
@@ -382,9 +378,9 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
             val low = ArrayList<Double>()
             val high = ArrayList<Double>()
             for (item in spec) {
-                var thisPos = 0.0
-                var thisLow = 0.0
-                var thisHigh = 0.0
+                var thisPos: Double
+                var thisLow: Double
+                var thisHigh: Double
                 if (item.size == 2) {
                     thisPos = item[0]
                     thisLow = item[1]
@@ -403,31 +399,3 @@ data class Profile(val pos: ArrayList<Double>, val low: ArrayList<Double>, val h
     }
 }
 
-object ProfileParameterKind: ParameterKind<Profile> {
-    override val name: String = "Profile"
-
-    override fun checkValue(v: Any?): Boolean {
-        return v != null && v is Profile
-    }
-
-    override fun load(p: JsonElement): Profile? {
-        if (p == JsonNull) { return null }
-        if (p !is JsonObject) {
-            throw ConfigurationParameterException("Parameter of type ${name} Expected a json object,  found '$p'")
-        }
-        val posStr = p["pos"] ?:  throw ConfigurationParameterException("Parameter of type ${name} expected a pos field,  found null")
-        val pos = ListOfDoubleParameterKind.load(posStr)
-        val low = ListOfDoubleParameterKind.load(p["low"] ?:  throw ConfigurationParameterException("Parameter of type ${name} expected a low field,  found null"))
-        val high = ListOfDoubleParameterKind.load(p["high"] ?: throw ConfigurationParameterException("Parameter of type ${name} expected a high field,  found null"))
-        return Profile(pos!!, low!!, high!!)
-    }
-
-    override fun dump(t: Profile?): JsonElement {
-        if (t == null) { return JsonNull }
-        return buildJsonObject {
-            put("pos", ListOfDoubleParameterKind.dump(t.pos))
-            put("low", ListOfDoubleParameterKind.dump(t.low))
-            put("high", ListOfDoubleParameterKind.dump(t.high))
-        }
-    }
-}

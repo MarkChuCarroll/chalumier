@@ -65,7 +65,7 @@ open class SBasis<T>(b: List<Linear<T>>, val math: Math<T>) {
         var p = s
         (1..basis.size).forEach { i ->
             result = math.plus(result, math.times(basis[i].invoke(d), p))
-            p = p * s
+            p *= s
         }
         return result
     }
@@ -75,16 +75,16 @@ open class SBasis<T>(b: List<Linear<T>>, val math: Math<T>) {
     }
 
     fun <U, V> scaled(factor: U, tuvBridge: MathBridge<T, U, V>): SBasis<V> {
-        return SBasis<V>(basis.map { it.times(factor, tuvBridge) }.toMutableList(), tuvBridge.prodMath)
+        return SBasis(basis.map { it.times(factor, tuvBridge) }.toMutableList(), tuvBridge.prodMath)
     }
 
 
     fun shifted(i: Int): SBasis<T> {
-        return SBasis<T>((listOf(basis[0].times(math.zero)).repeat(i) + basis), math)
+        return SBasis((listOf(basis[0].times(math.zero)).repeat(i) + basis), math)
     }
 
     fun truncated(n: Int): SBasis<T> {
-        return SBasis<T>(basis.slice(0 until n), math)
+        return SBasis(basis.slice(0 until n), math)
     }
 
     fun <U> compat(other: SBasis<U>): Triple<Int, SBasis<T>, SBasis<U>> {
@@ -92,12 +92,12 @@ open class SBasis<T>(b: List<Linear<T>>, val math: Math<T>) {
         val normalizedThis = if (len() < size) {
             //  self = type(other)(tuple(self) + (self[0]*0,)*(size-len(self)))
             val x = listOf(this[0].times(math.zero)).repeat(size - len())
-            SBasis<T>(basis + listOf(this[0].times(math.zero)).repeat(size - len()), math)
+            SBasis(basis + listOf(this[0].times(math.zero)).repeat(size - len()), math)
         } else {
             this
         }
         val normalizedOther = if (other.len() < size) {
-            SBasis<U>(other.basis + listOf(other[0].times(other.math.zero)).repeat(size - other.len()), other.math)
+            SBasis(other.basis + listOf(other[0].times(other.math.zero)).repeat(size - other.len()), other.math)
         } else {
             other
         }
@@ -106,12 +106,12 @@ open class SBasis<T>(b: List<Linear<T>>, val math: Math<T>) {
 
     fun <U, V> plus(other: SBasis<U>, tuvBridge: MathBridge<T, U, V>): SBasis<V> {
         val (size, nThis, nOther) = compat(other)
-        return SBasis<V>((0 until size).map { i: Int -> nThis[i].plus(nOther[i], tuvBridge) }, tuvBridge.prodMath)
+        return SBasis((0 until size).map { i: Int -> nThis[i].plus(nOther[i], tuvBridge) }, tuvBridge.prodMath)
     }
 
     fun <U, V> minus(other: SBasis<U>, tuvBridge: MathBridge<T, U, V>): SBasis<V> {
         val (size, self, o) = compat(other)
-        return SBasis<V>((0 until size).map { i -> self.basis[i].minus(o.basis[i], tuvBridge) }, tuvBridge.prodMath)
+        return SBasis((0 until size).map { i -> self.basis[i].minus(o.basis[i], tuvBridge) }, tuvBridge.prodMath)
     }
 
 
@@ -316,12 +316,12 @@ open class SBasis<T>(b: List<Linear<T>>, val math: Math<T>) {
             // ph: current = score(result)
 
             // ph: Legendre polynomials
-            val X = IDENTITY(math).scaled(2.0, tdt).minus(ONE(math), ttt)
-            val basis = mutableListOf(ONE(math), X)
+            val x = IDENTITY(math).scaled(2.0, tdt).minus(ONE(math), ttt)
+            val basis = mutableListOf(ONE(math), x)
             while (basis.size < k * 2) {
                 val n = basis.size
                 basis.add(
-                    basis.fromEnd(1).times(X, ttt).scaled((2.0 * n.toDouble() + 1.0) / (n.toDouble() + 1.0), tdt)
+                    basis.fromEnd(1).times(x, ttt).scaled((2.0 * n.toDouble() + 1.0) / (n.toDouble() + 1.0), tdt)
                         .minus(basis.fromEnd(2).scaled(n.toDouble() / (n.toDouble() + 1.0), tdt), ttt)
                 )
             }

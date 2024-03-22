@@ -13,12 +13,17 @@ object StringParameterKind: ParameterKind<String> {
     }
 
     override fun load(t: JsonElement): String? {
-        return if (t == JsonNull) {
-            null
-        } else if (t is JsonPrimitive) {
-            t.content
-        } else {
-            throw ConfigurationParameterException("Parameter expected a string, but found ${t}")
+        return when (t) {
+            JsonNull -> {
+                null
+            }
+            is JsonPrimitive -> {
+                t.content
+            }
+
+            else -> {
+                throw ConfigurationParameterException("Parameter expected a string, but found '$t'")
+            }
         }
     }
 
@@ -27,15 +32,12 @@ object StringParameterKind: ParameterKind<String> {
     }
 }
 
-
-val OptStringParameterKind = opt(StringParameterKind)
-
 fun<T: Configurable<T>> StringParameter(help: String="", gen: (T) -> String): ConfigParameter<T, String> {
-    return ConfigParameter<T, String>(StringParameterKind, help, gen=gen)
+    return ConfigParameter(StringParameterKind, help, gen=gen)
 }
 
 
 fun<T: Configurable<T>> OptStringParameter(help: String="", gen: (T) -> String?): ConfigParameter<T,String?> {
-    return ConfigParameter<T, String?>(opt(StringParameterKind), help, gen=gen)
+    return ConfigParameter(opt(StringParameterKind), help, gen=gen)
 }
 

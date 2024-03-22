@@ -23,7 +23,7 @@ fun dAssert(v: Boolean, msg: String) {
 
 open class ChalumierException(msg: String, cause: Throwable? = null) : Exception(msg, cause)
 class RequiredParameterException(name: String, msg: String = "is a required parameter") :
-    ChalumierException("${name} ${msg}")
+    ChalumierException("$name $msg")
 
-class ConfigurationParameterException(error: String): ChalumierException("Config error: ${error}")
+class ConfigurationParameterException(error: String): ChalumierException("Config error: $error")
 class AssertionException(msg: String) : ChalumierException(msg)

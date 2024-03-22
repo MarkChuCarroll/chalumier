@@ -15,28 +15,20 @@
  */
 package org.goodmath.chalumier.cli
 
-import kotlinx.serialization.ExperimentalSerializationApi
-import org.goodmath.chalumier.config.InstrumentDescription
 import org.goodmath.chalumier.config.DescriptionParser
 import org.goodmath.chalumier.design.InstrumentDesigner
 import org.goodmath.chalumier.errors.ChalumierException
 import java.nio.file.Path
 import kotlin.io.path.reader
 
-@OptIn(ExperimentalSerializationApi::class)
-class InstrumentDesignerFactory(val templates: Map<String, (name: String, outputDir: Path) -> InstrumentDesigner<*>>) {
+class InstrumentDesignerFactory(private val templates: Map<String,
+            (name: String, outputDir: Path) -> InstrumentDesigner<*>>) {
 
     fun getDesigner(descriptionFile: Path, outputDir: Path): InstrumentDesigner<*> {
         val desc = DescriptionParser(descriptionFile.reader()).parseConfig()
-        val designer = templates[desc.name]!!(desc.name, outputDir)
+        val template = templates[desc.name] ?: throw ChalumierException("Unknown instrument type ${desc.name}. Supported instruments are ${templates.keys}")
+        val designer = template(desc.name, outputDir)
         designer.updateFromConfig(desc)
-        return designer
-    }
-
-    fun getDesigner(spec: InstrumentDescription, dir: Path): InstrumentDesigner<*> {
-        val baseTemplate = templates[spec.name] ?: throw ChalumierException("Unknown instrument type ${spec.name}")
-        val designer = baseTemplate(spec.name, dir)
-        designer.updateFromConfig(spec)
         return designer
     }
 

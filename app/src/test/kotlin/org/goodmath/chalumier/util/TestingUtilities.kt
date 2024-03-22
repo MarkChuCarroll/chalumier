@@ -26,3 +26,16 @@ fun assertFloatListEquals(expected: List<Double>, actual: List<Double>, delta: D
         )
     }
 }
+
+fun assertOptFloatListEquals(expected: List<Double?>, actual: List<Double?>, delta: Double, description: String) {
+    assertEquals(expected.size, actual.size)
+    (0 until actual.size).forEach { i ->
+        val expI = expected[i]
+        val actI = actual[i]
+        assert((expI == null && actI == null ) || (expI != null && actI != null))
+        if (expI == null || actI == null) { return }
+        assertEquals(expI, actI, delta,
+            "${description}[${i}] was incorrect"
+        )
+    }
+}

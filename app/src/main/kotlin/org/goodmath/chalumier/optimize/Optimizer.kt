@@ -58,23 +58,12 @@ class Optimizer(
     private var parameterSetUpdateCount = 0
     private var constraintSatisfactionCount = 0
     private var iterations = 0
-    private val maxCandidates = initialDesignParameters.size * 2
+    private val maxCandidates = initialDesignParameters.size * 5
     private var initialSpans: Pair<Double, Double> = Pair(Double.NaN, Double.NaN)
 
-    private val colorSequence =listOf(TextColors.brightRed, TextColors.brightYellow, TextColors.brightMagenta, TextColors.brightBlue, TextColors.brightGreen)
-    private val term = Terminal()
-    private val height = term.info.height
-
-
-    private fun color(current: Double, orig: Double): TextStyle {
-        if (orig.isNaN()) {
-            return TextColors.brightYellow
-        }
-        val curLog = log10(current).roundToInt()
-        val origLog = log10(orig).roundToInt()
-        return  colorSequence[abs(origLog - curLog) % colorSequence.size]
+    companion object {
+        val progress = ProgressDisplay(10)
     }
-
 
     /**
      * Bump the iteration count, and if the reporting interval has elapsed,
@@ -87,96 +76,9 @@ class Optimizer(
         iterations++
         val now = System.currentTimeMillis()
         if (now - lastReport > reportingInterval) {
-            val iSpan = color(lastIntonationSpan, initialSpans.first)("I%.6f".format(lastIntonationSpan))
-            val pSpan = color(lastParameterSpan, initialSpans.second)("P%.6f".format(lastParameterSpan))
-            val formattedSpans = "$iSpan / $pSpan"
-            val iterCount = TextColors.brightCyan("[[${fmtIterations(iterations)}]]")
-            val scoreText = if (best.score.constraintScore > 0) {
-                TextColors.brightRed(best.score.toString())
-            } else {
-                TextColors.brightGreen(best.score.toString())
-            }
-
-            term.cursor.move {
-                setPosition(0, height - 6)
-                startOfLine()
-                clearScreenAfterCursor()
-            }
-            echo(table {
-                borderType = BorderType.SQUARE
-                borderStyle = rgb("#4b25b9")
-                align = TextAlign.CENTER
-                tableBorders = Borders.ALL
-                column(0) {
-                    width = ColumnWidth.Fixed(12)
-                }
-                column(1) {
-                    width = ColumnWidth.Fixed(12)
-                }
-                column(2) {
-                    width = ColumnWidth.Fixed(12)
-                }
-                column(3) {
-                    width = ColumnWidth.Fixed(8)
-                }
-                column(4) {
-                    width = ColumnWidth.Fixed(8)
-                }
-                column(5) {
-                    width = ColumnWidth.Fixed(25)
-                }
-
-                header {
-                    style = TextColors.brightBlue + TextStyles.bold
-                    row {
-                        cellBorders = Borders.NONE
-                        cell("Iterations")
-                        cell("Best")
-                        cell("Max")
-                        cell("Updates")
-                        cell("Satisfactory")
-                        cell("Spans")
-                    }
-                }
-                body {
-                    style = TextColors.green
-                    column(0) {
-                        align = TextAlign.RIGHT
-                        cellBorders = Borders.ALL
-                        style = TextColors.brightBlue + TextStyles.bold
-                    }
-                    column(1) {
-                        cellBorders = Borders.ALL
-                        align = TextAlign.RIGHT
-                        style = TextColors.brightBlue
-                    }
-                    column(2) {
-                        align = TextAlign.RIGHT
-                        cellBorders = Borders.ALL
-                        style = TextColors.brightBlue
-                    }
-                    column(3) {
-                        align = TextAlign.RIGHT
-                        cellBorders = Borders.ALL
-                        style = TextColors.brightBlue
-                    }
-                    column(4) {
-                        align = TextAlign.RIGHT
-                        cellBorders = Borders.ALL
-                        style = TextColors.brightBlue
-                    }
-                    column(5) {
-                        align = TextAlign.CENTER
-                        cellBorders = Borders.ALL
-                        style = TextColors.brightBlue
-                    }
-                    row(
-                        iterCount, scoreText, candidates.maxOfOrNull { it.score }, parameterSetUpdateCount,
-                        constraintSatisfactionCount, formattedSpans
-                    )
-                }
-            })
-
+            progress.updateStats(iterations, candidates.size, best.score,
+                candidates.map { it.score }.max(),lastIntonationSpan,
+                lastParameterSpan, parameterSetUpdateCount, constraintSatisfactionCount )
             lastReport = now
             if (best.score.constraintScore == 0.0) {
                 monitor(best, candidates.map { it.parameters })
@@ -292,17 +194,13 @@ class Optimizer(
     }
 
 
-    fun optimizeInstrument(frequencyTolerance: Double = 1e-5,
-                           parameterSpanTolerance: Double = 1e-4): DesignParameters {
-
+    fun optimizeInstrument(frequencyTolerance: Double = 1e-6,
+                           parameterSpanTolerance: Double = 1e-6): DesignParameters {
+        progress.initialISpan = initialSpans.first
+        progress.initialPSpan = initialSpans.second
         computePool.start()
         candidates = arrayListOf(best)
 
-        term.cursor.move {
-            setPosition(0, height-7)
-            clearScreenAfterCursor()
-        }
-        echo(TextColors.brightMagenta("Chalumier Optimizer: analyzing instrument design for $instrumentName"))
         while (!computePool.isDone() || computePool.hasAvailableResults()) {
             periodicallyReportStatus()
 

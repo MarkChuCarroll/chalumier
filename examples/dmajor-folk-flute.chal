@@ -1,13 +1,12 @@
-{
-    name: "EMinorFlute",
-    instrumentType: "folkFlute",
-    rootNote: "E4",
-    numberOfHoles: 8,
-    fingerings: [
+# A standard D-major six-hole flute.
+folkFlute {
+    name= "D-MajorFlute",
+    rootNote= "D4",
+    numberOfHoles= 7,
+    fingerings= [
         {
-            noteName: "E4",
-            fingers: [
-                "X",
+            noteName= "D4",
+            fingers= [
                 "X",
                 "X",
                 "X",
@@ -18,22 +17,8 @@
             ]
         },
         {
-            noteName: "F#4",
-            fingers: [
-                "O",
-                "X",
-                "X",
-                "X",
-                "X",
-                "X",
-                "X",
-                "O"
-            ]
-        },
-        {
-            noteName: "G4",
-            fingers: [
-                "O",
+            noteName= "E4",
+            fingers= [
                 "O",
                 "X",
                 "X",
@@ -44,126 +29,8 @@
             ]
         },
         {
-            noteName: "G#4",
-            fingers: [
-                "O",
-                "O",
-                "O",
-                "X",
-                "X",
-                "X",
-                "X",
-                "O"
-            ]
-        },
-        {
-            noteName: "A4",
-            fingers: [
-                "O",
-                "O",
-                "O",
-                "O",
-                "X",
-                "X",
-                "X",
-                "O"
-            ]
-        },
-        {
-            noteName: "B4",
-            fingers: [
-                "O",
-                "O",
-                "O",
-                "O",
-                "O",
-                "X",
-                "X",
-                "O"
-            ]
-        },
-        {
-            noteName: "C5",
-            fingers: [
-                "O",
-                "O",
-                "O",
-                "O",
-                "O",
-                "O",
-                "X",
-                "O"
-            ]
-        },
-        {
-            noteName: "C#5",
-            fingers: [
-                "O",
-                "O",
-                "O",
-                "X",
-                "X",
-                "X",
-                "O",
-                "O"
-            ]
-        },
-        {
-            noteName: "D5",
-            fingers: [
-                "O",
-                "O",
-                "O",
-                "O",
-                "O",
-                "O",
-                "O",
-                "O"
-            ]
-        },
-        {
-            noteName: "E5",
-            fingers: [
-                "X",
-                "X",
-                "X",
-                "X",
-                "X",
-                "X",
-                "X",
-                "O"
-            ]
-        },
-        {
-            noteName: "F#5",
-            fingers: [
-                "O",
-                "X",
-                "X",
-                "X",
-                "X",
-                "X",
-                "X",
-                "O"
-            ]
-        },
-        {
-            noteName: "G5",
-            fingers: [
-                "O",
-                "O",
-                "X",
-                "X",
-                "X",
-                "X",
-                "X",
-                "O"
-            ]
-        },
-        {
-            noteName: "G#5",
-            fingers: [
-                "O",
+            noteName= "F#4",
+            fingers= [
                 "O",
                 "O",
                 "X",
@@ -174,9 +41,104 @@
             ]
         },
         {
-            noteName: "A5",
-            fingers: [
+            noteName= "G4",
+            fingers= [
                 "O",
+                "O",
+                "O",
+                "X",
+                "X",
+                "X",
+                "O"
+            ]
+        },
+        {
+            noteName= "A4",
+            fingers= [
+                "O",
+                "O",
+                "O",
+                "O",
+                "X",
+                "X",
+                "O"
+            ]
+        },
+        {
+            noteName= "B4",
+            fingers= [
+                "O",
+                "O",
+                "O",
+                "O",
+                "O",
+                "X",
+                "O"
+            ]
+        },
+        {
+            noteName= "C#5",
+            fingers= [
+                "O",
+                "O",
+                "O",
+                "O",
+                "O",
+                "O",
+                "O"
+            ]
+        },
+        {
+            noteName= "D5",
+            fingers= [
+                "X",
+                "X",
+                "X",
+                "X",
+                "X",
+                "O",
+                "O"
+            ]
+        },
+        {
+            noteName= "D5",
+            fingers= [
+                "X",
+                "X",
+                "X",
+                "X",
+                "X",
+                "X",
+                "O"
+            ]
+        },
+        {
+            noteName= "E5",
+            fingers= [
+                "O",
+                "X",
+                "X",
+                "X",
+                "X",
+                "X",
+                "O"
+            ]
+        },
+        {
+            noteName= "F#5",
+            fingers= [
+                "O",
+                "O",
+                "X",
+                "X",
+                "X",
+                "X",
+                "O"
+            ]
+        },
+        {
+            noteName= "G5",
+            fingers= [
                 "O",
                 "O",
                 "O",
@@ -187,9 +149,8 @@
             ]
         },
         {
-            noteName: "B5",
-            fingers: [
-                "O",
+            noteName= "A5",
+            fingers= [
                 "O",
                 "O",
                 "O",
@@ -200,9 +161,8 @@
             ]
         },
         {
-            noteName: "C6",
-            fingers: [
-                "O",
+            noteName= "B5",
+            fingers= [
                 "O",
                 "O",
                 "O",
@@ -212,45 +172,5 @@
                 "O"
             ]
         }
-    ],
-
-    maxHoleDiameters: [
-        15.0,
-        15.0,
-        15.0,
-        15.0,
-        15.0,
-        15.0,
-        15.0,
-        11.3
-    ],
-    minHoleDiameters: [
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        4.0,
-        11.3
-    ],
-    holeAngles: [
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0
-    ],
-    minHoleSpacing: [
-        15.0,
-        15.0,
-        10.0,
-        null,
-        10.0,
-        20.0,
-        null
     ]
 }

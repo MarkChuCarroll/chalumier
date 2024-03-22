@@ -16,11 +16,18 @@
 package org.goodmath.chalumier.design.instruments
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 import org.goodmath.chalumier.design.DesignParameters
 import org.goodmath.chalumier.design.InstrumentDesigner
 import org.goodmath.chalumier.design.Profile
 
 fun<T> ArrayList<T>.dup(): ArrayList<T> {
+    val result = ArrayList<T>()
+    result.addAll(this)
+    return result
+}
+
+fun<T> List<T>.dup(): ArrayList<T> {
     val result = ArrayList<T>()
     result.addAll(this)
     return result
@@ -32,41 +39,49 @@ class Whistle(
     override var length: Double,
     override var inner: Profile,
     override var outer: Profile,
-    override val innerKinks: ArrayList<Double>,
-    override val outerKinks: ArrayList<Double>,
+    override val innerKinks: List<Double>,
+    override val outerKinks: List<Double>,
     override val numberOfHoles: Int,
-    override val holePositions: ArrayList<Double>,
-    override val holeAngles: ArrayList<Double>,
-    override val innerHolePositions: ArrayList<Double>,
-    override val holeLengths: ArrayList<Double>,
-    override val holeDiameters: ArrayList<Double>,
+    override val holePositions: List<Double>,
+    override val holeAngles: List<Double>,
+    override val innerHolePositions: List<Double>,
+    override var holeLengths: List<Double>,
+    override val holeDiameters: List<Double>,
     override val closedTop: Boolean,
     override val coneStep: Double,
     override var trueLength: Double,
     override var emissionDivide: Double = 1.0,
     override var scale: Double = 1.0,
-    override var divisions: List<List<Pair<Int, Double>>>) : SimpleInstrument() {
+    override var divisions: List<List<Pair<Int, Double>>>,
+    ) : SimpleInstrument() {
 
+    @Transient
     override val actions = ArrayList<ActionFunction>()
+
+    @Transient
     override val actionsPhase = ArrayList<PhaseActionFunction>()
+
     override val initialEmission = ArrayList<Double>()
     override var steppedInner = inner.asStepped(coneStep)
     override fun dup(): Instrument {
-        return Whistle(name, length, inner, outer,
-            innerKinks.dup(),
-            outerKinks.dup(),
-            numberOfHoles,
-            holePositions.dup(),
-            holeAngles.dup(),
-            innerHolePositions.dup(),
-            holeLengths.dup(),
-            holeDiameters.dup(),
-            closedTop,
-            coneStep,
-            trueLength,
-            emissionDivide,
-            scale,
-            divisions)
+        return Whistle(name,
+            length=length,
+            inner=inner.dup(),
+            outer=outer.dup(),
+            innerKinks=innerKinks.dup(),
+            outerKinks=outerKinks.dup(),
+            numberOfHoles=numberOfHoles,
+            holePositions=holePositions.dup(),
+            holeAngles=holeAngles.dup(),
+            innerHolePositions=innerHolePositions.dup(),
+            holeLengths=holeLengths.dup(),
+            holeDiameters=holeDiameters.dup(),
+            closedTop=closedTop,
+            coneStep=coneStep,
+            trueLength=trueLength,
+            emissionDivide=emissionDivide,
+            scale=scale,
+            divisions=divisions)
     }
 
     companion object {
@@ -78,16 +93,16 @@ class Whistle(
                 length: Double,
                 closedTop: Boolean,
                 coneStep: Double,
-                holeAngles: ArrayList<Double>,
-                holeDiameters: ArrayList<Double>,
-                holeLengths: ArrayList<Double>,
-                holePositions: ArrayList<Double>,
+                holeAngles: List<Double>,
+                holeDiameters: List<Double>,
+                holeLengths: List<Double>,
+                holePositions: List<Double>,
                 inner: Profile,
                 outer: Profile,
-                innerHolePositions: ArrayList<Double>,
+                innerHolePositions: List<Double>,
                 numberOfHoles: Int,
-                innerKinks: ArrayList<Double>,
-                outerKinks: ArrayList<Double>,
+                innerKinks: List<Double>,
+                outerKinks: List<Double>,
                 divisions: List<List<Pair<Int, Double>>>
             ): Whistle {
                 return Whistle(
@@ -95,16 +110,16 @@ class Whistle(
                     length = length,
                     closedTop = closedTop,
                     coneStep = coneStep,
-                    holeAngles = holeAngles,
-                    holeDiameters = holeDiameters,
-                    holeLengths = holeLengths,
-                    holePositions = holePositions,
-                    inner = inner,
-                    outer = outer,
-                    innerHolePositions = innerHolePositions,
+                    holeAngles = holeAngles.dup(),
+                    holeDiameters = holeDiameters.dup(),
+                    holeLengths = holeLengths.dup(),
+                    holePositions = holePositions.dup(),
+                    inner = inner.dup(),
+                    outer = outer.dup(),
+                    innerHolePositions = innerHolePositions.dup(),
                     numberOfHoles = numberOfHoles,
-                    innerKinks = innerKinks,
-                    outerKinks = outerKinks,
+                    innerKinks = innerKinks.dup(),
+                    outerKinks = outerKinks.dup(),
                     trueLength = length,
                     divisions = divisions
                 )

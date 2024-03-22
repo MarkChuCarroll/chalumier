@@ -26,22 +26,33 @@ object IntParameterKind: ParameterKind<Int> {
     }
 
     override fun fromConfigValue(v: Any?): Int {
-        return if (v is Int) {
-            v
-        } else if (v is Double) {
-            return v.toInt()
-        } else {
-            throw ConfigurationParameterException("should be impossible")
+        return when (v) {
+            is Int -> {
+                v
+            }
+
+            is Double -> {
+                return v.toInt()
+            }
+
+            else -> {
+                throw ConfigurationParameterException("should be impossible")
+            }
         }
     }
 
     override fun load(t: JsonElement): Int? {
-        return if (t == JsonNull) {
-            null
-        } else if (t is JsonPrimitive) {
-            t.double.toInt()
-        } else {
-            throw ConfigurationParameterException("Parameter expected an int, but found ${t}")
+        return when (t) {
+            JsonNull -> {
+                null
+            }
+            is JsonPrimitive -> {
+                t.double.toInt()
+            }
+
+            else -> {
+                throw ConfigurationParameterException("Parameter expected an int, but found '$t'")
+            }
         }
     }
 
@@ -51,13 +62,11 @@ object IntParameterKind: ParameterKind<Int> {
 }
 
 
-val OptIntParameterKind = opt(IntParameterKind)
-
 fun<T: Configurable<T>> IntParameter(help: String="", gen: (T) -> Int): ConfigParameter<T,Int> {
-    return ConfigParameter<T, Int>(IntParameterKind, help, gen=gen)
+    return ConfigParameter(IntParameterKind, help, gen=gen)
 }
 
 
 fun<T: Configurable<T>> OptIntParameter(help: String="", gen: (T) -> Int?): ConfigParameter<T,Int?> {
-    return ConfigParameter<T, Int?>(opt(IntParameterKind), help, gen=gen)
+    return ConfigParameter(opt(IntParameterKind), help, gen=gen)
 }

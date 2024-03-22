@@ -17,7 +17,6 @@ package org.goodmath.chalumier.design.instruments
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import org.goodmath.chalumier.cli.InstrumentDescription
 import org.goodmath.chalumier.design.*
 import org.goodmath.chalumier.util.fromEnd
 import org.kotlinmath.Complex
@@ -62,16 +61,16 @@ abstract class InstrumentFactory<Inst: Instrument> {
         length: Double,
         closedTop: Boolean,
         coneStep: Double,
-        holeAngles: ArrayList<Double>,
-        holeDiameters: ArrayList<Double>,
-        holeLengths: ArrayList<Double>,
-        holePositions: ArrayList<Double>,
+        holeAngles: List<Double>,
+        holeDiameters: List<Double>,
+        holeLengths: List<Double>,
+        holePositions: List<Double>,
         inner: Profile,
         outer: Profile,
-        innerHolePositions: ArrayList<Double>,
+        innerHolePositions: List<Double>,
         numberOfHoles: Int,
-        innerKinks: ArrayList<Double>,
-        outerKinks: ArrayList<Double>,
+        innerKinks: List<Double>,
+        outerKinks: List<Double>,
         divisions: List<List<Pair<Int,Double>>>
     ): Inst
 }
@@ -82,14 +81,14 @@ interface Instrument {
     var length: Double
     var inner: Profile
     var outer: Profile
-    val innerKinks: ArrayList<Double>
-    val outerKinks: ArrayList<Double>
+    val innerKinks: List<Double>
+    val outerKinks: List<Double>
     val numberOfHoles: Int
-    val holePositions: ArrayList<Double>
-    val holeAngles: ArrayList<Double>
-    val innerHolePositions: ArrayList<Double>
-    val holeLengths: ArrayList<Double>
-    val holeDiameters: ArrayList<Double>
+    val holePositions: List<Double>
+    val holeAngles: List<Double>
+    val innerHolePositions: List<Double>
+    var holeLengths: List<Double>
+    val holeDiameters: List<Double>
     val closedTop: Boolean
     val coneStep: Double
     var emissionDivide: Double
@@ -300,6 +299,7 @@ sealed class SimpleInstrument: Instrument {
      * ph: phase version
      */
     override fun preparePhase() {
+        steppedInner = inner.asStepped(coneStep)
         actionsPhase.clear()
         val events = arrayListOf(InstrumentBoreChange(length, "end"))
         steppedInner.pos.forEachIndexed { i: Int, pos: Double ->
@@ -311,6 +311,7 @@ sealed class SimpleInstrument: Instrument {
             events.add(InstrumentBoreChange(pos, "hole", i))
         }
         events.sortBy { it.position }
+        //System.err.println("Events = $events")
         var position = -endFlangeLengthCorrection(
             outer(0.0, true), steppedInner(0.0, true)
         )
@@ -332,7 +333,6 @@ sealed class SimpleInstrument: Instrument {
                 val area1 = circleArea(diameter)
                 diameter = steppedInner.high[index]
                 val area = circleArea(diameter)
-
                 val stepFunc: PhaseActionFunction = { phase, _, _ ->
                     junction2ReplyPhase(area, area1, phase)
                 }
@@ -408,6 +408,7 @@ sealed class SimpleInstrument: Instrument {
             if (scores.fromEnd(2) >= 0.0 && scores.fromEnd(1) < 0.0) {
                 return evaluate(scores.size - 2)
             }
+            val newProbe = probes[0]/step
             probes.add(0, probes[0] / step)
             scores.add(0, scorer(probes[0]))
 

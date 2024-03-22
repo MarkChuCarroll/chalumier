@@ -17,7 +17,6 @@ package org.goodmath.chalumier.config
 
 import kotlin.reflect.KProperty
 
-
 /**
  * A helpful utility class for managing parameters in a system with a large
  * number of configurable parameters.
@@ -62,8 +61,7 @@ open class ConfigParameter<T: Configurable<T>, V>(
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
-    fun setChecking(v: Any): Boolean {
+    fun setChecking(v: Any?): Boolean {
         if (kind.checkValue(v)) {
             set(kind.fromConfigValue(v))
             return true

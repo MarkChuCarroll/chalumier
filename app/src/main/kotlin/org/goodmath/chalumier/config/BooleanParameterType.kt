@@ -24,18 +24,31 @@ import org.goodmath.chalumier.errors.ConfigurationParameterException
 object BooleanParameterKind: ParameterKind<Boolean> {
     override val name: String = "Boolean"
 
-
+    override fun fromConfigValue(v: Any?): Boolean {
+        return when {
+            v is Boolean -> v
+            v is String && v == "true" -> true
+            v is String && v == "false" -> false
+            else -> throw ConfigurationParameterException("Expected a boolean value, but found $v")
+        }
+    }
     override fun checkValue(v: Any?): Boolean {
-        return v != null && v is Boolean
+        return v != null && (v is Boolean ||
+                (v is String && v == "true" || v == "false"))
     }
 
     override fun load(t: JsonElement): Boolean? {
-        return if (t == JsonNull) {
-            null
-        } else if (t is JsonPrimitive) {
-            t.boolean
-        } else {
-            throw ConfigurationParameterException("Expected a boolean, found ${t}")
+        return when (t) {
+            JsonNull -> {
+                null
+            }
+            is JsonPrimitive -> {
+                t.boolean
+            }
+
+            else -> {
+                throw ConfigurationParameterException("Expected a boolean, found '${t}'")
+            }
         }
     }
 
@@ -48,18 +61,12 @@ object BooleanParameterKind: ParameterKind<Boolean> {
     }
 }
 
-val OptBooleanParameterKind: ParameterKind<Boolean?> = opt(BooleanParameterKind)
-
 fun<T: Configurable<T>> BooleanParameter(help: String = "", gen: (T) -> Boolean): ConfigParameter<T, Boolean> {
     return ConfigParameter(BooleanParameterKind, help, gen=gen)
 }
 
-fun<T: Configurable<T>> OptBooleanParameter(help: String = "", gen: (T) -> Boolean?): ConfigParameter<T, Boolean?> {
-    return ConfigParameter(OptBooleanParameterKind, help, gen=gen)
-}
-
 val ListOfBooleanParameterKind = ListParameterKind(BooleanParameterKind)
 
-fun <T: Configurable<T>> ListOfBooleanParameter(help: String = "", gen: (T) -> ArrayList<Boolean>): ConfigParameter<T, ArrayList<Boolean>> {
+fun <T: Configurable<T>> ListOfBooleanParameter(help: String = "", gen: (T) -> List<Boolean>): ConfigParameter<T, List<Boolean>> {
     return ConfigParameter(ListOfBooleanParameterKind, help, gen=gen)
 }

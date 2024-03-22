@@ -15,7 +15,6 @@
  */
 package org.goodmath.chalumier.design
 
-import kotlinx.serialization.ExperimentalSerializationApi
 import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.design.instruments.*
 import org.goodmath.chalumier.diagram.Diagram
@@ -27,7 +26,6 @@ import org.goodmath.chalumier.optimize.Optimizer
 import org.goodmath.chalumier.optimize.Score
 import org.goodmath.chalumier.optimize.ScoredParameters
 import org.goodmath.chalumier.util.repeat
-import java.lang.Math.log
 import java.nio.file.Path
 import kotlin.io.path.*
 import kotlin.math.*
@@ -37,8 +35,8 @@ import kotlin.math.*
  * MarkCC: I've refactored this quite a bit from demakein.
  *
  * Everything configurable is now build using configurable parameters,
- * and they're all set up up front. Serialization is done into a human
- * readable JSON using the configurable parameters.
+ * and they're all set up before hte rest of the code. Serialization is
+ * done into a human-readable JSON using the configurable parameters.
  *
  * State vectors have been replaced by a data class, to make it
  * a little easier to understand what's going on, and to interpret
@@ -82,9 +80,8 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         null
     }
 
-
     open var initialLength by DoubleParameter("the initial length of the instrument before modeling") {
-        throw RequiredParameterException("initialLength")
+        rootNote?.let { wavelength(it) / 2.0 }?: throw RequiredParameterException("initialLength")
     }
 
 
@@ -225,7 +222,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
      * All the validations scattered in ph's code are moved here, and called before anything gets
      * filled in the instrument designer.
      */
-    fun validate() {
+    private fun validate() {
         dAssert(initialHoleFractions.size == numberOfHoles, "initialHoleFractions has wrong length")
         dAssert(
             initialHoleDiameterFractions.size == numberOfHoles, "initialHoleDiameterFractions has wrong length"
@@ -275,18 +272,18 @@ abstract class InstrumentDesigner<Inst: Instrument>(
      * altered state vector and convert it back into an instrument for testing
      * and evaluation.
      */
-    fun makeInstrumentFromParameters(from: DesignParameters): Instrument {
-        val length = from.length * initialLength * scale
+    fun makeInstrumentFromParameters(parameters: DesignParameters): Instrument {
+        val length = parameters.length * initialLength * scale
         val (innerLow, innerHigh) = lowHigh(innerDiameters)
         val (outerLow, outerHigh) = lowHigh(outerDiameters)
         val (innerAngleLow, innerAngleHigh) = lowHighOpt(innerAngles)
         val (outerAngleLow, outerAngleHigh) = lowHighOpt(outerAngles)
-        val instHolePositions = ArrayList(from.holePositions.map {
+        val instHolePositions = ArrayList(parameters.holePositions.map {
             it * length
         })
 
-        val innerKinks = ArrayList(from.innerKinks.map {  it * length })
-        val outerKinks = ArrayList(from.outerKinks.map { it * length })
+        val innerKinks = ArrayList(parameters.innerKinks.map {  it * length })
+        val outerKinks = ArrayList(parameters.outerKinks.map { it * length })
         val instInner = Profile.curvedProfile(
             ArrayList(listOf(0.0) + innerKinks + listOf(length)),
             innerLow,
@@ -324,13 +321,13 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         }
         return builder.create(
             this,
-            from,
+            parameters,
             instrumentName,
             length = length,
             closedTop=closedTop,
             coneStep=coneStep,
             holeAngles = holeAngles,
-            holeDiameters = ArrayList(from.holeAreas.mapIndexed { idx, area ->
+            holeDiameters = ArrayList(parameters.holeAreas.mapIndexed { idx, area ->
                     minHoleDiameters[idx] + signedSqrt(area) * (maxHoleDiameters[idx] - minHoleDiameters[idx])
             }),
             holeLengths = instHoleLengths,
@@ -387,13 +384,13 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         scores.add((1.0 - topClearanceFraction) * inst.length - inst.holePositions.last())
 
         // Check that the holes are within their min and max separation bounds.
-        for (idx in 0 until minHoleSpacing.size) {
+        for (idx in minHoleSpacing.indices) {
             val minSpacing = minHoleSpacing[idx]
             if (minSpacing != null) {
                 scores.add((inst.holePositions[idx + 1] - inst.holePositions[idx]) - minSpacing)
             }
         }
-        for (idx in 0 until maxHoleSpacing.size) {
+        for (idx in maxHoleSpacing.indices) {
             val spacing = maxHoleSpacing[idx]
             if (spacing != null) {
                 scores.add(spacing - (inst.holePositions[idx + 1] - inst.holePositions[idx]))
@@ -424,7 +421,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         }
     }
 
-    fun fullScore(params: DesignParameters): Score {
+    private fun fullScore(params: DesignParameters): Score {
         val inst = makeInstrumentFromParameters(params)
         return Score(constraintScore(inst), intonationScore(inst))
     }
@@ -443,6 +440,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         return sqrt(emission.sumOf { e -> e * e })
     }
 
+    private var scoreCount = 0
     /**
      * Compute an evaluation score for the instruments intonation and emission.
      */
@@ -463,6 +461,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         // with the desired, and then express tha difference in cents.
         // This is a conversion factor for doing that.
         val s = 1200.0 / ln(2.0)
+        var total = 0.0
         for (idx in fingerings.indices) {
             val fingering = fingerings[idx]
             val fingers = fingering.fingers
@@ -473,6 +472,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
                 inst.trueNthWavelengthNear(desiredWavelength, fingers, fingering.nth)
             }
             val diff = abs(ln(desiredWavelength) - ln(actualWavelength)) * s
+            total += diff
             val weight = 1.0
             score += weight * diff.pow(3)
             div += weight
@@ -482,7 +482,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
                 val (_, emission) = inst.resonanceScore(actualWavelength, fingers, true)
                 emission as ArrayList<Double>
                 val rms = calcEmission(emission, fingers)
-                val x = log(rms)
+                val x = ln(rms)
                 emissionScore += emissionWeight * x
             }
         }
@@ -491,6 +491,11 @@ abstract class InstrumentDesigner<Inst: Instrument>(
             val x = emissionScore / emissionDiv
             result += (tweakEmissions * -x)
         }
+        scoreCount++
+        if (scoreCount > 1000) {
+            scoreCount = 0
+            Optimizer.progress.updateIntonation(total)
+        }
         return result
     }
 
@@ -498,7 +503,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         constraintScore(makeInstrumentFromParameters(it))
     }
 
-    var intonationScorer: (DesignParameters) -> Double = {
+    private var intonationScorer: (DesignParameters) -> Double = {
         intonationScore(makeInstrumentFromParameters(it))
     }
 
@@ -542,11 +547,12 @@ abstract class InstrumentDesigner<Inst: Instrument>(
      * Set up a value to make it easy to pass the save function as
      * a parameter for the optimizer.
      */
-    val saver = { pars: ScoredParameters,
-                  others: List<DesignParameters> -> save(pars, others) }
+    private val saver = { pars: ScoredParameters,
+                  _: List<DesignParameters> -> save(pars) }
 
 
-    fun twiddleFiles(path: Path) {
+
+    private fun twiddleFiles(path: Path) {
         if (path.exists()) {
             val dir = path.parent
             val name = path.name
@@ -559,38 +565,35 @@ abstract class InstrumentDesigner<Inst: Instrument>(
     }
 
     @Suppress("UNCHECKED_CAST")
-    @OptIn(ExperimentalSerializationApi::class)
-    fun save(params: ScoredParameters,
-             others: List<DesignParameters> = emptyList()) {
+    private fun save(params: ScoredParameters) {
         twiddleFiles(outputDir / "${instrumentName}-parameters.json5")
         val instrument = makeInstrumentFromParameters(params.parameters)
         val patchedInstrument = patchInstrument(instrument) as Inst
         patchedInstrument.prepare()
         patchedInstrument.preparePhase()
-
         writeInstrument(patchedInstrument, outputDir / "${instrumentName}-parameters.json5")
 
         val diagram = Diagram()
-        drawInstrumentOntoDiagram(diagram, instrument)
+        drawInstrumentOntoDiagram(diagram, patchedInstrument)
 
         var textX: Double = diagram.maxX * 1.25
         var textY = 0.0
         for (i in 0 until numberOfHoles) {
-            var thisY = min(textY, -instrument.holePositions[i])
-            textY = diagram.text(textX, thisY, "%.1fmm".format(instrument.holeDiameters[i]))
-            diagram.text(textX + 90.0, thisY, " at %.1fmm".format(instrument.holePositions[i]))
+            var thisY = min(textY, -patchedInstrument.holePositions[i])
+            textY = diagram.text(textX, thisY, "%.1fmm".format(patchedInstrument.holeDiameters[i]))
+            diagram.text(textX + 90.0, thisY, " at %.1fmm".format(patchedInstrument.holePositions[i]))
 
             if (i < numberOfHoles - 1) {
-                thisY = min(textY, (-0.5 * (instrument.holePositions[i] + instrument.holePositions[i + 1])))
+                thisY = min(textY, (-0.5 * (patchedInstrument.holePositions[i] + patchedInstrument.holePositions[i + 1])))
                 diagram.text(
                     textX + 45.0,
                     thisY,
-                    "%.1fmm".format(instrument.holePositions[i + 1] - instrument.holePositions[i])
+                    "%.1fmm".format(patchedInstrument.holePositions[i + 1] - patchedInstrument.holePositions[i])
                 )
             }
         }
         diagram.text(
-            textX + 90.0, min(textY, -instrument.length), "%.1fmm".format(instrument.length)
+            textX + 90.0, min(textY, -patchedInstrument.length), "%.1fmm".format(patchedInstrument.length)
         )
         textX = diagram.maxX
         val graphX = textX + 200
@@ -617,7 +620,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
             val scores = probes.map { probe -> patchedInstrument.resonancePhase(probe, fingers) }
 
             val points = scores.mapIndexed { i, score ->
-                Pair<Double, Double>(
+                Pair(
                     graphX + i * width / nProbes, textY - (((score + 0.5) % 1.0) - 0.5) * 14.0
                 )
             }
@@ -651,7 +654,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
                 )
             )
             val phase = patchedInstrument.resonancePhase(w2, fingers)
-            diagram.text(emitX, textY, "${phase}")
+            diagram.text(emitX, textY, "$phase")
             textY -= 25
         }
 
@@ -661,7 +664,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         textY -= 50.0 + 10.0 * max(innerDiameters.size, outerDiameters.size)
 
         diagram.text(graphX - 150.0, textY, "Outer diameters:", color = "#000000")
-        val outerKinks = listOf(0.0) + instrument.outerKinks + listOf(instrument.length)
+        val outerKinks = listOf(0.0) + patchedInstrument.outerKinks + listOf(patchedInstrument.length)
         outerDiameters.forEachIndexed { i, item ->
             diagram.text(
                 graphX - 150.0,
@@ -671,7 +674,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         }
 
         diagram.text(graphX, textY, "Inner diameters:", color = "#000000")
-        val innerKinks = listOf(0.0) + instrument.innerKinks + listOf(instrument.length)
+        val innerKinks = listOf(0.0) + patchedInstrument.innerKinks + listOf(patchedInstrument.length)
         innerDiameters.forEachIndexed { i, item ->
             diagram.text(
                 graphX,
@@ -689,7 +692,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
             outputDir.createDirectory()
         }
         val initialDesignParameters = initialDesignParameters()
-        val newInstrument = optimizeIntrument(echo, constraintScorer, intonationScorer, initialDesignParameters,
+        val newInstrument = optimizeInstrument(echo, constraintScorer, intonationScorer, initialDesignParameters,
             reportingInterval,
             monitor = saver)
         save(ScoredParameters(newInstrument, fullScore(newInstrument)))
@@ -728,15 +731,15 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         }
     }
 
-    fun optimizeIntrument(echo: (Any?) -> Unit,
-                          constrainer: (DesignParameters) -> Double,
-                          scorer: (DesignParameters) -> Double,
-                          initialDesignParameters: DesignParameters,
-                          reportingInterval: Int,
-                          monitor: (ScoredParameters, List<DesignParameters>) -> Unit): DesignParameters {
+    private fun optimizeInstrument(
+        echo: (Any?) -> Unit,
+        constrainer: (DesignParameters) -> Double,
+        scorer: (DesignParameters) -> Double,
+        initialDesignParameters: DesignParameters,
+        reportingInterval: Int,
+        monitor: (ScoredParameters, List<DesignParameters>) -> Unit): DesignParameters {
         val optimizer = Optimizer(instrumentName, echo, initialDesignParameters,  constrainer, scorer, reportingInterval, monitor=monitor)
         return optimizer.optimizeInstrument()
-
     }
 
 
@@ -766,7 +769,7 @@ abstract class InstrumentDesignerWithBoreScale<Inst: Instrument> (
         })
     }
 
-    open val boreScale: Double by DoubleParameter() { 1.0 }
+    open val boreScale: Double by DoubleParameter("Scaling factor to apply to bore diameters") { 1.0 }
 }
 
 
