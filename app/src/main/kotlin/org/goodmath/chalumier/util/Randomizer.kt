@@ -43,7 +43,7 @@ class RecordedRandomizer(
         return result
     }
 
-    override fun nextInt(x: Int): Int {
+    override fun nextInt(i: Int): Int {
         val result = integers[ii]
         ii++
         return result

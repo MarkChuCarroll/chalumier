@@ -15,6 +15,9 @@
  */
 package org.goodmath.chalumier.config
 
+import org.goodmath.chalumier.errors.ConfigurationParameterException
+import org.goodmath.chalumier.errors.ConfigurationParameterValueException
+import java.io.BufferedWriter
 import kotlin.reflect.KProperty
 
 /**
@@ -35,9 +38,20 @@ open class ConfigParameter<T: Configurable<T>, V>(
 
     var name: String? = null
 
+
     private object UNINITIALIZED
 
     var v: Any? = UNINITIALIZED
+
+    fun render(fieldName: String): String {
+        val result = StringBuilder()
+        result.append("   # Field ${fieldName} of type ${kind.name}\n")
+        if (help != "") {
+            result.append("   # $help\n")
+        }
+        result.append("   $fieldName = ${kind.sampleValueString}")
+        return result.toString()
+    }
 
     operator fun provideDelegate(
         thisRef: T,
@@ -61,8 +75,8 @@ open class ConfigParameter<T: Configurable<T>, V>(
         }
     }
 
-    fun setChecking(v: Any?): Boolean {
-        if (kind.checkValue(v)) {
+    fun setConfigValue(v: Any?): Boolean {
+        if (kind.checkConfigValue(v)) {
             set(kind.fromConfigValue(v))
             return true
         } else {
@@ -81,6 +95,7 @@ open class ConfigParameter<T: Configurable<T>, V>(
     operator fun setValue(thisRef: T, property: KProperty<*>, value: V) {
         set(value)
     }
+
 }
 
 

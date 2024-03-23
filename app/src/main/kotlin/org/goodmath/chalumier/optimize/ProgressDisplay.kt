@@ -66,7 +66,7 @@ class BoundedTranscript(val size: Int) {
     }
 }
 
-class ProgressDisplay(lines: Int) {
+class ProgressDisplay(var instrumentName: String, maxLines: Int) {
     var initialISpan: Double = Double.NaN
     var initialPSpan: Double = Double.NaN
     var lastIntonationSpan: Double = Double.NaN
@@ -78,7 +78,7 @@ class ProgressDisplay(lines: Int) {
     private val height = term.info.height
     private val width = term.info.width - 2
 
-    val transcript = BoundedTranscript(lines)
+    val transcript = BoundedTranscript(maxLines)
 
     fun updateIntonation(d: Double) {
         intonationDiff = d
@@ -155,7 +155,7 @@ class ProgressDisplay(lines: Int) {
 
             header {
                 row {
-                    cell("Chalumier Instrument Designer/Optimizer") {
+                    cell("Chalumier Instrument Designer/Optimizer: designing $instrumentName") {
                         style = TextStyles.bold + TextColors.brightMagenta
                         columnSpan=6
                     }

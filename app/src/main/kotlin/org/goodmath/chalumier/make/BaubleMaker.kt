@@ -41,7 +41,7 @@ class BaubleMaker(
             val posOuter = arrayListOf(0.0, length)
             val diamOuter = arrayListOf(designer.dockDiameter + 2.0, 0.0)
             val angle: ArrayList<Angle?> = arrayListOf(
-                Angle(Angle.AngleDirection.Here, 20.0), Angle(Angle.AngleDirection.Here, -10.0))
+                Angle(Angle.AngleDirection.Exact, 20.0), Angle(Angle.AngleDirection.Exact, -10.0))
             val pOuter = Profile.curvedProfile(
                 posOuter, diamOuter, diamOuter, angle, angle
             )

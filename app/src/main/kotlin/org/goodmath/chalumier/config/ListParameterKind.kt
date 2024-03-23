@@ -20,6 +20,8 @@ import org.goodmath.chalumier.errors.ConfigurationParameterException
 
 class ListParameterKind<T>(private val pk: ParameterKind<T>): ParameterKind<List<T>> {
     override val name: String = "List<${pk.name}>"
+    override val sampleValueString: String = "[ ${pk.sampleValueString}, ... ]"
+    override val isOptional = false
 
     override fun checkValue(v: Any?): Boolean {
         return when {
@@ -30,6 +32,15 @@ class ListParameterKind<T>(private val pk: ParameterKind<T>): ParameterKind<List
             }
             v is List<*> -> true
             else ->  false
+        }
+    }
+
+    override fun checkConfigValue(v: Any?): Boolean {
+        return when(v) {
+            null -> false
+            is List<*> -> v.isEmpty() ||
+                    v.all { pk.checkConfigValue(it) }
+            else -> false
         }
     }
 
@@ -45,7 +56,7 @@ class ListParameterKind<T>(private val pk: ParameterKind<T>): ParameterKind<List
         }
     }
 
-    override fun load(t: JsonElement): List<T>? {
+    override fun fromJson(t: JsonElement): List<T>? {
         if (t ==  JsonNull) {
             return null
         }
@@ -53,7 +64,7 @@ class ListParameterKind<T>(private val pk: ParameterKind<T>): ParameterKind<List
             throw ConfigurationParameterException("Parameter of type $name cannot be read from invalid json '$t'")
         } else {
             return ArrayList(t.map { jsonElement ->
-                pk.load(jsonElement) ?: throw ConfigurationParameterException("Unexpected null reading config parameter")
+                pk.fromJson(jsonElement) ?: throw ConfigurationParameterException("Unexpected null reading config parameter")
             })
         }
     }
@@ -72,31 +83,34 @@ class ListParameterKind<T>(private val pk: ParameterKind<T>): ParameterKind<List
 
 class ListOfOptParameterKind<T>(private val pk: ParameterKind<T?>): ParameterKind<List<T?>> {
     override val name: String = "List<${pk.name}>"
+    override val sampleValueString: String = "[ ${pk.sampleValueString} or null ]"
+    override val isOptional = false    
+
 
     override fun checkValue(v: Any?): Boolean {
-        return when {
-            v == null -> false
-            v is List<*> && v.isNotEmpty() -> {
-                val v0 = v[0]
-                v0 == null || pk.checkValue(v0)
-            }
-            v is List<*>  -> true
+        return when(v) {
+            null, is JsonNull -> true
+            is List<*> -> v.isEmpty() || v.all { pk.checkValue(it) }
             else ->  false
         }
     }
 
-    override fun load(t: JsonElement): List<T?>? {
+    override fun checkConfigValue(v: Any?): Boolean {
+        return (v == null) || pk.checkValue(v)
+    }
+
+    override fun fromJson(t: JsonElement): List<T?>? {
         if (t ==  JsonNull) {
             return null
         }
         if (t !is JsonArray) {
-            throw ConfigurationParameterException("Parameter of type $name cannot be read from invalid json '${t}'")
+            throw error(t)
         } else {
             return ArrayList(t.map { jsonElement ->
                 if (jsonElement == JsonNull) {
                     null
                 } else {
-                    pk.load(jsonElement)
+                    pk.fromJson(jsonElement)
                 }
             }.toMutableList())
         }

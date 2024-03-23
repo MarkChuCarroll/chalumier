@@ -17,15 +17,30 @@ package org.goodmath.chalumier.config
 
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import org.goodmath.chalumier.design.Angle
 import org.goodmath.chalumier.errors.ConfigurationParameterException
 
 object AngleParameterKind: ParameterKind<Angle> {
     override val name: String = "Angle"
+    override val isOptional: Boolean = false
+
+    override val sampleValueString: String
+        get() = "(Angle: Down) or (Angle: Exact, 45.0)"
 
     override fun fromConfigValue(v: Any?): Angle {
         return if (v is Angle) { v }
+        else if (v is Tuple) {
+            if (v.body.size == 2) {
+                Angle(
+                    Angle.AngleDirection.valueOf(v.body[0] as String),
+                    v.body[1] as Double
+                )
+            } else {
+                Angle(Angle.AngleDirection.valueOf(v.body[0] as String))
+            }
+        }
         else if (v is Map<*, *>) {
             val dirStr = v["dir"]!! as String
             val optVal = v["v"]
@@ -35,16 +50,43 @@ object AngleParameterKind: ParameterKind<Angle> {
                 Angle(Angle.AngleDirection.valueOf(dirStr), optVal as Double)
             }
         } else {
-            throw ConfigurationParameterException("Expected an angle, but found $v")
+            throw error(v)
         }
     }
 
     override fun checkValue(v: Any?): Boolean {
-        return v != null && (v is Angle ||
-                v is Map<*, *> && v.containsKey("dir"))
+        return when (v) {
+            null -> false
+            is Angle -> true
+            is JsonNull ->  false
+            is JsonObject -> {
+                v.containsKey("dir") && v.keys.size <= 2
+            }
+            else -> {
+                false
+            }
+        }
+
     }
 
-    override fun load(t: JsonElement): Angle? {
+    override fun checkConfigValue(v: Any?): Boolean {
+        return when (v) {
+            null -> false
+            is Map<*, *> ->
+                v.containsKey("dir") && listOf("Up", "Down", "Mean", "Exact").contains(v["dir"]) &&
+                        (v["value"]?.let {
+                            it is Double || it is String && it.toDoubleOrNull() != null
+                        } ?: false)
+            is Tuple ->
+                v.name == "Angle" && v.body.size <= 2 &&
+                        setOf("Up", "Down", "Exact", "Mean").contains(v.body[0]) &&
+                        (v.body.size == 1 ||
+                                (v.body.size == 2 && v.body[1] == null || v.body[1] is Double))
+            else -> false
+        }
+    }
+
+    override fun fromJson(t: JsonElement): Angle? {
         return when (t) {
             JsonNull -> { null }
             is JsonPrimitive -> {
@@ -53,19 +95,19 @@ object AngleParameterKind: ParameterKind<Angle> {
                     "Up" -> Angle(Angle.AngleDirection.Up)
                     "Down" -> Angle(Angle.AngleDirection.Down)
                     else ->
-                        if (name.startsWith("Here:")) {
+                        if (name.startsWith("Exact:")) {
                             Angle(
-                                Angle.AngleDirection.Here,
+                                Angle.AngleDirection.Exact,
                                 label.substring(5).toDouble()
                             )
                         } else {
-                            throw ConfigurationParameterException("Angle parameter expected an Angle, but found $t")
+                            throw error(t)
                         }
                 }
             }
 
             else -> {
-                throw ConfigurationParameterException("Angle parameter expected an Angle, but found $t")
+                throw error(t)
             }
         }
     }
@@ -76,7 +118,7 @@ object AngleParameterKind: ParameterKind<Angle> {
             t.dir == Angle.AngleDirection.Up -> JsonPrimitive("Up")
             t.dir == Angle.AngleDirection.Down -> JsonPrimitive("Down")
             t.dir == Angle.AngleDirection.Mean -> JsonPrimitive("Mean")
-            t.dir == Angle.AngleDirection.Here -> JsonPrimitive("Here:${t.v}")
+            t.dir == Angle.AngleDirection.Exact -> JsonPrimitive("Exact:${t.value}")
             else -> throw ConfigurationParameterException("invalid value for Angle parameter: '${t}'")
         }
     }

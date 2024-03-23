@@ -24,6 +24,11 @@ import kotlin.io.path.reader
 class InstrumentDesignerFactory(private val templates: Map<String,
             (name: String, outputDir: Path) -> InstrumentDesigner<*>>) {
 
+    fun getDesigner(instrumentType: String, outputDir: Path): InstrumentDesigner<*> {
+        val t = templates[instrumentType]?:  throw ChalumierException("Unknown instrument type $instrumentType. Supported instruments are ${templates.keys}")
+        return t(instrumentType, outputDir)
+    }
+
     fun getDesigner(descriptionFile: Path, outputDir: Path): InstrumentDesigner<*> {
         val desc = DescriptionParser(descriptionFile.reader()).parseConfig()
         val template = templates[desc.name] ?: throw ChalumierException("Unknown instrument type ${desc.name}. Supported instruments are ${templates.keys}")

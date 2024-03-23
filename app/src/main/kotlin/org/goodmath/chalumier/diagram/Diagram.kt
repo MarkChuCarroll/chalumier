@@ -54,7 +54,7 @@ class Diagram {
     private var minX = 0.0
     private var minY = 0.0
     private var maxY = 0.0
-    private var maxX = 0.0
+    var maxX = 0.0
 
     fun save(filename: Path) {
         // ph: Assume 90dpi (inkscape default

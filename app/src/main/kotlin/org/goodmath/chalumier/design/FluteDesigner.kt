@@ -52,30 +52,17 @@ abstract class FluteDesigner<Inst: Instrument>(override val instrumentName: Stri
         "Constant controlling extra effective height of the embouchure hole due to lips, etc.\n" + "Small adjustments of this value will change the angle at which the flute needs to be blown\n" + "in order to be in tune."
     ) { 0.53 }
 
-    override var closedTop by BooleanParameter { true  }
 
     override var initialLength by DoubleParameter { wavelength("D4") * 0.5 }
 
-    open var openBothEnds by BooleanParameter { false }
+    open var openBothEnds by BooleanParameter("Is this open on both ends like a quena?") { false }
 
-    open var embAspect by DoubleParameter { 1.5 }
+    open var embAspect by DoubleParameter("The desired aspect ration of the embouchure hole") { 1.5 }
 
-    open var embSquareness by DoubleParameter { 0.0 }
+    open var embSquareness by DoubleParameter("The desired squareness of the emouchure hole.") { 0.0 }
 
-    override fun patchInstrument(inst: Instrument): Instrument {
-        val hl = inst.holeLengths.dup()
-        hl[inst.holeLengths.size - 1] += (inst.holeDiameters.fromEnd(1) * embExtra)
-        val result = inst.dup()
-        result.holeLengths = hl
-        return result
-    }
+    override var closedTop by BooleanParameter { true  }
 
-    override fun calcEmission(emission: List<Double>, fingers: List<Hole>): Double {
-        /* ph:  Emission is relative to embouchure hole, ie we assume the amplitude at the
-         * embouchure hole is fixed
-         */
-        return sqrt(emission.subList(0, emission.size - 1).sumOf { it * it } / emission.fromEnd(-1))
-    }
 
     override var initialHoleFractions by ListOfDoubleParameter { _ ->
         val l = ArrayList((0 until numberOfHoles - 1).map { i -> 0.175 + 0.5 * i / (numberOfHoles - 1) })
@@ -105,11 +92,26 @@ abstract class FluteDesigner<Inst: Instrument>(override val instrumentName: Stri
         x.map { it * scale }.toMutableList()
     }
 
+    override fun calcEmission(emission: List<Double>, fingers: List<Hole>): Double {
+        /* ph:  Emission is relative to embouchure hole, ie we assume the amplitude at the
+         * embouchure hole is fixed
+         */
+        return sqrt(emission.subList(0, emission.size - 1).sumOf { it * it } / emission.fromEnd(-1))
+    }
 
-    // ph: These assume a six hole flute, and must be overridden on flutes with a different number of holes:
-
+    override fun patchInstrument(inst: Instrument): Instrument {
+        val hl = inst.holeLengths.dup()
+        hl[inst.holeLengths.size - 1] += (inst.holeDiameters.fromEnd(1) * embExtra)
+        val result = inst.dup()
+        result.holeLengths = hl
+        return result
+    }
 
     companion object {
+        /*
+         * A collection of standard flute fingerings.
+         */
+        // ph: These assume a six hole flute, and must be overridden on flutes with a different number of holes:
         val pFluteFingers = listOf(
             Fingering("D4", arrayListOf(X, X, X, X, X, X)),
             Fingering("E4", arrayListOf(O, X, X, X, X, X)),

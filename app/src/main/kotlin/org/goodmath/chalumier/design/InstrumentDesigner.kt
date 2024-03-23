@@ -94,11 +94,11 @@ abstract class InstrumentDesigner<Inst: Instrument>(
     }
 
     open var innerAngles by ListOfOptAnglePairsParameter {
-        innerDiameters.map { null }.toMutableList()
+        innerDiameters.map { null }
     }
 
     open var outerAngles by ListOfOptAnglePairsParameter {
-        outerDiameters.map { null }.toMutableList()
+        outerDiameters.map { null }
     }
 
     open var coneStep by DoubleParameter("The size of the step used when translating conic sections into curves") { 0.125 }
@@ -118,7 +118,7 @@ abstract class InstrumentDesigner<Inst: Instrument>(
     open var tweakEmissions by DoubleParameter("Experimental term added to the optimization to try to make instrument louder, possibly at the cost of intonation") {  0.0 }
 
 
-    open var minHoleDiameters by ListOfDoubleParameter("the minimum acceptable diameters of holes") { c -> c.numberOfHoles.repeat { 0.5 }.toMutableList() }
+    open var minHoleDiameters by ListOfDoubleParameter("the minimum acceptable diameters of holes") { c -> c.numberOfHoles.repeat { 0.5 } }
 
     open var maxHoleDiameters by ListOfDoubleParameter("the maximum acceptable diameter of holes") {
         throw RequiredParameterException("maxHoleDiameters")
@@ -127,57 +127,57 @@ abstract class InstrumentDesigner<Inst: Instrument>(
 
     open var minHoleSpacing by ListOfOptDoubleParameter(
         "a list of values specifying the minimum distance between pairs of holes") {
-        (it.numberOfHoles-1).repeat { 0.0 }.toMutableList()
+        (it.numberOfHoles-1).repeat { 0.0 }
     }
 
-    open var maxHoleSpacing by ListOfOptDoubleParameter { c ->
-        (c.numberOfHoles - 1).repeat { c.initialLength }.toMutableList()
+    open var maxHoleSpacing by ListOfOptDoubleParameter("the maximum distance separating each pair of holes") { c ->
+        (c.numberOfHoles - 1).repeat { c.initialLength }
     }
 
-    open var balance by ListOfOptDoubleParameter { c -> (c.numberOfHoles - 2).repeat { null }.toMutableList() }
-    open var holeAngles by ListOfDoubleParameter { it.numberOfHoles.repeat { 0.0 }.toMutableList() }
+    open var balance by ListOfOptDoubleParameter { c -> (c.numberOfHoles - 2).repeat { null } }
+    open var holeAngles by ListOfDoubleParameter { it.numberOfHoles.repeat { 0.0 } }
 
-    open var initialInnerFractions by ListOfDoubleParameter { c ->
-        (c.innerDiameters.size - 2).repeat { (it + 1.0) / (c.innerDiameters.size - 1) }.toMutableList()
+open var initialInnerFractions by ListOfDoubleParameter { c ->
+        (c.innerDiameters.size - 2).repeat { (it + 1.0) / (c.innerDiameters.size - 1) }
     }
 
     open var minInnerFractionSep by ListOfDoubleParameter {
-        (it.innerDiameters.size - 1).repeat { 0.0 }.toMutableList()
+        (it.innerDiameters.size - 1).repeat { 0.0 }
     }
     open var maxInnerFractionSep by ListOfDoubleParameter {
-        (it.innerDiameters.size - 1).repeat { 1.0 }.toMutableList()
+        (it.innerDiameters.size - 1).repeat { 1.0 }
     }
 
     open var minInnerSep by ListOfOptDoubleParameter {
-        (it.innerDiameters.size - 1).repeat { null }.toMutableList()
+        (it.innerDiameters.size - 1).repeat { null }
     }
 
     open var maxInnerSep by ListOfOptDoubleParameter {
-        (it.innerDiameters.size - 1).repeat { null }.toMutableList()
+        (it.innerDiameters.size - 1).repeat { null }
     }
     open var initialOuterFractions by ListOfDoubleParameter { c ->
-        (c.outerDiameters.size - 2).repeat { (it + 1.0) / (c.outerDiameters.size - 1) }.toMutableList()
+        (c.outerDiameters.size - 2).repeat { (it + 1.0) / (c.outerDiameters.size - 1) }
     }
 
     open var minOuterFractionSep by ListOfDoubleParameter { c ->
-        (c.outerDiameters.size - 1).repeat { 0.0 }.toMutableList()
+        (c.outerDiameters.size - 1).repeat { 0.0 }
     }
 
     open var maxOuterFractionSep by ListOfDoubleParameter {
-        (it.outerDiameters.size - 1).repeat { 1.0 }.toMutableList()
+        (it.outerDiameters.size - 1).repeat { 1.0 }
     }
 
     open var initialHoleFractions by ListOfDoubleParameter { c ->
-        c.numberOfHoles.repeat { (it + 3.0) / (c.numberOfHoles + 2) * 0.5 }.toMutableList()
+        c.numberOfHoles.repeat { (it + 3.0) / (c.numberOfHoles + 2) * 0.5 }
     }
 
     open var initialHoleDiameterFractions by ListOfDoubleParameter {
-        it.numberOfHoles.repeat { 0.75 }.toMutableList()
+        it.numberOfHoles.repeat { 0.75 }
     }
 
 
     open var holeHorizAngles by ListOfDoubleParameter {
-        (0 until numberOfHoles).map { 0.0 }.toMutableList()
+        (0 until numberOfHoles).map { 0.0 }
     }
 
     /*

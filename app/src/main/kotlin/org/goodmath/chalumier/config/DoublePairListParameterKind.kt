@@ -15,46 +15,78 @@
  */
 package org.goodmath.chalumier.config
 
+import kotlinx.serialization.json.JsonObject
 import org.goodmath.chalumier.errors.ConfigurationParameterException
 
 object DoublePairParameterKind: PairParameterKind<Double, Double>(DoubleParameterKind, DoubleParameterKind) {
     override fun fromConfigValue(v: Any?): Pair<Double, Double> {
-        when (v) {
+        return when (v) {
             is Pair<*,*> -> {
                 val first = v.first
                 val second = v.second
-                return if (first is Double && second is Double) {
+                if (first is Double && second is Double) {
                     Pair(first, second)
                 } else if (first is String && second is String) {
                     Pair(first.toDouble(), second.toDouble())
                 } else {
-                    throw ConfigurationParameterException("Expected either a pair of strings or a pair of doubles, but found $v")
+                    throw error(v)
                 }
+            }
+            is Tuple -> {
+                val first = v.body[0]
+                val second = v.body[1]
+                Pair(DoubleParameterKind.fromConfigValue(first),
+                    DoubleParameterKind.fromConfigValue(second))
             }
 
             is Double -> {
-                return Pair(v, v)
+                Pair(v, v)
             }
 
             is String -> {
                 val d = v.toDouble()
-                return Pair(d, d)
+                Pair(d, d)
             }
 
             else -> {
-                throw ConfigurationParameterException("Expected either a pair of strings or a pair of doubles, but found $v")
+                throw error(v)
             }
         }
     }
 
     override fun checkValue(v: Any?): Boolean {
-        return if (v is Pair<*, *>) {
-            (v.first is Double && v.second is Double) ||
-                    (v.first is String && v.second is String)
-        } else {
-            v is Double || v is String
+        return when(v) {
+            is Pair<*, *> ->
+                (v.first is Double && v.second is Double) ||
+                        (v.first is String && v.second is String)
+            is JsonObject ->
+                listOf("first", "second").all {
+                    v.containsKey(it) && DoubleParameterKind.checkValue(v[it])
+                }
+            is Double, is String -> true
+            else -> false
         }
     }
+
+    override fun checkConfigValue(v: Any?): Boolean {
+        return when(v) {
+            is Map<*, *> -> v.containsKey("first") && v.containsKey("second") &&
+                    DoubleParameterKind.checkConfigValue(v["first"]) &&
+                    DoubleParameterKind.checkConfigValue(v["second"])
+            is Tuple -> v.name == "Pair" && v.body.size == 2 &&
+                    DoubleParameterKind.checkConfigValue(v.body[0]) &&
+                    DoubleParameterKind.checkConfigValue(v.body[1])
+            is Double -> true
+            is String -> true
+            else -> false
+        }
+    }
+
+    override val isOptional: Boolean = false
+
+
+    override val sampleValueString: String = "(Pair: "
+
 }
 
 val DoublePairListParameterKind: ParameterKind<List<Pair<Double, Double>>> = ListParameterKind(DoublePairParameterKind)

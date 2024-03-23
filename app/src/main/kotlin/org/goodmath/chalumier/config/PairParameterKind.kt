@@ -16,33 +16,73 @@
 package org.goodmath.chalumier.config
 
 import kotlinx.serialization.json.*
-import org.goodmath.chalumier.errors.ConfigurationParameterException
 
 open class PairParameterKind<T, U>(
     private val tKind: ParameterKind<T>,
     private val uKind: ParameterKind<U>): ParameterKind<Pair<T, U>> {
     override val name: String = "Pair<${tKind.name}, ${uKind.name}>"
+    override val sampleValueString: String = "(Pair: ${tKind.sampleValueString}, ${uKind.sampleValueString})"
+    override val isOptional = false
+
+
+    override fun fromConfigValue(v: Any?): Pair<T, U> {
+        return when(v) {
+            is List<*> -> {
+                val first = tKind.fromConfigValue(v[0])
+                val second = uKind.fromConfigValue(v[1])
+                Pair(first, second)
+            }
+            is Map<*, *> -> {
+                val first = tKind.fromConfigValue(v["first"])
+                val second = uKind.fromConfigValue(v["second"])
+                Pair(first, second)
+            }
+            is Tuple -> {
+                val first = tKind.fromConfigValue(v.body[0])
+                val second = uKind.fromConfigValue(v.body[1])
+                Pair(first, second)
+            }
+            else ->
+                throw error(v)
+        }
+    }
 
     override fun checkValue(v: Any?): Boolean {
-        return when {
-            v == null -> false
-            v is Pair<*, *> &&
+        return when(v) {
+            null, is JsonNull -> false
+            is Pair<*, *> ->
                     tKind.checkValue(v.first) &&
-                    uKind.checkValue(v.second) -> true
+                    uKind.checkValue(v.second)
             else -> false
         }
     }
 
-    override fun load(t: JsonElement): Pair<T, U>? {
+    override fun checkConfigValue(v: Any?): Boolean {
+        return when(v) {
+            null -> false
+            is Map<*, *> ->
+                tKind.checkValue(v["first"]) && uKind.checkValue(v["second"])
+            is List<*> ->
+                v.size == 2 && tKind.checkValue(v[0]) && uKind.checkValue(v[1])
+            is Tuple ->
+                v.name == "Pair" &&
+                        v.body.size == 2 &&
+                        tKind.checkValue(v.body[0]) &&
+                        uKind.checkValue(v.body[1])
+            else ->  false
+        }
+    }
+
+    override fun fromJson(t: JsonElement): Pair<T, U>? {
         if (t == JsonNull) { return null }
         return if (t is JsonObject) {
-            val first = tKind.load(t["first"]!!)
-                ?: throw ConfigurationParameterException("Expected a ${tKind.name} but found null")
-            val second = uKind.load(t["second"]!!)
-                ?: throw ConfigurationParameterException("Expected a ${uKind.name} but found null")
+            val first = tKind.fromJson(t["first"]!!)
+                ?: throw error(t)
+            val second = uKind.fromJson(t["second"]!!)
+                ?: throw error(t)
             Pair(first, second)
         } else {
-            throw ConfigurationParameterException("Expected a pair, found '$t'")
+            throw error(t)
         }
     }
 

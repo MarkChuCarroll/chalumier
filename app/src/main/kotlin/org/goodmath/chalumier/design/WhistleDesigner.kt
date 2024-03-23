@@ -195,7 +195,7 @@ class SixHoleWhistleDesigner(n: String,
     }
     override var outerAngles by ListOfOptAnglePairsParameter {
         listOf(
-            Angle(Angle.AngleDirection.Here, -15.0), Angle(Angle.AngleDirection.Here, 0.0), null, null, null
+            Angle(Angle.AngleDirection.Exact, -15.0), Angle(Angle.AngleDirection.Exact, 0.0), null, null, null
         ).map { angle -> angle?.let { Pair(it, it) } }
     }
 

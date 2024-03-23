@@ -7,12 +7,24 @@ import org.goodmath.chalumier.errors.ConfigurationParameterException
 
 object StringParameterKind: ParameterKind<String> {
     override val name: String = "String"
+    override val sampleValueString: String = "\"abcdef\""
+    override val isOptional = false
+
 
     override fun checkValue(v: Any?): Boolean {
+        return when(v) {
+            null, is JsonNull -> false
+            is String -> true
+            is JsonPrimitive -> v.isString
+            else -> false
+        }
+    }
+
+    override fun checkConfigValue(v: Any?): Boolean {
         return v != null && v is String
     }
 
-    override fun load(t: JsonElement): String? {
+    override fun fromJson(t: JsonElement): String? {
         return when (t) {
             JsonNull -> {
                 null
@@ -22,7 +34,7 @@ object StringParameterKind: ParameterKind<String> {
             }
 
             else -> {
-                throw ConfigurationParameterException("Parameter expected a string, but found '$t'")
+                throw error(t)
             }
         }
     }

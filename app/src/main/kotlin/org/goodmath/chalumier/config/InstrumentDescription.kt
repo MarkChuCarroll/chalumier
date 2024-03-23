@@ -34,12 +34,15 @@ import java.io.StreamTokenizer
  *  file ::= IDENT object
  *  object ::=  "{"  field+ "}"
  *  field ::=  IDENT "="  value
- *  value ::= string | double | int | array | object | none | true | false
+ *  value ::= string | double | int | array | object | none | true | false | tuple
+ *  tuple ::= (string: value...)
  *  array: "[" (value (, value)*)? "]"
  *  comment: # ......
  */
 
 class DescriptionParseException(msg: String, line: Int) : Exception("Error in instrument description at line $line: $msg")
+
+data class Tuple(val name: String, val body: List<Any?>)
 
 class InstrumentDescription(val name: String, val values: Map<String, Any?>)
 
@@ -57,7 +60,9 @@ class DescriptionParser(private val input: Reader) {
             '[',
             '}',
             '{',
+        '(', ')',
             '=',
+        ':'
         )
         .forEach { t.ordinaryChar(it.code) }
     return t
@@ -73,6 +78,9 @@ class DescriptionParser(private val input: Reader) {
     TRBracket,
     TLCurly,
     TRCurly,
+    TLParen,
+    TRParen,
+    TColon,
     TEof
   }
 
@@ -135,6 +143,21 @@ class DescriptionParser(private val input: Reader) {
         tokNum = null
         TokenType.TEq
       }
+      '('.code -> {
+        tokStr = "("
+        tokNum = null
+        TokenType.TLParen
+      }
+      ')'.code -> {
+        tokStr = ")"
+        tokNum = null
+        TokenType.TRParen
+      }
+      ':'.code -> {
+        tokStr = ":"
+        tokNum = null
+        TokenType.TColon
+      }
       else -> throw DescriptionParseException("Unknown token type $t", tokenizer.lineno())
     }
     return currentTokenType
@@ -164,18 +187,36 @@ class DescriptionParser(private val input: Reader) {
       TokenType.TStr -> tokStr!!
       TokenType.TIdent -> {
         val s = tokStr!!
-        if (s == "null") {
-          null
-        } else {
-          s
+        when(s) {
+          null -> null
+          "true" -> true
+          "false" -> false
+          else -> s
         }
       }
+      TokenType.TLParen -> parseTuple()
       TokenType.TNumber -> tokNum!!
       TokenType.TLBracket -> parseList()
       TokenType.TLCurly -> parseObject()
       else -> throw DescriptionParseException("Expected a value, but found $currentTokenType",
         tokenizer.lineno())
     }
+  }
+
+  private fun parseTuple(): Tuple {
+    nextToken()
+    expect(TokenType.TIdent)
+    val name = tokStr!!
+    nextToken()
+    expect(TokenType.TColon)
+    nextToken()
+    val body = ArrayList<Any?>()
+    do {
+      body.add(parseValue())
+      nextToken()
+    } while ((currentTokenType == TokenType.TComma).also { if (it) { nextToken() } })
+    expect(TokenType.TRParen)
+    return Tuple(name, body)
   }
 
   private fun parseList(): List<Any?> {

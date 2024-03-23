@@ -61,17 +61,23 @@ fun List<Double>.bisect(target: Double): Int {
  * 3. If the interpretation string is empty, then it has a value
  *    as a floating point number.
  *
- * My interpretation of this is that parts of the profile are allowed
- * to move as you compute the shape. A value of 'up' means that you're
- * on an increasing curve, "Mean" means you should be evenly between your
- * neighbors, and a number means you should be in *this* exact position.
+ * My interpretation of this is that these values are specifying the
+ * shape of the outer body of an instrument. A value of "up" means that
+ * in the transition from segment N to segment N+1, the angle should
+ * match the angle specified for the upper segment (N+1). If it's
+ * down, it should match the angle for the lower segment. If it's "mean",
+ * it should be in between the angles of the lower and upper segments.
+ * Finally, if it's "exact", that means that the transition should be
+ * at exactly this angle.
  *
- * The index isn't included, because it's contextual - it's not a fixed value,
- * but rather a connection to how the angle is placed into a list.
+ * The vertical position of the change isn't included, because it's contextual - it's not a fixed value,
+ * but rather a variable depending on how long the angled segment must be to
+ * allow a transition of diameters at the angle.
+ *
  */
-data class Angle(val dir: AngleDirection, val v: Double? = null) {
+data class Angle(val dir: AngleDirection, val value: Double? = null) {
     enum class AngleDirection {
-        Here, Mean, Up, Down
+        Exact, Mean, Up, Down
     }
  }
 
@@ -198,21 +204,32 @@ data class Profile(val pos: List<Double>, val low: List<Double>, val high: List<
     }
 
     fun asStepped(maxStep: Double): Profile {
+        // To create a smooth body, we'll replace the hard changes in
+        // diameters with a sequence of smaller stepped ones.
+        // To do that, we'll first work out the list of positions where
+        // diameter changes will happen, and then we'll go through and
+        // assign diameter values to them.
         val newPos = ArrayList<Double>()
-
         for (i in 0 until pos.size - 1) {
             newPos.add(pos[i])
-            val ax = pos[i]
-            val ay = high[i]
-            val bx = pos[i + 1]
-            val by = low[i + 1]
-            val n = ((by - ay).absoluteValue / maxStep).toInt() + 1
-            if (n == 0) {
+            // For a transition from segment i to segment i+1, we want
+            // create a smooth series of steps from the diameter at the
+            // top of sigment i to the diameter of the bottom of segment i+1.
+            val lowerSegmentTopPosition = pos[i]
+            val lowerSegmentTopDiameter = high[i]
+            val higherSegmentBottomPosition = pos[i + 1]
+            val higherSegmentBottomDiameter = low[i + 1]
+            val numberOfSteps = ((higherSegmentBottomDiameter - lowerSegmentTopDiameter).absoluteValue / maxStep).toInt() + 1
+            if (numberOfSteps == 0) {
                 continue
             }
-            newPos.addAll((1 until n).map { j -> (bx - ax) * j.toDouble() / n + ax })
+            newPos.addAll((1 until numberOfSteps).map { stepNumber ->
+                (higherSegmentBottomPosition - lowerSegmentTopPosition) * stepNumber.toDouble() / numberOfSteps + lowerSegmentTopPosition })
         }
+        // Tack on the position of the very top of the instrument.
         newPos.add(pos.fromEnd(1))
+
+        // Compute the new diameters.
         val newDiams = (0 until newPos.size- 1 ).map { i -> this(0.5*(newPos[i] + newPos[i+1])) }
         val newLow = ArrayList(listOf(newDiams[0])+ newDiams)
         val newHigh = ArrayList(newDiams + listOf(newDiams.fromEnd(1)))
@@ -300,48 +317,71 @@ data class Profile(val pos: List<Double>, val low: List<Double>, val high: List<
             highAngle: ArrayList<Angle?>,
             quality: Int = 512
         ): Profile {
-            val a = ArrayList<Double>()
+            // This is roughly similar to asStepped. We're going to be
+            // replacing a profile containing hard diameter changes with
+            // something smooth - but instead of linear steps to produce
+            // a simple angled surface, we're going to be tracing a curve.
+            // Initially, we don't need to find the positions of the profile
+            // points, but we need to know what the angle of the body is at that point.
+            val profileAngles = ArrayList<Double>()
             val n = pos.size
             for (i in 0 until n - 1) {
                 val x1 = pos[i]
                 val y1 = high[i] * 0.5
                 val x2 = pos[i + 1]
                 val y2 = low[i + 1] * 0.5
-                a.add((atan2(y2 - y1, x2 - x1) + PI) % (PI * 2) - PI)
+                profileAngles.add((atan2(y2 - y1, x2 - x1) + PI) % (PI * 2) - PI)
             }
+
+            /**
+             * the body angles are specified with a direction indications
+             * that we'll use here to chose how to shape the transitions between
+             * sections.
+             */
             fun interpret(idx: Int, value: Angle?): Double? {
+                // If there's no angle specified for a section, then
+                // we don't try to create one.
                 return if (value == null) {
                     null
+                    // If the "direction" was mean, then we want the angle in
+                    // the transition to be halfway between the lower and upper angles.
                 } else if (value.dir == Angle.AngleDirection.Mean) {
-                    (a[idx - 1] + a[idx]) * 0.5
+                    (profileAngles[idx - 1] + profileAngles[idx]) * 0.5
+                    // If it's up, then the transition should match the angle of
+                    // the upper segment.
                 } else if (value.dir == Angle.AngleDirection.Up) {
-                    a[idx]
+                    profileAngles[idx]
+                    // If it's down, then the transition should match the angle
+                    // of the lower segment.
                 } else if (value.dir == Angle.AngleDirection.Down) {
-                    a[idx - 1]
+                    profileAngles[idx - 1]
                 } else {
-                    value.v!! * PI / 180
+                    // and finally, if it's a literal value for the angle,
+                    // then we use that.
+                    value.value!! * PI / 180
                 }
             }
-            val interpretedLowAngle = lowAngle.mapIndexed { i, angle ->
+            val interpretedLowAngles = lowAngle.mapIndexed { i, angle ->
                 interpret(i, angle)
             }
-            val interpretedHighAngle = highAngle.mapIndexed { i, angle -> interpret(i, angle) }
-            val ppos = ArrayList<Double>()
-            val plow = ArrayList<Double>()
-            val phigh = ArrayList<Double>()
+            val interpretedHighAngles = highAngle.mapIndexed { i, angle -> interpret(i, angle) }
+
+            val resultPositions = ArrayList<Double>()
+            val resultLowAngles = ArrayList<Double>()
+            val resultHighAngles = ArrayList<Double>()
 
             for (i in 0 until n - 1) {
-                ppos.add(pos[i])
-                plow.add(low[i])
-                phigh.add(high[i])
+                resultPositions.add(pos[i])
+                resultLowAngles.add(low[i])
+                resultHighAngles.add(high[i])
                 val x1 = pos[i]
                 val y1 = high[i] * 0.5
                 val x2 = pos[i + 1]
                 val y2 = low[i + 1] * 0.5
                 val l = distance(x2 - x1, y2 - y1)
                 val ang = atan2(y2 - y1, x2 - x1)
-                val a1 = interpretedHighAngle[i]?.let { ha -> ha - ang } ?: 0.0
-                val a2 = interpretedLowAngle[i + 1]?.let { la -> la - ang } ?: 0.0
+                val a1 = interpretedHighAngles[i]?.let { ha -> ha - ang } ?: 0.0
+                val a2 = interpretedLowAngles[i + 1]?.let { la -> la - ang } ?: 0.0
                 if ((a1 - a2).absoluteValue < PI * 2 / quality) {
                     continue
                 }
@@ -361,15 +401,15 @@ data class Profile(val pos: List<Double>, val low: List<Double>, val high: List<
                     val ll = distance(yy - cy1, xx - cx1)
                     val x = cos(aa - ca + ang) * ll / cl * l + x1
                     val y = sin(aa - ca + ang) * ll / cl * l + y1
-                    ppos.add(x)
-                    plow.add(y * 2)
-                    phigh.add(y * 2)
+                    resultPositions.add(x)
+                    resultLowAngles.add(y * 2)
+                    resultHighAngles.add(y * 2)
                 }
             }
-            ppos.add(pos.last())
-            plow.add(low.last())
-            phigh.add(high.last())
-            return Profile(ppos, plow, phigh)
+            resultPositions.add(pos.last())
+            resultLowAngles.add(low.last())
+            resultHighAngles.add(high.last())
+            return Profile(resultPositions, resultLowAngles, resultHighAngles)
         }
 
 

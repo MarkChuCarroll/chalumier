@@ -15,14 +15,17 @@
  */
 package org.goodmath.chalumier.config
 
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.double
+import kotlinx.serialization.json.*
 import org.goodmath.chalumier.errors.ConfigurationParameterException
+import kotlin.math.pow
+import kotlin.random.Random
 
 object DoubleParameterKind: ParameterKind<Double> {
     override val name: String = "Double"
+    override val isOptional: Boolean = false
+
+    override val sampleValueString: String
+        get() = (Random.nextInt().toDouble()/(10.0.pow(Random.nextInt(1, 4)))).toString()
 
     override fun fromConfigValue(v: Any?): Double {
         return when (v) {
@@ -35,16 +38,31 @@ object DoubleParameterKind: ParameterKind<Double> {
             }
 
             else -> {
-                throw ConfigurationParameterException("Expected a number value, but found '$v'")
+                throw error(v)
             }
         }
     }
 
     override fun checkValue(v: Any?): Boolean {
-        return v != null && v is Double
+        return when(v) {
+            null, is JsonNull -> false
+            is Double -> true
+            is String -> true
+            is JsonPrimitive -> v.doubleOrNull != null
+            else -> false
+        }
     }
 
-    override fun load(t: JsonElement): Double? {
+    override fun checkConfigValue(v: Any?): Boolean {
+        return when(v) {
+            null, is JsonNull -> false
+            is Double -> true
+            is String -> v.toDoubleOrNull() != null
+            else -> false
+        }
+    }
+
+    override fun fromJson(t: JsonElement): Double? {
         return when (t) {
             JsonNull -> {
                 null
@@ -54,7 +72,7 @@ object DoubleParameterKind: ParameterKind<Double> {
             }
 
             else -> {
-                throw ConfigurationParameterException("Parameter expected a double, but found $t")
+                throw error(t)
             }
         }
     }

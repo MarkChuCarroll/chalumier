@@ -16,13 +16,19 @@
 package org.goodmath.chalumier.config
 
 import kotlinx.serialization.json.*
-import org.goodmath.chalumier.errors.ConfigurationParameterException
 
 object IntParameterKind: ParameterKind<Int> {
     override val name: String = "Int"
+    override val sampleValueString: String = "34"
+    override val isOptional = false
 
     override fun checkValue(v: Any?): Boolean {
         return v != null && (v is Int || (v is Double && v.toInt().toDouble() == v))
+    }
+
+    override fun checkConfigValue(v: Any?): Boolean {
+        return v is Double || v is Int || (v is String &&
+                v.toDoubleOrNull() != null)
     }
 
     override fun fromConfigValue(v: Any?): Int {
@@ -36,12 +42,12 @@ object IntParameterKind: ParameterKind<Int> {
             }
 
             else -> {
-                throw ConfigurationParameterException("should be impossible")
+                throw error(v)
             }
         }
     }
 
-    override fun load(t: JsonElement): Int? {
+    override fun fromJson(t: JsonElement): Int? {
         return when (t) {
             JsonNull -> {
                 null
@@ -51,7 +57,7 @@ object IntParameterKind: ParameterKind<Int> {
             }
 
             else -> {
-                throw ConfigurationParameterException("Parameter expected an int, but found '$t'")
+                throw error(t)
             }
         }
     }

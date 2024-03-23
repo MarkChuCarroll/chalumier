@@ -19,8 +19,11 @@ import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
 import org.goodmath.chalumier.errors.ConfigurationParameterException
+import org.goodmath.chalumier.errors.ConfigurationParameterValueException
 import java.io.FileWriter
 import java.nio.file.Path
+import kotlin.io.path.bufferedReader
+import kotlin.io.path.bufferedWriter
 
 /**
  * The base for an object with configuration parameters.
@@ -47,6 +50,20 @@ import java.nio.file.Path
  */
 abstract class Configurable<T: Configurable<T>>(open val instrumentName: String) {
     private val configParameters = HashMap<String, ConfigParameter<T, *>>()
+
+    fun generateDescriptionTemplate(path: Path) {
+        val out = path.bufferedWriter()
+        out.write("$instrumentName {")
+        out.newLine()
+
+        out.write( configParameters.map { (paramName, param) ->
+            param.render(paramName)
+        }.joinToString(",\n\n" ))
+        out.newLine()
+        out.write("}")
+        out.newLine()
+        out.close()
+    }
 
     fun listConfigParameters(): List<Pair<String, String>> {
         return configParameters.map { (k, v) ->
@@ -144,7 +161,7 @@ abstract class Configurable<T: Configurable<T>>(open val instrumentName: String)
                         "unknown configuration parameter '${elName}'"
                     )
                     val elValue = el["value"]?.let {
-                        kind.load(it)
+                        kind.fromJson(it)
                     } ?: throw ConfigurationParameterException("Expected parameter in list to have a name")
                     setConfigParameterValue(elName, elValue)
                 }
@@ -164,12 +181,15 @@ abstract class Configurable<T: Configurable<T>>(open val instrumentName: String)
             if (param == null) {
                 System.err.println("Configuration contained unknown key ${k}; skipping")
             } else {
-                if (!param.setChecking(v)) {
-                    System.err.println("Configuration expected a value of type ${param.kind.name} for $k, but found $v")
+                try {
+                    if (!param.setConfigValue(v)) {
+                        System.err.println("Configuration parameter $k expected a value of type ${param.kind.name}, but found '$v'")
+                    }
+                } catch (c: ConfigurationParameterValueException) {
+                    System.err.println("Configuration parameter $k expected a value of type ${c.expected}  but found '$v'")
                 }
             }
         }
     }
-
 }
 

@@ -19,31 +19,64 @@ package org.goodmath.chalumier.config
 
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import org.goodmath.chalumier.errors.ConfigurationParameterValueException
 
 /**
- * The serializer/deserializer for a parameter of type T.
+ * A parameter kind is an object describing the type of a
+ * configuration parameter. It includes methods for checking
+ * if a value is convertable to the type, and for serializing and
+ * deserializing configuration values of the type.
  */
 interface ParameterKind<T> {
     val name: String
 
+    val isOptional: Boolean
+
+    val sampleValueString: String
+
+
     /**
-     *
+     * Check if an arbitrary value is either this type, or a
+     * JSON representation of this type.
      */
     fun checkValue(v: Any?): Boolean
 
+    /**
+     * Check if a configuration value is convertable to this type.
+     */
+    fun checkConfigValue(v: Any?): Boolean
+
+    /**
+     * Convert a configuration value (assumed to have already passed
+     * checkConfigValue) to this type.
+     */
     fun fromConfigValue(v: Any?): T {
         return v as T
     }
 
+    /**
+     * convert a value of this type to json.
+     */
     fun dump(t: T?): JsonElement
 
 
+    /**
+     * Internal method used for serializing an entire configurable
+     * object to JSON.
+     */
     fun<C: Configurable<C>> dumpByName(c: C, paramName: String): JsonElement? {
         val v = c.getConfigParameterValue<T>(paramName)
         return dump(v)
     }
 
-    fun load(t: JsonElement): T?
+    /**
+     * Convert a JSON object to this type.
+     */
+    fun fromJson(t: JsonElement): T?
+
+    fun error(v: Any?): ConfigurationParameterValueException =
+        ConfigurationParameterValueException(name, v)
+
 }
 
 /**
@@ -52,6 +85,8 @@ interface ParameterKind<T> {
 fun<T> opt(pk: ParameterKind<T>): ParameterKind<T?> {
     return object: ParameterKind<T?> {
         override val name: String = "${pk.name}?"
+        override val isOptional = true
+        override val sampleValueString: String = "pk.sampleValueString or null"
 
         override fun fromConfigValue(v: Any?): T? {
             return if (v == null) {
@@ -65,8 +100,12 @@ fun<T> opt(pk: ParameterKind<T>): ParameterKind<T?> {
             return pk.checkValue(v) || v == null
         }
 
-        override fun load(t: JsonElement): T? {
-            return pk.load(t)
+        override fun checkConfigValue(v: Any?): Boolean {
+            return v?.let { pk.checkConfigValue(it) }?: true
+        }
+
+        override fun fromJson(t: JsonElement): T? {
+            return pk.fromJson(t)
         }
 
         override fun dump(t: T?): JsonElement {

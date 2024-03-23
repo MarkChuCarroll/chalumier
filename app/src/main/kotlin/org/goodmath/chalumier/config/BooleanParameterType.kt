@@ -15,29 +15,39 @@
  */
 package org.goodmath.chalumier.config
 
-import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.boolean
-import org.goodmath.chalumier.errors.ConfigurationParameterException
+import kotlinx.serialization.json.*
 
 object BooleanParameterKind: ParameterKind<Boolean> {
     override val name: String = "Boolean"
+    override val isOptional: Boolean = false
+
+    override val sampleValueString: String = "true or false"
 
     override fun fromConfigValue(v: Any?): Boolean {
         return when {
             v is Boolean -> v
             v is String && v == "true" -> true
             v is String && v == "false" -> false
-            else -> throw ConfigurationParameterException("Expected a boolean value, but found $v")
+            else -> throw error(v)
         }
     }
-    override fun checkValue(v: Any?): Boolean {
-        return v != null && (v is Boolean ||
-                (v is String && v == "true" || v == "false"))
+    override fun checkValue(v: Any?) : Boolean {
+        return when (v) {
+            null -> false
+            is JsonNull -> false
+            is Boolean -> true
+            is String -> v == "true" || v == "false"
+            is JsonPrimitive -> v.booleanOrNull != null
+            else -> false
+        }
     }
 
-    override fun load(t: JsonElement): Boolean? {
+    override fun checkConfigValue(v: Any?): Boolean {
+        return (v is Boolean) || (v is String &&
+                (v == "true" || v == "false"))
+    }
+
+    override fun fromJson(t: JsonElement): Boolean? {
         return when (t) {
             JsonNull -> {
                 null
@@ -47,7 +57,7 @@ object BooleanParameterKind: ParameterKind<Boolean> {
             }
 
             else -> {
-                throw ConfigurationParameterException("Expected a boolean, found '${t}'")
+                throw error(t)
             }
         }
     }

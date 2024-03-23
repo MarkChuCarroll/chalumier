@@ -16,22 +16,63 @@
 package org.goodmath.chalumier.config
 
 import kotlinx.serialization.json.*
-import org.goodmath.chalumier.errors.ConfigurationParameterException
+
+fun JsonObject.fieldSatisfiesPredicate(name: String, pred: (JsonElement?) -> Boolean): Boolean {
+    return this.containsKey(name) && this[name]?.let { pred(it) }?: false
+}
 
 object IntDoublePairParameterKind: ParameterKind<Pair<Int, Double>> {
     override val name: String = "Pair<Int, Double>"
+    override val isOptional: Boolean = false
+    override val sampleValueString: String = "(Pair: 3, 27.1)"
+
 
     override fun checkValue(v: Any?): Boolean {
-        return v != null &&  (v is Pair<*, *> && v.first is Int && v.second is Double)
+        return when(v) {
+            null, is JsonNull -> false
+            is Pair<*, *> -> v.first is Int && v.second is Double
+            is JsonObject -> v.fieldSatisfiesPredicate("first") { f ->
+                f is JsonPrimitive &&
+                        f.intOrNull != null
+            } &&
+                    v.fieldSatisfiesPredicate("second") { f -> f is JsonPrimitive && f.doubleOrNull != null }
+
+            is JsonArray ->
+                v.run {
+                    if (size == 2) {
+                        val first = v[0]
+                        val second = v[1]
+                        first is JsonPrimitive && first.doubleOrNull != null &&
+                                second is JsonPrimitive && second.doubleOrNull != null
+                    } else {
+                        false
+                    }
+                }
+
+            else -> false
+        }
     }
 
-    override fun load(t: JsonElement): Pair<Int, Double>? {
+    override fun checkConfigValue(v: Any?): Boolean {
+        return when(v) {
+            null ->  false
+            is Map<*, *> ->
+                v.containsKey("first") && IntParameterKind.checkConfigValue(v["first"]) &&
+                        v.containsKey("second") && DoubleParameterKind.checkConfigValue(v["second"])
+            is List<*> ->
+                v.size == 2 && IntParameterKind.checkConfigValue(v[0]) &&
+                        DoubleParameterKind.checkConfigValue(v[1])
+            else ->  false
+        }
+    }
+
+    override fun fromJson(t: JsonElement): Pair<Int, Double>? {
         if (t == JsonNull) { return null }
         return if (t is JsonObject) {
-            Pair(IntParameterKind.load(t["first"]!!)!!,
-                DoubleParameterKind.load(t["second"]!!)!!)
+            Pair(IntParameterKind.fromJson(t["first"]!!)!!,
+                DoubleParameterKind.fromJson(t["second"]!!)!!)
         } else {
-            throw ConfigurationParameterException("Parameter of type $name expected a JSON object, but found $t")
+            throw error(t)
         }
     }
 

@@ -229,7 +229,7 @@ abstract class AbstractShawmDesigner(override val instrumentName: String,
   override var minOuterFractionSep by ListOfDoubleParameter { arrayListOf(0.19, 0.8) }
   override var initialOuterFractions by ListOfDoubleParameter {arrayListOf(0.19) }
   override var outerAngles by ListOfOptAnglePairsParameter {
-      ArrayList(listOf(Angle(Angle.AngleDirection.Here, -35.0), Angle(Angle.AngleDirection.Up), Angle(Angle.AngleDirection.Down))
+      ArrayList(listOf(Angle(Angle.AngleDirection.Exact, -35.0), Angle(Angle.AngleDirection.Up), Angle(Angle.AngleDirection.Down))
         .map { Pair(it, it) })
   }
 }

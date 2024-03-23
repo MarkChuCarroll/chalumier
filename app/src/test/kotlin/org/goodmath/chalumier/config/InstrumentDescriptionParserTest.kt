@@ -35,6 +35,20 @@ class InstrumentDescriptionParserTest {
     }
 
     @Test
+    fun testParseTuples() {
+        val input = "this { x = (me: 1, 2, \"abc\", false),\ny=38,z=[1, 2]\n}\n"
+        val c = DescriptionParser(StringReader(input)).parseConfig()
+        assertEquals("this", c.name)
+        val t = c.values["x"] as Tuple
+        assertEquals("me", t.name)
+        assertEquals(4, t.body.size)
+        assertEquals(1.0, t.body[0])
+        assertEquals(2.0, t.body[1])
+        assertEquals("abc", t.body[2])
+        assertEquals(false, t.body[3])
+    }
+
+    @Test
     fun testRealInput() {
         val c = DescriptionParser(StringReader(flute))
         val cfg = c.parseConfig()

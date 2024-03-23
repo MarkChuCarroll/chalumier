@@ -15,16 +15,7 @@
  */
 package org.goodmath.chalumier.optimize
 
-import com.github.ajalt.mordant.rendering.*
-import com.github.ajalt.mordant.rendering.TextColors.Companion.rgb
-import com.github.ajalt.mordant.table.Borders
-import com.github.ajalt.mordant.table.ColumnWidth
-import com.github.ajalt.mordant.table.table
-import com.github.ajalt.mordant.terminal.Terminal
 import org.goodmath.chalumier.design.DesignParameters
-import kotlin.math.abs
-import kotlin.math.log10
-import kotlin.math.roundToInt
 
 
 /**
@@ -61,8 +52,9 @@ class Optimizer(
     private val maxCandidates = initialDesignParameters.size * 5
     private var initialSpans: Pair<Double, Double> = Pair(Double.NaN, Double.NaN)
 
+
     companion object {
-        val progress = ProgressDisplay(10)
+        val progress = ProgressDisplay("???", 10)
     }
 
     /**
@@ -193,9 +185,9 @@ class Optimizer(
         }
     }
 
-
     fun optimizeInstrument(frequencyTolerance: Double = 1e-6,
                            parameterSpanTolerance: Double = 1e-6): DesignParameters {
+        progress.instrumentName = instrumentName
         progress.initialISpan = initialSpans.first
         progress.initialPSpan = initialSpans.second
         computePool.start()

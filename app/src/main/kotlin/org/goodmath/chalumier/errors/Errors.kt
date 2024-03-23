@@ -25,5 +25,8 @@ open class ChalumierException(msg: String, cause: Throwable? = null) : Exception
 class RequiredParameterException(name: String, msg: String = "is a required parameter") :
     ChalumierException("$name $msg")
 
+class ConfigurationParameterValueException(val expected: String, val value: Any?)
+    : ChalumierException("Configuration parameter expected a $expected value, but found '$value'")
+
 class ConfigurationParameterException(error: String): ChalumierException("Config error: $error")
 class AssertionException(msg: String) : ChalumierException(msg)

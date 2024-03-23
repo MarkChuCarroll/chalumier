@@ -26,6 +26,6 @@ class Chalumier: CliktCommand() {
 
 
 fun main(args: Array<String>) {
-     Chalumier().subcommands(Design(), Model(), Make()).main(args)
+     Chalumier().subcommands(Design(), Model(), Make(), Skeleton()).main(args)
 }
 

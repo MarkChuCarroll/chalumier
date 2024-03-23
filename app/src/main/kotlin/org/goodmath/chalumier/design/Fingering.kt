@@ -28,6 +28,20 @@ enum class Hole {
     O, X
 }
 
+/**
+ * A single fingered note on an instrument.
+ * @param noteName the name of the musical note that should be
+ *   produced by this fingering.
+ * @param fingers a list of Hole values specifying whether each
+ *    hole is open or closed for this note. X means closed, O means open.
+ * @param nth an optional value that specifies the dominant overtone
+ *    number (primarily used on reeded instruments, where a register break
+ *    forces to switch to a different dominant overtine.
+ *
+ * For description files, this is written as an object:
+ * ```
+ *  { noteName = "D4", fingers = [ "X", "O", "O", "X", "O", "O"] }
+ */
 @Serializable
 data class Fingering(
     val noteName: String, val fingers: List<Hole>, val nth: Int? = null
@@ -39,9 +53,16 @@ data class Fingering(
 
 object FingeringParameterKind: ParameterKind<Fingering> {
     override val name: String = "Fingering"
+    override val sampleValueString: String = "{ noteName=\"c4\", fingers=[\"O\", \"X\", \"O\", \"X\", \"O\", \"X\", \"O\", \"X\"] }"
+    override val isOptional = false    
 
     override fun checkValue(v: Any?): Boolean {
-        return v is Fingering || (v is Map<*, *> && v.containsKey("noteName"))
+        // TODO
+        return v is Fingering || v is Map<*, *>
+    }
+
+    override fun checkConfigValue(v: Any?): Boolean {
+        return (v is Map<*, *> && v.containsKey("noteName"))
     }
 
     override fun fromConfigValue(v: Any?): Fingering {
@@ -56,7 +77,7 @@ object FingeringParameterKind: ParameterKind<Fingering> {
         }
     }
 
-    override fun load(t: JsonElement): Fingering? {
+    override fun fromJson(t: JsonElement): Fingering? {
         if (t == JsonNull) {
             return null
         }
