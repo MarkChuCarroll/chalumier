@@ -16,7 +16,6 @@
 package org.goodmath.chalumier.config
 
 import kotlinx.serialization.json.JsonObject
-import org.goodmath.chalumier.errors.ConfigurationParameterException
 
 object DoublePairParameterKind: PairParameterKind<Double, Double>(DoubleParameterKind, DoubleParameterKind) {
     override fun fromConfigValue(v: Any?): Pair<Double, Double> {
@@ -38,7 +37,6 @@ object DoublePairParameterKind: PairParameterKind<Double, Double>(DoubleParamete
                 Pair(DoubleParameterKind.fromConfigValue(first),
                     DoubleParameterKind.fromConfigValue(second))
             }
-
             is Double -> {
                 Pair(v, v)
             }
@@ -82,11 +80,11 @@ object DoublePairParameterKind: PairParameterKind<Double, Double>(DoubleParamete
         }
     }
 
+    override fun toConfigValue(t: Pair<Double, Double>): String {
+        return "(Pair: ${t.first}, ${t.second})"
+    }
+
     override val isOptional: Boolean = false
-
-
-    override val sampleValueString: String = "(Pair: "
-
 }
 
 val DoublePairListParameterKind: ParameterKind<List<Pair<Double, Double>>> = ListParameterKind(DoublePairParameterKind)

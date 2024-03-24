@@ -43,7 +43,7 @@ class InstrumentTest {
             Path("/tmp/test"))
         flute.numberOfHoles = 7
         flute.fingerings = FluteDesigner.fingeringsWithEmbouchure(FluteDesigner.folkFingerings)
-        flute.balance = arrayListOf(0.1, null, null, 0.1)
+        flute.balance = arrayListOf(0.1, null, null, 0.1, null)
         // ph: hole_angles = [ -30.0, -30.0, 30.0, -30.0, 30.0, -30.0, O ]
         // ph: hole_angles = [ 30.0, -30.0, 30.0, O, O, O, O ]
         flute.holeAngles = arrayListOf(-30.0, 30.0, 30.0, -30.0, 0.0, 30.0, 0.0)

@@ -21,7 +21,6 @@ open class PairParameterKind<T, U>(
     private val tKind: ParameterKind<T>,
     private val uKind: ParameterKind<U>): ParameterKind<Pair<T, U>> {
     override val name: String = "Pair<${tKind.name}, ${uKind.name}>"
-    override val sampleValueString: String = "(Pair: ${tKind.sampleValueString}, ${uKind.sampleValueString})"
     override val isOptional = false
 
 
@@ -45,6 +44,10 @@ open class PairParameterKind<T, U>(
             else ->
                 throw error(v)
         }
+    }
+
+    override fun toConfigValue(t: Pair<T, U>): String {
+        return "(Pair: ${tKind.toConfigValue(t.first)}, ${uKind.toConfigValue(t.second)})"
     }
 
     override fun checkValue(v: Any?): Boolean {

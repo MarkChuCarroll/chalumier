@@ -28,12 +28,12 @@ import org.goodmath.chalumier.design.DesignParameters
  */
 class Optimizer(
     private val instrumentName: String,
-    private val echo: (Any?) -> Unit,
     private val initialDesignParameters: DesignParameters,
     private val constraintScorer: (DesignParameters) -> Double,
-    intonationScorer: (DesignParameters) -> Double,
+    private val intonationScorer: (DesignParameters) -> Double,
     private val reportingInterval: Int = 5000,
     private val accuracy: Double = 0.001,
+    private val progressReporter: ProgressDisplay,
     private val monitor: (ScoredParameters,
                           List<DesignParameters>) -> Unit = { _, _ ->  }) {
 
@@ -52,24 +52,16 @@ class Optimizer(
     private val maxCandidates = initialDesignParameters.size * 5
     private var initialSpans: Pair<Double, Double> = Pair(Double.NaN, Double.NaN)
 
-
-    companion object {
-        val progress = ProgressDisplay("???", 10)
-    }
-
     /**
      * Bump the iteration count, and if the reporting interval has elapsed,
      * print out a brief status report.
      */
     private fun periodicallyReportStatus() {
-        fun fmtIterations(its: Int): String {
-            return "%05d".format(its)
-        }
         iterations++
         val now = System.currentTimeMillis()
         if (now - lastReport > reportingInterval) {
-            progress.updateStats(iterations, candidates.size, best.score,
-                candidates.map { it.score }.max(),lastIntonationSpan,
+            progressReporter.updateStats(iterations, best.score, candidates.size,
+                candidates.maxOf { it.score }, lastIntonationSpan,
                 lastParameterSpan, parameterSetUpdateCount, constraintSatisfactionCount )
             lastReport = now
             if (best.score.constraintScore == 0.0) {
@@ -176,9 +168,7 @@ class Optimizer(
                 ArrayList(candidates.map { it.score }).max().intonationScore - best.score.intonationScore
             lastParameterSpan = parameterSpan
             lastIntonationSpan = intonationSpan
-            if (initialSpans.first.isNaN()) {
-                initialSpans = Pair(lastIntonationSpan, lastParameterSpan)
-            }
+            progressReporter.setMaximumSpans(lastIntonationSpan, lastParameterSpan)
             if (parameterSpan < parameterSpanTolerance || (parameterSetUpdateCount >= 5000 && intonationSpan < frequencyTolerance)) {
                 computePool.finish()
             }
@@ -187,9 +177,7 @@ class Optimizer(
 
     fun optimizeInstrument(frequencyTolerance: Double = 1e-6,
                            parameterSpanTolerance: Double = 1e-6): DesignParameters {
-        progress.instrumentName = instrumentName
-        progress.initialISpan = initialSpans.first
-        progress.initialPSpan = initialSpans.second
+        progressReporter.setMaximumSpans(initialSpans.first, initialSpans.second)
         computePool.start()
         candidates = arrayListOf(best)
 

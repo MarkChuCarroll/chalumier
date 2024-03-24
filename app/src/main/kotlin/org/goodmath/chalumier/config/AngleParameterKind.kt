@@ -26,9 +26,6 @@ object AngleParameterKind: ParameterKind<Angle> {
     override val name: String = "Angle"
     override val isOptional: Boolean = false
 
-    override val sampleValueString: String
-        get() = "(Angle: Down) or (Angle: Exact, 45.0)"
-
     override fun fromConfigValue(v: Any?): Angle {
         return if (v is Angle) { v }
         else if (v is Tuple) {
@@ -53,6 +50,11 @@ object AngleParameterKind: ParameterKind<Angle> {
             throw error(v)
         }
     }
+    override fun toConfigValue(t: Angle): String {
+        return "(Angle: ${t.dir}${t.value?.let { ", $it" }?:""})"
+    }
+
+
 
     override fun checkValue(v: Any?): Boolean {
         return when (v) {
@@ -77,11 +79,12 @@ object AngleParameterKind: ParameterKind<Angle> {
                         (v["value"]?.let {
                             it is Double || it is String && it.toDoubleOrNull() != null
                         } ?: false)
-            is Tuple ->
+            is Tuple -> {
                 v.name == "Angle" && v.body.size <= 2 &&
                         setOf("Up", "Down", "Exact", "Mean").contains(v.body[0]) &&
                         (v.body.size == 1 ||
                                 (v.body.size == 2 && v.body[1] == null || v.body[1] is Double))
+            }
             else -> false
         }
     }
@@ -124,8 +127,93 @@ object AngleParameterKind: ParameterKind<Angle> {
     }
 }
 
-val PairOfAnglesParameterKind = PairParameterKind(AngleParameterKind, AngleParameterKind)
-val ListOfOptAnglePairsKind = ListOfOptParameterKind(opt(PairOfAnglesParameterKind))
+val PairOfAnglesParameterKind = object: PairParameterKind<Angle, Angle>(AngleParameterKind, AngleParameterKind) {
+    override fun checkConfigValue(v: Any?): Boolean {
+        return when (v) {
+            is Tuple -> {
+                when (v.name) {
+                    "Angle" -> {
+                        AngleParameterKind.checkConfigValue(v)
+                    }
+                    "Pair" -> {
+                        v.body.size == 2 && AngleParameterKind.checkConfigValue(v.body[0]) &&
+                                AngleParameterKind.checkConfigValue(v.body[1])
+                    }
+                    else -> {
+                        false
+                    }
+                }
+            }
+
+            else -> {
+                false
+            }
+        }
+
+    }
+
+    override fun fromConfigValue(v: Any?): Pair<Angle, Angle> {
+        return if (v is Tuple) {
+            when (v.name) {
+                "Angle" -> {
+                    val single = AngleParameterKind.fromConfigValue(v)
+                    Pair(single, single)
+                }
+                "Pair" -> {
+                    val first = AngleParameterKind.fromConfigValue(v.body[0])
+                    val second = AngleParameterKind.fromConfigValue(v.body[1])
+                    return Pair(first, second)
+                }
+                else -> { throw error(v) }
+            }
+        } else { throw error(v) }
+    }
+
+}
+
+val optAnglePairKind = object: ParameterKind<Pair<Angle, Angle>?> {
+    override val name: String = "Pair<Angle, Angle>?"
+
+    override val isOptional: Boolean = true
+
+
+    override fun checkValue(v: Any?): Boolean {
+        return v == null || v is JsonNull || PairOfAnglesParameterKind.checkValue(v)
+    }
+
+    override fun checkConfigValue(v: Any?): Boolean {
+        return v == null || v == "null" || PairOfAnglesParameterKind.checkConfigValue(v)
+    }
+
+    override fun fromJson(t: JsonElement): Pair<Angle, Angle>? {
+        return when(t) {
+            is JsonNull -> null
+            else -> PairOfAnglesParameterKind.fromJson(t)
+        }
+    }
+
+    override fun dump(t: Pair<Angle, Angle>?): JsonElement {
+        return when(t) {
+            null -> JsonNull
+            else -> PairOfAnglesParameterKind.dump(t)
+        }
+    }
+
+    override fun toConfigValue(t: Pair<Angle, Angle>?): String {
+        return if (t == null) { "null" } else { PairOfAnglesParameterKind.toConfigValue(t) }
+    }
+
+    override fun fromConfigValue(v: Any?): Pair<Angle, Angle>? {
+        return if (v == null || v == "null") {
+            null
+        } else {
+            PairOfAnglesParameterKind.fromConfigValue(v)
+        }
+    }
+
+}
+
+val ListOfOptAnglePairsKind = ListOfOptParameterKind(optAnglePairKind)
 fun<T: Configurable<T>> PairOfAnglesParameter(help: String = "", gen: (T) -> Pair<Angle, Angle>): ConfigParameter<T, Pair<Angle, Angle>> {
     return ConfigParameter(PairOfAnglesParameterKind, help, gen=gen)
 }

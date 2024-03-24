@@ -7,7 +7,6 @@ import org.goodmath.chalumier.errors.ConfigurationParameterException
 
 object StringParameterKind: ParameterKind<String> {
     override val name: String = "String"
-    override val sampleValueString: String = "\"abcdef\""
     override val isOptional = false
 
 
@@ -22,6 +21,14 @@ object StringParameterKind: ParameterKind<String> {
 
     override fun checkConfigValue(v: Any?): Boolean {
         return v != null && v is String
+    }
+
+    override fun fromConfigValue(v: Any?): String {
+        return v as String
+    }
+
+    override fun toConfigValue(t: String): String {
+        return "\"$t\""
     }
 
     override fun fromJson(t: JsonElement): String? {

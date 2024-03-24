@@ -36,32 +36,22 @@ open class ConfigParameter<T: Configurable<T>, V>(
     val help: String = "",
     var gen: (T) -> V) {
 
-    var name: String? = null
-
+    lateinit var name: String
+    lateinit var ref: T
 
     private object UNINITIALIZED
 
     var v: Any? = UNINITIALIZED
-
-    fun render(fieldName: String): String {
-        val result = StringBuilder()
-        result.append("   # Field ${fieldName} of type ${kind.name}\n")
-        if (help != "") {
-            result.append("   # $help\n")
-        }
-        result.append("   $fieldName = ${kind.sampleValueString}")
-        return result.toString()
-    }
 
     operator fun provideDelegate(
         thisRef: T,
         prop: KProperty<*>
     ): ConfigParameter<T, V> {
         this.name = prop.name
+        this.ref = thisRef
         thisRef.addConfigParameter(prop.name, this)
         return this
     }
-
 
     @Suppress("UNCHECKED_CAST")
     fun get(thisRef: T): V {
@@ -74,6 +64,11 @@ open class ConfigParameter<T: Configurable<T>, V>(
             v as V
         }
     }
+
+    operator fun getValue(thisRef: T, property: KProperty<*>): V {
+        return get(thisRef)
+    }
+
 
     fun setConfigValue(v: Any?): Boolean {
         if (kind.checkConfigValue(v)) {
@@ -88,14 +83,29 @@ open class ConfigParameter<T: Configurable<T>, V>(
         v = value
     }
 
-    operator fun getValue(thisRef: T, property: KProperty<*>): V {
-        return get(thisRef)
-    }
-
     operator fun setValue(thisRef: T, property: KProperty<*>, value: V) {
         set(value)
     }
 
+    /**
+     * Generate a string containing a description of the field, its type,
+     * and its default value.
+     */
+    fun render(fieldName: String): String {
+        val result = StringBuilder()
+        val optStr = if (kind.isOptional) {
+            " (This field is optional.)"
+        } else {
+            ""
+        }
+        result.append("   # Field:$fieldName\n")
+        result.append("   # Type: ${kind.name}$optStr\n")
+        if (help != "") {
+            result.append("   # Description:\n")
+            result.append(Configurable.wrapString(help, "   #    "))
+        }
+        result.append("   $fieldName = ${kind.toConfigValue(get(ref))}")
+        return result.toString()
+    }
+
 }
-
-

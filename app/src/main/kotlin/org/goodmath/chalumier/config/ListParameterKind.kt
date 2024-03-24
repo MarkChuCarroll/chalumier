@@ -18,9 +18,8 @@ package org.goodmath.chalumier.config
 import kotlinx.serialization.json.*
 import org.goodmath.chalumier.errors.ConfigurationParameterException
 
-class ListParameterKind<T>(private val pk: ParameterKind<T>): ParameterKind<List<T>> {
+open class ListParameterKind<T>(val pk: ParameterKind<T>): ParameterKind<List<T>> {
     override val name: String = "List<${pk.name}>"
-    override val sampleValueString: String = "[ ${pk.sampleValueString}, ... ]"
     override val isOptional = false
 
     override fun checkValue(v: Any?): Boolean {
@@ -56,6 +55,25 @@ class ListParameterKind<T>(private val pk: ParameterKind<T>): ParameterKind<List
         }
     }
 
+    override fun toConfigValue(t: List<T>): String {
+        val elements = t.map { pk.toConfigValue(it) }
+        var result = "[\n"
+        var line = "      "
+        var sep = ""
+        elements.forEach { el ->
+            if (line.length + sep.length + el.length  < 80) {
+                line += "$sep$el"
+            } else {
+                line += "$sep\n"
+                result += line
+                line = "      $el"
+            }
+            sep = ", "
+        }
+        result += line + "\n   ]"
+        return result
+    }
+
     override fun fromJson(t: JsonElement): List<T>? {
         if (t ==  JsonNull) {
             return null
@@ -83,10 +101,15 @@ class ListParameterKind<T>(private val pk: ParameterKind<T>): ParameterKind<List
 
 class ListOfOptParameterKind<T>(private val pk: ParameterKind<T?>): ParameterKind<List<T?>> {
     override val name: String = "List<${pk.name}>"
-    override val sampleValueString: String = "[ ${pk.sampleValueString} or null ]"
-    override val isOptional = false    
+    override val isOptional = false
 
-
+    override fun fromConfigValue(v: Any?): List<T?> {
+        return if (v is List<*>) {
+            v.map { pk.fromConfigValue(it) }
+        } else {
+            throw error(v)
+        }
+    }
     override fun checkValue(v: Any?): Boolean {
         return when(v) {
             null, is JsonNull -> true
@@ -96,7 +119,12 @@ class ListOfOptParameterKind<T>(private val pk: ParameterKind<T?>): ParameterKin
     }
 
     override fun checkConfigValue(v: Any?): Boolean {
-        return (v == null) || pk.checkValue(v)
+        return (v == null)  || v == "null" || (v is List<*> && v.all { pk.checkConfigValue(it) })
+    }
+
+    override fun toConfigValue(t: List<T?>): String {
+        val elements = t.map { pk.toConfigValue(it) }.joinToString(", ")
+        return "[$elements]"
     }
 
     override fun fromJson(t: JsonElement): List<T?>? {

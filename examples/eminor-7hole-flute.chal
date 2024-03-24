@@ -23,6 +23,10 @@ folkFlute {
         { noteName = "C6", fingers = ["O", "O", "O", "O", "O", "O", "X", "O"] }
     ],
 
+    maxHoleSpacing = [45.0, 45.0, 45.0, null, 45.0, 45.0, null],
+
+    balance = [0.1, 0.1, null, null, 0.1, null ],
+
     maxHoleDiameters = [
         15.0,
         15.0,
@@ -53,6 +57,9 @@ folkFlute {
         0.0,
         0.0
     ],
+
+    holeHorizAngles = [ 45.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+
     minHoleSpacing = [
         15.0,
         15.0,

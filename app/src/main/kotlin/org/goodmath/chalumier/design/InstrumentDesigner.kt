@@ -23,6 +23,7 @@ import org.goodmath.chalumier.errors.dAssert
 import org.goodmath.chalumier.make.InstrumentMaker
 import org.goodmath.chalumier.make.JoinType
 import org.goodmath.chalumier.optimize.Optimizer
+import org.goodmath.chalumier.optimize.ProgressDisplay
 import org.goodmath.chalumier.optimize.Score
 import org.goodmath.chalumier.optimize.ScoredParameters
 import org.goodmath.chalumier.util.repeat
@@ -50,11 +51,11 @@ abstract class InstrumentDesigner<Inst: Instrument>(
     /*
      * Basic definitional parameters of the instrument.
      */
-    open var name by StringParameter {
+    open var name by StringParameter("The name of the instrument being designed.") {
         instrumentName
     }
 
-    open var rootNote by OptStringParameter {
+    open var rootNote by OptStringParameter("The lowest note on the instrument, when all holes are closed") {
         null
     }
 
@@ -85,7 +86,13 @@ abstract class InstrumentDesigner<Inst: Instrument>(
     }
 
 
-    open var innerDiameters by ListOfDoublePairParameter("the diameters of the inner bore from bottom to top") {
+    open var innerDiameters by ListOfDoublePairParameter(
+        "A description of the inner bore of the instrument. The first element is the bore diameter at the base " +
+                "of the instrument; the last element is the bore diameter at the top of the instrument. " +
+                "The bore is piecewise linear, where the intervening elements are boundaries between pieces (kinks). "+
+                "The exact placement may be moved as part of the optimization process. As an advanced option " +
+                "instead of a single diameter, you can give a tuple (low,high)  to create a step in the " +
+                "diameter of the bore.  See the examples/stepped_shawm.py for an example of this.") {
         throw RequiredParameterException("innerDiameters")
     }
 
@@ -93,11 +100,11 @@ abstract class InstrumentDesigner<Inst: Instrument>(
         throw RequiredParameterException("outerDiameters", "must have at least two elements")
     }
 
-    open var innerAngles by ListOfOptAnglePairsParameter {
+    open var innerAngles by ListOfOptAnglePairsParameter("angle descriptions for the inner contours of the instrument's bore.") {
         innerDiameters.map { null }
     }
 
-    open var outerAngles by ListOfOptAnglePairsParameter {
+    open var outerAngles by ListOfOptAnglePairsParameter("angle descriptions for the outer contours of the instrument's body") {
         outerDiameters.map { null }
     }
 
@@ -126,64 +133,76 @@ abstract class InstrumentDesigner<Inst: Instrument>(
 
 
     open var minHoleSpacing by ListOfOptDoubleParameter(
-        "a list of values specifying the minimum distance between pairs of holes") {
+        "Minimum space between each pair of finger holes") {
         (it.numberOfHoles-1).repeat { 0.0 }
     }
 
     open var maxHoleSpacing by ListOfOptDoubleParameter("the maximum distance separating each pair of holes") { c ->
         (c.numberOfHoles - 1).repeat { c.initialLength }
     }
+    open var balance by ListOfOptDoubleParameter("For each triplet of holes (0, 1, 2), (1, 2, 3), ..., this is a " +
+            "value between 0 and 1 specifying how similar the spacings of the pairs of holes should be. " +
+            "The smaller the value, the more similar the spacings must be.") { c -> (c.numberOfHoles - 2).repeat { null } }
 
-    open var balance by ListOfOptDoubleParameter { c -> (c.numberOfHoles - 2).repeat { null } }
-    open var holeAngles by ListOfDoubleParameter { it.numberOfHoles.repeat { 0.0 } }
+    open var holeAngles by ListOfDoubleParameter( "Vertical angle of each hole. Using angling can " +
+            "make an instrument easier to play due by making the hole spacing more comfortable.") { it.numberOfHoles.repeat { 0.0 } }
 
-open var initialInnerFractions by ListOfDoubleParameter { c ->
+open var initialInnerFractions by ListOfDoubleParameter("Initial positions of kinks in the bore, described as " +
+        "fractions of the length of the bore. Most the time, this will be automatically " +
+        "generated from the inner diameters") { c ->
         (c.innerDiameters.size - 2).repeat { (it + 1.0) / (c.innerDiameters.size - 1) }
     }
 
-    open var minInnerFractionSep by ListOfDoubleParameter {
+    open var minInnerFractionSep by ListOfDoubleParameter("Minimum size of each linear segment of the bore, " +
+            "as a fraction of the overall length.") {
         (it.innerDiameters.size - 1).repeat { 0.0 }
     }
-    open var maxInnerFractionSep by ListOfDoubleParameter {
+    open var maxInnerFractionSep by ListOfDoubleParameter("Maximum size of each linear segment of the bore, " +
+            "as a fraction of the overall length.") {
         (it.innerDiameters.size - 1).repeat { 1.0 }
     }
 
-    open var minInnerSep by ListOfOptDoubleParameter {
+    open var minInnerSep by ListOfOptDoubleParameter("The minimum distance between changes in the bore diameter") {
         (it.innerDiameters.size - 1).repeat { null }
     }
 
-    open var maxInnerSep by ListOfOptDoubleParameter {
+    open var maxInnerSep by ListOfOptDoubleParameter("The maximum distances between changes in the bore diameter") {
         (it.innerDiameters.size - 1).repeat { null }
     }
-    open var initialOuterFractions by ListOfDoubleParameter { c ->
+    open var initialOuterFractions by ListOfDoubleParameter("Initial positions of kinks in the body shape, described as " +
+            "fractions of the length of the instrument. Most the time, this will be automatically " +
+            "generated from the outer diameters") { c ->
         (c.outerDiameters.size - 2).repeat { (it + 1.0) / (c.outerDiameters.size - 1) }
     }
 
-    open var minOuterFractionSep by ListOfDoubleParameter { c ->
+    open var minOuterFractionSep by ListOfDoubleParameter("Minimum size of each linear segment of the instrument, " +
+            "as a fraction of the overall length.") { c ->
         (c.outerDiameters.size - 1).repeat { 0.0 }
     }
 
-    open var maxOuterFractionSep by ListOfDoubleParameter {
+    open var maxOuterFractionSep by ListOfDoubleParameter("Maximum size of each linear segment of the bore, " +
+            "as a fraction of the overall length.") {
         (it.outerDiameters.size - 1).repeat { 1.0 }
     }
 
-    open var initialHoleFractions by ListOfDoubleParameter { c ->
+    open var initialHoleFractions by ListOfDoubleParameter("Initial hole locations, defined as fractions of the length of the instrument") { c ->
         c.numberOfHoles.repeat { (it + 3.0) / (c.numberOfHoles + 2) * 0.5 }
     }
 
-    open var initialHoleDiameterFractions by ListOfDoubleParameter {
+    open var initialHoleDiameterFractions by ListOfDoubleParameter("Initial hole diameters, defined as fractions of the instrument's bore size.") {
         it.numberOfHoles.repeat { 0.75 }
     }
 
 
-    open var holeHorizAngles by ListOfDoubleParameter {
+    open var holeHorizAngles by ListOfDoubleParameter("Horizontal angle offsets for each hole. Using offsets " +
+        "can produce an instrument that is easier to play.") {
         (0 until numberOfHoles).map { 0.0 }
     }
 
     /*
      * Parameters for the 3d model of the instrument.
      */
-    open var decorate by BooleanParameter { false }
+    open var decorate by BooleanParameter("When building a 3d model, should embellishments be adde to the body?") { false }
 
     open var dilate by DoubleParameter("Dilate the body of the instrument by this much") { 0.0 }
 
@@ -203,7 +222,7 @@ open var initialInnerFractions by ListOfDoubleParameter { c ->
 
     open var outerAdd by ConfigParameter(BooleanParameterKind, "Should the body thickness be automatically increased?") { false }
 
-    open var divisions by ListOfListOfIntDoublePairParam {
+    open var divisions by ListOfListOfIntDoublePairParam("For the 3d model, how should it be split into printable pieces?") {
         listOf(
             listOf(Pair(5, 0.0)),
             listOf(Pair(2, 0.0), Pair(5, 0.333)),
@@ -211,12 +230,6 @@ open var initialInnerFractions by ListOfDoubleParameter { c ->
             listOf(Pair(-1, 0.9), Pair(2, 0.0), Pair(5, 0.0), Pair(5, 0.7))
         )
     }
-
-
-
-
-
-
 
     /**
      * All the validations scattered in ph's code are moved here, and called before anything gets
@@ -233,10 +246,14 @@ open var initialInnerFractions by ListOfDoubleParameter { c ->
         dAssert(
             initialOuterFractions.size == outerDiameters.size - 2, "initialOuterFractions has wrong length"
         )
-        // check that all the fingerings have the same number of holes
-        val count = fingerings[0].fingers.size
-        dAssert(fingerings.all { it.fingers.size == count },
-            "All fingerings must have the same number of holes")
+        dAssert(fingerings.all { it.fingers.size == numberOfHoles},
+            "Fingerings must have the same number of open/closed as the number of holes")
+        dAssert(minHoleSpacing.size == numberOfHoles - 1,"minHoleSpacing must have one fewer value than numberOfHoles ")
+        dAssert(maxHoleSpacing.size == numberOfHoles - 1,  "maxHoleSpacing must have one fewer value than numberOfHoles ")
+        dAssert(balance.size == numberOfHoles - 2, "balance must have two fewer value than numberOfHoles  ${balance.size} vs ${numberOfHoles})")
+        dAssert(balance.all { it == null || (it in 0.0..1.0)}, "balance values must be between 0 and 1")
+        dAssert(holeAngles.size == numberOfHoles, "There must be one hole angle per hole")
+        dAssert(holeHorizAngles.size == numberOfHoles, "There must be one hole horizontal angle per hole")
     }
 
     abstract fun readInstrument(path: Path): Inst
@@ -440,7 +457,6 @@ open var initialInnerFractions by ListOfDoubleParameter { c ->
         return sqrt(emission.sumOf { e -> e * e })
     }
 
-    private var scoreCount = 0
     /**
      * Compute an evaluation score for the instruments intonation and emission.
      */
@@ -461,7 +477,6 @@ open var initialInnerFractions by ListOfDoubleParameter { c ->
         // with the desired, and then express tha difference in cents.
         // This is a conversion factor for doing that.
         val s = 1200.0 / ln(2.0)
-        var total = 0.0
         for (idx in fingerings.indices) {
             val fingering = fingerings[idx]
             val fingers = fingering.fingers
@@ -472,7 +487,6 @@ open var initialInnerFractions by ListOfDoubleParameter { c ->
                 inst.trueNthWavelengthNear(desiredWavelength, fingers, fingering.nth)
             }
             val diff = abs(ln(desiredWavelength) - ln(actualWavelength)) * s
-            total += diff
             val weight = 1.0
             score += weight * diff.pow(3)
             div += weight
@@ -490,11 +504,6 @@ open var initialInnerFractions by ListOfDoubleParameter { c ->
         if (tweakEmissions != 0.0) {
             val x = emissionScore / emissionDiv
             result += (tweakEmissions * -x)
-        }
-        scoreCount++
-        if (scoreCount > 1000) {
-            scoreCount = 0
-            Optimizer.progress.updateIntonation(total)
         }
         return result
     }
@@ -686,13 +695,14 @@ open var initialInnerFractions by ListOfDoubleParameter { c ->
         diagram.save(outputDir / "${instrumentName}-design.svg")
     }
 
-    fun run(echo: (Any?) -> Unit,
-        reportingInterval: Int = 5000) : Instrument {
+    fun run(progressDisplay: ProgressDisplay,
+            reportingInterval: Int = 5000) : Instrument {
         if (!outputDir.exists()) {
             outputDir.createDirectory()
         }
         val initialDesignParameters = initialDesignParameters()
-        val newInstrument = optimizeInstrument(echo, constraintScorer, intonationScorer, initialDesignParameters,
+        val newInstrument = optimizeInstrument(progressDisplay,
+            constraintScorer, intonationScorer, initialDesignParameters,
             reportingInterval,
             monitor = saver)
         save(ScoredParameters(newInstrument, fullScore(newInstrument)))
@@ -732,16 +742,16 @@ open var initialInnerFractions by ListOfDoubleParameter { c ->
     }
 
     private fun optimizeInstrument(
-        echo: (Any?) -> Unit,
+        progressDisplay: ProgressDisplay,
         constrainer: (DesignParameters) -> Double,
         scorer: (DesignParameters) -> Double,
         initialDesignParameters: DesignParameters,
         reportingInterval: Int,
         monitor: (ScoredParameters, List<DesignParameters>) -> Unit): DesignParameters {
-        val optimizer = Optimizer(instrumentName, echo, initialDesignParameters,  constrainer, scorer, reportingInterval, monitor=monitor)
+        val optimizer = Optimizer(instrumentName, initialDesignParameters,  constrainer, scorer, reportingInterval,
+            progressReporter = progressDisplay, monitor=monitor)
         return optimizer.optimizeInstrument()
     }
-
 
 }
 

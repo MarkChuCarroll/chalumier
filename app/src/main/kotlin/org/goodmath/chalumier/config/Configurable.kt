@@ -22,8 +22,6 @@ import org.goodmath.chalumier.errors.ConfigurationParameterException
 import org.goodmath.chalumier.errors.ConfigurationParameterValueException
 import java.io.FileWriter
 import java.nio.file.Path
-import kotlin.io.path.bufferedReader
-import kotlin.io.path.bufferedWriter
 
 /**
  * The base for an object with configuration parameters.
@@ -49,20 +47,23 @@ import kotlin.io.path.bufferedWriter
  *
  */
 abstract class Configurable<T: Configurable<T>>(open val instrumentName: String) {
+
     private val configParameters = HashMap<String, ConfigParameter<T, *>>()
 
-    fun generateDescriptionTemplate(path: Path) {
-        val out = path.bufferedWriter()
-        out.write("$instrumentName {")
-        out.newLine()
+    fun generateDescriptionTemplate(): String {
+        val result = StringBuilder()
+        result.append("# Chalumier Instrument designer skeleton for a $instrumentName\n")
+        result.append("#\n")
+        result.append(wrapString("This is an automatically generated template file. To create an instrument, fill in the fields you want to change, and delete the rest",
+                                "# "))
+        result.append("\n\n")
+        result.append("$instrumentName {\n")
 
-        out.write( configParameters.map { (paramName, param) ->
+        result.append( configParameters.map { (paramName, param) ->
             param.render(paramName)
         }.joinToString(",\n\n" ))
-        out.newLine()
-        out.write("}")
-        out.newLine()
-        out.close()
+        result.append("\n}\n")
+        return result.toString()
     }
 
     fun listConfigParameters(): List<Pair<String, String>> {
@@ -75,8 +76,19 @@ abstract class Configurable<T: Configurable<T>>(open val instrumentName: String)
         return configParameters[name]
     }
 
+    @Suppress("UNCHECKED_CAST")
     fun <V> addConfigParameter(name: String, option: ConfigParameter<T, V>) {
-        configParameters[name] = option
+        val old = configParameters[name]
+        if (old == null) {
+            configParameters[name] = option
+        } else {
+            if (old.kind == option.kind) {
+                old as ConfigParameter<T, V>
+                old.gen = option.gen
+            } else {
+                configParameters[name] = option
+            }
+        }
     }
 
     private fun getConfigParameterKind(name: String): ParameterKind<*>? {
@@ -171,9 +183,9 @@ abstract class Configurable<T: Configurable<T>>(open val instrumentName: String)
         }
     }
 
-//    open fun readConfigDict(path: Path) {
-//        val js = Json5.decodeFromString(path.readText())
-//    }
+    //    open fun readConfigDict(path: Path) {
+    //        val js = Json5.decodeFromString(path.readText())
+    //    }
 
     open fun updateFromConfig(instrumentConfig: InstrumentDescription) {
         for ((k, v) in instrumentConfig.values) {
@@ -191,5 +203,30 @@ abstract class Configurable<T: Configurable<T>>(open val instrumentName: String)
             }
         }
     }
+
+    companion object {
+        fun wrapString(str: String, linePrefix: String, width: Int = 80): String {
+            val maxChars = width - linePrefix.length
+            if (str.length < maxChars) {
+                return "$linePrefix$str\n"
+            }
+            val words = str.split(" ")
+            val result = ArrayList<String>()
+            var currentLine: String = linePrefix
+            for (word in words) {
+                if (currentLine.length + word.length < width) {
+                    currentLine += "$word "
+                } else {
+                    result.add(currentLine)
+                    currentLine = "$linePrefix$word "
+                }
+            }
+            if (currentLine != linePrefix) {
+                result.add(currentLine)
+            }
+            return result.joinToString("\n") + "\n"
+        }
+    }
 }
+
 

@@ -36,7 +36,7 @@ class InstrumentDesignerTest {
             Path("/tmp/test"))
         flute.numberOfHoles = 7
         flute.fingerings = FluteDesigner.fingeringsWithEmbouchure(FluteDesigner.folkFingerings)
-        flute.balance = arrayListOf(0.1, null, null, 0.1)
+        flute.balance = arrayListOf(0.1, null, null, 0.1, null)
         flute.holeAngles = arrayListOf(-30.0, 30.0, 30.0, -30.0, 0.0, 30.0, 0.0)
         flute.maxHoleSpacing = flute.scaler(listOf(45.0, 45.0, null, 45.0, 45.0, null))
         return flute

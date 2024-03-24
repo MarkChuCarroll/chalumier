@@ -16,16 +16,10 @@
 package org.goodmath.chalumier.config
 
 import kotlinx.serialization.json.*
-import org.goodmath.chalumier.errors.ConfigurationParameterException
-import kotlin.math.pow
-import kotlin.random.Random
 
 object DoubleParameterKind: ParameterKind<Double> {
     override val name: String = "Double"
     override val isOptional: Boolean = false
-
-    override val sampleValueString: String
-        get() = (Random.nextInt().toDouble()/(10.0.pow(Random.nextInt(1, 4)))).toString()
 
     override fun fromConfigValue(v: Any?): Double {
         return when (v) {
@@ -43,6 +37,10 @@ object DoubleParameterKind: ParameterKind<Double> {
         }
     }
 
+    override fun toConfigValue(t: Double): String {
+        return "%.4f".format(t)
+    }
+
     override fun checkValue(v: Any?): Boolean {
         return when(v) {
             null, is JsonNull -> false
@@ -55,7 +53,7 @@ object DoubleParameterKind: ParameterKind<Double> {
 
     override fun checkConfigValue(v: Any?): Boolean {
         return when(v) {
-            null, is JsonNull -> false
+            null -> false
             is Double -> true
             is String -> v.toDoubleOrNull() != null
             else -> false

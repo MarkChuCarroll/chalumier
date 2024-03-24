@@ -24,19 +24,17 @@ fun JsonObject.fieldSatisfiesPredicate(name: String, pred: (JsonElement?) -> Boo
 object IntDoublePairParameterKind: ParameterKind<Pair<Int, Double>> {
     override val name: String = "Pair<Int, Double>"
     override val isOptional: Boolean = false
-    override val sampleValueString: String = "(Pair: 3, 27.1)"
-
 
     override fun checkValue(v: Any?): Boolean {
         return when(v) {
             null, is JsonNull -> false
             is Pair<*, *> -> v.first is Int && v.second is Double
-            is JsonObject -> v.fieldSatisfiesPredicate("first") { f ->
-                f is JsonPrimitive &&
-                        f.intOrNull != null
-            } &&
-                    v.fieldSatisfiesPredicate("second") { f -> f is JsonPrimitive && f.doubleOrNull != null }
-
+            is JsonObject -> {
+                v.fieldSatisfiesPredicate("first") { f ->
+                    f is JsonPrimitive &&
+                            f.intOrNull != null
+                } && v.fieldSatisfiesPredicate("second") { f -> f is JsonPrimitive && f.doubleOrNull != null }
+            }
             is JsonArray ->
                 v.run {
                     if (size == 2) {
@@ -62,8 +60,38 @@ object IntDoublePairParameterKind: ParameterKind<Pair<Int, Double>> {
             is List<*> ->
                 v.size == 2 && IntParameterKind.checkConfigValue(v[0]) &&
                         DoubleParameterKind.checkConfigValue(v[1])
+            is Tuple -> {
+                v.name == "Pair" && v.body.size == 2 &&
+                IntParameterKind.checkConfigValue(v.body[0]) &&
+                DoubleParameterKind.checkConfigValue(v.body[1])
+            }
             else ->  false
         }
+    }
+
+    override fun fromConfigValue(v: Any?): Pair<Int, Double> {
+        return when(v) {
+            is Map<*, *> -> {
+                val first = IntParameterKind.fromConfigValue(v["first"])
+                val second = DoubleParameterKind.fromConfigValue(v["first"])
+                Pair(first, second)
+            }
+            is List<*> -> {
+                val first = IntParameterKind.fromConfigValue(v[0])
+                val second = DoubleParameterKind.fromConfigValue(v[1])
+                Pair(first, second)
+            }
+            is Tuple -> {
+                val first = IntParameterKind.fromConfigValue(v.body[0])
+                val second = DoubleParameterKind.fromConfigValue(v.body[1])
+                return Pair(first, second)
+            }
+            else -> throw error(v)
+        }
+    }
+
+    override fun toConfigValue(t: Pair<Int, Double>): String {
+        return "(Pair: ${t.first}, ${t.second})"
     }
 
     override fun fromJson(t: JsonElement): Pair<Int, Double>? {
@@ -85,7 +113,11 @@ object IntDoublePairParameterKind: ParameterKind<Pair<Int, Double>> {
     }
 }
 
-val ListOfIntDoublePairKind = ListParameterKind(IntDoublePairParameterKind)
+val ListOfIntDoublePairKind = object: ListParameterKind<Pair<Int, Double>>(IntDoublePairParameterKind) {
+    override fun toConfigValue(t: List<Pair<Int, Double>>): String {
+        return "[${t.joinToString(", ") { IntDoublePairParameterKind.toConfigValue(it) }}]"
+    }
+}
 val ListOfListOfIntDoublePairKind = ListParameterKind(ListOfIntDoublePairKind)
 
 fun<T: Configurable<T>> ListOfListOfIntDoublePairParam(help: String = "", gen: (T) -> List<List<Pair<Int, Double>>>): ConfigParameter<T, List<List<Pair<Int, Double>>>> {

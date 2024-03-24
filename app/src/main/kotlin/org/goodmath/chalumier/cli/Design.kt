@@ -15,27 +15,16 @@
  */
 package org.goodmath.chalumier.cli
 
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.clikt.parameters.types.path
+import org.goodmath.chalumier.optimize.ProgressDisplay
+import org.goodmath.chalumier.optimize.TerminalProgressDisplay
 import java.nio.file.Path
 import kotlin.io.path.div
-
-abstract class ChalumierCommand(name: String, help: String): CliktCommand(name, help) {
-    val templates = mapOf(
-        "folkFlute" to { n: String, dir: Path ->  org.goodmath.chalumier.design.folkFluteDesigner(n, dir) },
-        "pFlute" to { n: String, dir: Path -> org.goodmath.chalumier.design.pFluteDesigner(n, dir)},
-        "folkShawm" to { n: String, dir: Path -> org.goodmath.chalumier.design.FolkShawmDesigner(n, dir) },
-        "folkWhistle" to { n: String, dir: Path -> org.goodmath.chalumier.design.folkWhistleDesigner(n, dir) },
-        "recorder" to { n: String, dir: Path -> org.goodmath.chalumier.design.RecorderDesigner(n, dir) }
-    )
-    val builder = InstrumentDesignerFactory(templates)
-
-}
 
 class Design: ChalumierCommand(name = "design", help="Compute an instrument design from a specification") {
 
@@ -46,7 +35,7 @@ class Design: ChalumierCommand(name = "design", help="Compute an instrument desi
 
     override fun run() {
         val des = builder.getDesigner(specFile, outputDir)
-        val i = des.run(::echo, reportingInterval)
-        echo("Execution complete! Designed ${i.name}; diagram in ${outputDir / "diagram.svg"}")
+        val progressDisplay = TerminalProgressDisplay(des.name, 10)
+        val i = des.run(progressDisplay, reportingInterval)
     }
 }

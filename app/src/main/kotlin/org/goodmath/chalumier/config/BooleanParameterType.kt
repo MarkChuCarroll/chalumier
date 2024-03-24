@@ -21,8 +21,6 @@ object BooleanParameterKind: ParameterKind<Boolean> {
     override val name: String = "Boolean"
     override val isOptional: Boolean = false
 
-    override val sampleValueString: String = "true or false"
-
     override fun fromConfigValue(v: Any?): Boolean {
         return when {
             v is Boolean -> v
@@ -31,6 +29,11 @@ object BooleanParameterKind: ParameterKind<Boolean> {
             else -> throw error(v)
         }
     }
+
+    override fun toConfigValue(t: Boolean): String {
+        return t.toString()
+    }
+
     override fun checkValue(v: Any?) : Boolean {
         return when (v) {
             null -> false

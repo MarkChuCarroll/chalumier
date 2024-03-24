@@ -49,8 +49,9 @@ abstract class FluteDesigner<Inst: Instrument>(override val instrumentName: Stri
       0.56                 ~ definitely high, printed plastic sop flute
     */
     open var embExtra: Double by ConfigParameter(DoubleParameterKind,
-        "Constant controlling extra effective height of the embouchure hole due to lips, etc.\n" + "Small adjustments of this value will change the angle at which the flute needs to be blown\n" + "in order to be in tune."
-    ) { 0.53 }
+        "Constant controlling extra effective height of the embouchure hole due to lips, etc. " +
+                "Small adjustments of this value will change the angle at which the flute needs to" +
+             "be blown in order to be in tune.") { 0.53 }
 
 
     override var initialLength by DoubleParameter { wavelength("D4") * 0.5 }

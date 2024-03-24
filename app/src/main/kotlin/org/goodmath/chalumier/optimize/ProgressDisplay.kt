@@ -21,10 +21,8 @@ import com.github.ajalt.mordant.table.ColumnWidth
 import com.github.ajalt.mordant.table.table
 import com.github.ajalt.mordant.terminal.Terminal
 import com.github.ajalt.mordant.widgets.ProgressBar
-import kotlin.math.abs
-import kotlin.math.log10
-import kotlin.math.roundToInt
-import kotlin.math.roundToLong
+import org.goodmath.chalumier.cli.BoundedTranscript
+import kotlin.math.*
 
 /*
  * Chalumier is doing a lot of computation behind the scenes, and
@@ -37,53 +35,42 @@ import kotlin.math.roundToLong
  * of the degree of intonation error still present in the model.
  */
 
-class BoundedTranscript(val size: Int) {
-    val elements: Array<String> = Array<String>(size) { "" }
-    var len = 0
-    var front = 0
-    fun print(s: String) {
-        synchronized(this) {
-            if (len == size) {
-                elements[front] = s
-                front = (front + 1) % size
-            } else {
-                elements[front + len] = s
-                len++
-            }
-        }
-    }
+interface ProgressDisplay {
+    fun print(line: String)
 
-    operator fun get(idx: Int): String {
-        return elements[(front + idx) % size]
-    }
-
-    fun transcript(): List<String> {
-        synchronized(this) {
-            return (0 until len).map {
-                this[it]
-            }
-        }
-    }
+    fun setMaximumSpans(iSpan: Double?, pSpan: Double?)
+    fun updateStats(
+        iterCount: Int, bestScore: Score, size: Int, maxScore: Score, iSpan: Double, pSpan: Double,
+        updates: Int, satisfactory: Int
+    )
 }
-
-class ProgressDisplay(var instrumentName: String, maxLines: Int) {
-    var initialISpan: Double = Double.NaN
-    var initialPSpan: Double = Double.NaN
-    var lastIntonationSpan: Double = Double.NaN
-    var lastParameterSpan: Double = Double.NaN
-    var intonationDiff = 0.0
-    var maxIntonationDifference = Double.NaN
+class TerminalProgressDisplay(var instrumentName: String, maxLines: Int): ProgressDisplay {
+    var maximumISpan: Double = Double.NaN
+    var maximumPSpan: Double = Double.NaN
+    private var maxIntonationScore: Double = Double.POSITIVE_INFINITY
 
     private val term = Terminal()
-    private val height = term.info.height
-    private val width = term.info.width - 2
 
-    val transcript = BoundedTranscript(maxLines)
+    private val transcript = BoundedTranscript(maxLines)
+
+    override fun print(line: String) {
+        transcript.print(line)
+    }
+
+    override fun setMaximumSpans(iSpan: Double?, pSpan: Double?) {
+        if (iSpan != null && (maximumISpan.isNaN() ||
+                maximumISpan < iSpan)) {
+            maximumISpan = iSpan
+        }
+        if (pSpan != null && (maximumPSpan.isNaN() || pSpan > maximumPSpan)) {
+            print("Updating pspan: max was ${maximumPSpan}, now $pSpan")
+            maximumPSpan = pSpan
+        }
+    }
 
     fun updateIntonation(d: Double) {
-        intonationDiff = d
-        if (maxIntonationDifference.isNaN() || maxIntonationDifference < d) {
-            maxIntonationDifference = intonationDiff
+        if (maxIntonationScore.isInfinite() || maxIntonationScore < d) {
+            maxIntonationScore = d
         }
     }
 
@@ -95,27 +82,43 @@ class ProgressDisplay(var instrumentName: String, maxLines: Int) {
         TextColors.brightGreen
     )
 
-
+    /**
+     * Set a color for the span displays. The color is based on
+     * how much the span has decreased during the optimization process.
+     * Each time the span reduces by a factor of 10, we switch to the
+     * next color in the sequence.
+     */
     private fun spanColor(current: Double, orig: Double): TextStyle {
         if (orig.isNaN()) {
-            return TextColors.brightYellow
+            return TextColors.brightRed
         }
-        val curLog = log10(current).roundToInt()
-        val origLog = log10(orig).roundToInt()
-        return colorSequence[abs(origLog - curLog) % colorSequence.size]
+        val curLog = ln(current)
+        val origLog = ln(orig)
+        return colorSequence[min(abs(origLog - curLog).roundToInt(), colorSequence.size - 1)]
     }
 
     fun fmtIterations(its: Int): String {
         return "%05d".format(its)
     }
 
-    fun updateStats(
-        iterCount: Int, numberOfCandidates: Int, bestScore: Score, maxScore: Score, iSpan: Double, pSpan: Double,
+    override fun updateStats(
+        iterCount: Int, bestScore: Score, size: Int, maxScore: Score, iSpan: Double, pSpan: Double,
         updates: Int, satisfactory: Int
     ) {
+        if (maximumISpan.isFinite() && maximumPSpan.isFinite() ) {
+            val curILog = ln(iSpan)
+            val origILog = ln(maximumISpan)
+            val iSpanLogDiff = abs(origILog - curILog).roundToInt()
+            print("ISpan: initial=$maximumISpan, current=$iSpan, logDiff=$iSpanLogDiff")
+            val curPLog = ln(pSpan)
+            val origPLog = ln(maximumPSpan)
+            val pSpanLogDiff = abs(origPLog - curPLog).roundToInt()
+            print("PSpan: initial=$maximumPSpan, current=$pSpan, logDiff=$pSpanLogDiff")
+        }
+
         val iSpanFmt =
-            spanColor(iSpan, initialISpan)("I%.6f".format(iSpan))
-        val pSpanFmt = spanColor(pSpan, initialPSpan)("P%.6f".format(pSpan))
+            spanColor(iSpan, maximumISpan)("I%.6f".format(iSpan))
+        val pSpanFmt = spanColor(pSpan, maximumPSpan)("P%.6f".format(pSpan))
         val formattedSpans = "$iSpanFmt / $pSpanFmt"
         val iterCountFmt = TextColors.brightCyan("[[${fmtIterations(iterCount)}]]")
         val scoreText = if (bestScore.constraintScore > 0) {
@@ -123,7 +126,21 @@ class ProgressDisplay(var instrumentName: String, maxLines: Int) {
         } else {
             TextColors.brightGreen(bestScore.toString())
         }
+        val completed = (((maxIntonationScore-bestScore.intonationScore)/maxIntonationScore)*100.0).toInt()
+        displayProgressAsTable(iterCountFmt, scoreText, size, maxScore, updates, satisfactory, formattedSpans, completed)
 
+    }
+
+    private fun displayProgressAsTable(
+        iterCountFmt: String,
+        scoreText: String,
+        size: Int,
+        maxScore: Score,
+        updates: Int,
+        satisfactory: Int,
+        formattedSpans: String,
+        completed: Int
+    ) {
         term.cursor.move {
             setPosition(0, 0)
             startOfLine()
@@ -141,15 +158,19 @@ class ProgressDisplay(var instrumentName: String, maxLines: Int) {
                 width = ColumnWidth.Fixed(12)
             }
             column(2) {
-                width = ColumnWidth.Fixed(12)
+                width = ColumnWidth.Fixed(6)
             }
             column(3) {
-                width = ColumnWidth.Fixed(8)
+                width = ColumnWidth.Fixed(12)
+
             }
             column(4) {
                 width = ColumnWidth.Fixed(8)
             }
             column(5) {
+                width = ColumnWidth.Fixed(8)
+            }
+            column(6) {
                 width = ColumnWidth.Fixed(25)
             }
 
@@ -157,16 +178,17 @@ class ProgressDisplay(var instrumentName: String, maxLines: Int) {
                 row {
                     cell("Chalumier Instrument Designer/Optimizer: designing $instrumentName") {
                         style = TextStyles.bold + TextColors.brightMagenta
-                        columnSpan=6
+                        columnSpan = 7
                     }
                 }
                 row {
                     cellBorders = Borders.NONE
                     cell("Iterations")
                     cell("Best")
+                    cell("Size")
                     cell("Max")
                     cell("Updates")
-                    cell("Satisfactory")
+                    cell("Goods")
                     cell("Spans")
                     style = TextColors.brightBlue + TextStyles.bold
                 }
@@ -197,20 +219,26 @@ class ProgressDisplay(var instrumentName: String, maxLines: Int) {
                     align = TextAlign.CENTER
                     cellBorders = Borders.ALL
                 }
+                column(6) {
+                    align = TextAlign.RIGHT
+                    cellBorders = Borders.ALL
+                }
                 row(
-                    iterCountFmt, scoreText, maxScore, updates,
+                    iterCountFmt, scoreText, size, maxScore, updates,
                     satisfactory, formattedSpans
                 )
                 row {
+                    cell("$completed%")
                     cell(
                         ProgressBar(
-                            total=maxIntonationDifference.roundToLong(),
-                            completed=(maxIntonationDifference-intonationDiff).roundToLong(),
+                            total = 100,
+                            completed = completed.toLong(),
                             pendingChar = "*",
                             pendingStyle = TextColors.red,
                             completeChar = "#",
                             completeStyle = TextColors.brightGreen
-                    )) {
+                        )
+                    ) {
                         columnSpan = 6
                     }
                 }
@@ -219,17 +247,16 @@ class ProgressDisplay(var instrumentName: String, maxLines: Int) {
                 cellBorders = Borders.NONE
                 val lines = transcript.transcript()
                 lines.map {
-                        row {
-                            cell(it) {
-                                align = TextAlign.LEFT
-                                columnSpan = 6
-                                style = TextColors.brightGreen
-                            }
+                    row {
+                        cell(it) {
+                            align = TextAlign.LEFT
+                            columnSpan = 7
+                            style = TextColors.brightGreen
                         }
                     }
                 }
+            }
         })
-
     }
 
 }

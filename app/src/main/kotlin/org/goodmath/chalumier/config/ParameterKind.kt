@@ -32,8 +32,6 @@ interface ParameterKind<T> {
 
     val isOptional: Boolean
 
-    val sampleValueString: String
-
 
     /**
      * Check if an arbitrary value is either this type, or a
@@ -50,9 +48,10 @@ interface ParameterKind<T> {
      * Convert a configuration value (assumed to have already passed
      * checkConfigValue) to this type.
      */
-    fun fromConfigValue(v: Any?): T {
-        return v as T
-    }
+    fun fromConfigValue(v: Any?): T
+
+    fun toConfigValue(t: T): String
+
 
     /**
      * convert a value of this type to json.
@@ -86,14 +85,17 @@ fun<T> opt(pk: ParameterKind<T>): ParameterKind<T?> {
     return object: ParameterKind<T?> {
         override val name: String = "${pk.name}?"
         override val isOptional = true
-        override val sampleValueString: String = "pk.sampleValueString or null"
 
         override fun fromConfigValue(v: Any?): T? {
-            return if (v == null) {
+            return if (v == null || v == "null") {
                 null
             } else {
                  pk.fromConfigValue(v)
             }
+        }
+
+        override fun toConfigValue(t: T?): String {
+            return t?.let { pk.toConfigValue(t) } ?: "null"
         }
 
         override fun checkValue(v: Any?): Boolean {
@@ -101,7 +103,7 @@ fun<T> opt(pk: ParameterKind<T>): ParameterKind<T?> {
         }
 
         override fun checkConfigValue(v: Any?): Boolean {
-            return v?.let { pk.checkConfigValue(it) }?: true
+            return v?.let { it == "null" || pk.checkConfigValue(it) }?: true
         }
 
         override fun fromJson(t: JsonElement): T? {

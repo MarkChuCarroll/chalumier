@@ -17,10 +17,7 @@ package org.goodmath.chalumier.design
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
-import org.goodmath.chalumier.config.ConfigParameter
-import org.goodmath.chalumier.config.Configurable
-import org.goodmath.chalumier.config.ListParameterKind
-import org.goodmath.chalumier.config.ParameterKind
+import org.goodmath.chalumier.config.*
 import org.goodmath.chalumier.errors.ConfigurationParameterException
 
 @Serializable
@@ -53,28 +50,88 @@ data class Fingering(
 
 object FingeringParameterKind: ParameterKind<Fingering> {
     override val name: String = "Fingering"
-    override val sampleValueString: String = "{ noteName=\"c4\", fingers=[\"O\", \"X\", \"O\", \"X\", \"O\", \"X\", \"O\", \"X\"] }"
-    override val isOptional = false    
-
-    override fun checkValue(v: Any?): Boolean {
-        // TODO
-        return v is Fingering || v is Map<*, *>
-    }
+    override val isOptional = false
 
     override fun checkConfigValue(v: Any?): Boolean {
-        return (v is Map<*, *> && v.containsKey("noteName"))
+        return when (v) {
+            is Map<*, *> -> {
+                val noteName = v["noteName"]
+                val fingers = v["fingers"]
+                val nth = v["nth"]
+                noteName != null &&
+                        fingers != null && fingers is List<*> &&
+                        fingers.all { it == "X" || it == "O" }
+                        (nth == null || nth is Double)
+            }
+            is Tuple -> {
+                if (v.name != "Fingering" ||  (v.body.size != 2 && v.body.size != 3)) {
+                    false
+                } else {
+                    val noteName = v.body[0]
+                    val fingers = v.body[1]
+                    val nth = if (v.body.size == 3) { v.body[2] } else {null}
+                    noteName is String && fingers is List<*> && fingers.all { it == "X" || it == "O" } &&
+                            (nth == null || nth is Double)
+                }
+            }
+            else ->  false
+        }
+    }
+
+    override fun checkValue(v: Any?): Boolean {
+        return when(v) {
+            null, is JsonNull -> false
+            is Fingering -> true
+            is JsonObject ->  {
+                val noteName = v["noteName"]
+                val fingers = v["fingers"]
+                val nth = v["nth"]
+                noteName != null && noteName is JsonPrimitive && noteName.isString &&
+                        fingers != null && fingers is JsonArray &&
+                        fingers.all { it is JsonPrimitive && it.isString &&
+                                (it.content == "X" || it.content == "O") } &&
+                        (nth == null || nth is JsonNull || (nth is JsonPrimitive && nth.doubleOrNull != null))
+            }
+            else -> false
+        }
+
     }
 
     override fun fromConfigValue(v: Any?): Fingering {
-        if (v is Map<*, *>) {
-            val name = v["noteName"] as String
-            val fingers = (v["fingers"] as List<*>).map { if (it == "X") { Hole.X } else { Hole.O } }
-
-            val nth = v["nth"] as Int?
-            return Fingering(name, fingers, nth)
-        } else {
-            throw ConfigurationParameterException("Invalid fingering entry $v")
+        return when(v) {
+            is Map<*, *> -> {
+                val name = v["noteName"] as String
+                val fingers = (v["fingers"] as List<*>).map {
+                    if (it == "X") {
+                        Hole.X
+                    } else {
+                        Hole.O
+                    }
+                }
+                val nth = (v["nth"] as Double?)?.toInt()
+                Fingering(name, fingers, nth)
+            }
+            is Tuple -> {
+                val name = v.body[0] as String
+                val fingers =  (v.body[1] as List<*>).map {
+                    if (it == "X") {
+                        Hole.X
+                    } else {
+                        Hole.O
+                    }
+                }
+                val nth = if (v.body.size == 3) { v.body[2]?.let { it as Double} } else { null }
+                Fingering(name,  fingers, nth?.toInt())
+            }
+            else ->
+                throw ConfigurationParameterException("Invalid fingering entry $v")
         }
+    }
+
+    override fun toConfigValue(t: Fingering): String {
+        val fs = t.fingers.joinToString(", ") { "\"$it\"" }
+        val nth = t.nth?.let { ", nth=$it"} ?: ""
+        return "{ noteName=\"${t.noteName}\", fingers=[$fs]$nth }"
     }
 
     override fun fromJson(t: JsonElement): Fingering? {
@@ -101,7 +158,12 @@ object FingeringParameterKind: ParameterKind<Fingering> {
     }
 }
 
-val ListOfFingeringsKind = ListParameterKind(FingeringParameterKind)
+val ListOfFingeringsKind = object: ListParameterKind<Fingering>(FingeringParameterKind) {
+    override fun toConfigValue(t: List<Fingering>): String {
+        val fingerings = t.joinToString(",\n      ") { FingeringParameterKind.toConfigValue(it) }
+        return "[\n      $fingerings\n   ]"
+    }
+}
 fun<T: Configurable<T>> ListOfFingeringsParam(help: String = "", gen: (T) -> List<Fingering>): ConfigParameter<T, List<Fingering>> {
     val mutGen: (T) -> List<Fingering> = { target ->
         ArrayList(gen(target))

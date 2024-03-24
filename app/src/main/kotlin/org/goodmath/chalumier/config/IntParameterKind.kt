@@ -16,10 +16,10 @@
 package org.goodmath.chalumier.config
 
 import kotlinx.serialization.json.*
+import kotlin.random.Random
 
 object IntParameterKind: ParameterKind<Int> {
-    override val name: String = "Int"
-    override val sampleValueString: String = "34"
+    override val name = "Int"
     override val isOptional = false
 
     override fun checkValue(v: Any?): Boolean {
@@ -45,6 +45,10 @@ object IntParameterKind: ParameterKind<Int> {
                 throw error(v)
             }
         }
+    }
+
+    override fun toConfigValue(t: Int): String {
+        return t.toString()
     }
 
     override fun fromJson(t: JsonElement): Int? {
