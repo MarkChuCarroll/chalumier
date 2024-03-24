@@ -35,7 +35,7 @@ class Design: ChalumierCommand(name = "design", help="Compute an instrument desi
 
     override fun run() {
         val des = builder.getDesigner(specFile, outputDir)
-        val progressDisplay = TerminalProgressDisplay(des.name, 10)
+        val progressDisplay = TerminalProgressDisplay(des.name)
         val i = des.run(progressDisplay, reportingInterval)
     }
 }

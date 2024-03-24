@@ -44,12 +44,16 @@ interface ProgressDisplay {
         updates: Int, satisfactory: Int
     )
 }
-class TerminalProgressDisplay(var instrumentName: String, maxLines: Int): ProgressDisplay {
+class TerminalProgressDisplay(var instrumentName: String): ProgressDisplay {
     var maximumISpan: Double = Double.NaN
     var maximumPSpan: Double = Double.NaN
     private var maxIntonationScore: Double = Double.POSITIVE_INFINITY
 
     private val term = Terminal()
+    private val maxLines = term.info.height - 10
+    private val  maxWidth = term.info.width - 8
+
+
 
     private val transcript = BoundedTranscript(maxLines)
 
@@ -63,7 +67,6 @@ class TerminalProgressDisplay(var instrumentName: String, maxLines: Int): Progre
             maximumISpan = iSpan
         }
         if (pSpan != null && (maximumPSpan.isNaN() || pSpan > maximumPSpan)) {
-            print("Updating pspan: max was ${maximumPSpan}, now $pSpan")
             maximumPSpan = pSpan
         }
     }
@@ -105,17 +108,7 @@ class TerminalProgressDisplay(var instrumentName: String, maxLines: Int): Progre
         iterCount: Int, bestScore: Score, size: Int, maxScore: Score, iSpan: Double, pSpan: Double,
         updates: Int, satisfactory: Int
     ) {
-        if (maximumISpan.isFinite() && maximumPSpan.isFinite() ) {
-            val curILog = ln(iSpan)
-            val origILog = ln(maximumISpan)
-            val iSpanLogDiff = abs(origILog - curILog).roundToInt()
-            print("ISpan: initial=$maximumISpan, current=$iSpan, logDiff=$iSpanLogDiff")
-            val curPLog = ln(pSpan)
-            val origPLog = ln(maximumPSpan)
-            val pSpanLogDiff = abs(origPLog - curPLog).roundToInt()
-            print("PSpan: initial=$maximumPSpan, current=$pSpan, logDiff=$pSpanLogDiff")
-        }
-
+        updateIntonation(bestScore.intonationScore)
         val iSpanFmt =
             spanColor(iSpan, maximumISpan)("I%.6f".format(iSpan))
         val pSpanFmt = spanColor(pSpan, maximumPSpan)("P%.6f".format(pSpan))
@@ -152,26 +145,26 @@ class TerminalProgressDisplay(var instrumentName: String, maxLines: Int): Progre
             align = TextAlign.CENTER
             tableBorders = Borders.ALL
             column(0) {
-                width = ColumnWidth.Fixed(12)
+                width = ColumnWidth.Expand(12)
             }
             column(1) {
-                width = ColumnWidth.Fixed(12)
+                width = ColumnWidth.Expand(12)
             }
             column(2) {
-                width = ColumnWidth.Fixed(6)
+                width = ColumnWidth.Expand(6)
             }
             column(3) {
-                width = ColumnWidth.Fixed(12)
+                width = ColumnWidth.Expand(12)
 
             }
             column(4) {
-                width = ColumnWidth.Fixed(8)
+                width = ColumnWidth.Expand(8)
             }
             column(5) {
-                width = ColumnWidth.Fixed(8)
+                width = ColumnWidth.Expand(8)
             }
             column(6) {
-                width = ColumnWidth.Fixed(25)
+                width = ColumnWidth.Expand(25)
             }
 
             header {

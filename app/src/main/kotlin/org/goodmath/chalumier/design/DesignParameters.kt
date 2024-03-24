@@ -47,6 +47,17 @@ data class DesignParameters(
     private val innerKinksStart = holeAreasStart + holeAreas.size
     private val outerKinksStart = innerKinksStart + innerKinks.size
 
+    fun parameterName(idx: Int): String {
+        return when(idx) {
+            in outerKinksStart until size -> "outerKinks[${idx-outerKinksStart}]"
+            in innerKinksStart until outerKinksStart -> "innerKinks[${idx - innerKinksStart}]"
+            in holeAreasStart until innerKinksStart -> "holeAreas[${idx - holeAreasStart}]"
+            in holePositionsStart until holeAreasStart ->"holePositions[${idx - holePositionsStart}]"
+            0 -> "length"
+            else -> "invalid"
+        }
+    }
+
     operator fun get(idx: Int): Double {
         return when(idx) {
             0 -> length

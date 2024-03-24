@@ -157,15 +157,21 @@ class Optimizer(
     private fun evaluateResults(parameterSpanTolerance: Double, frequencyTolerance: Double) {
         if (candidates.size >= maxCandidates && best.score.constraintScore == 0.0 && (parameterSetUpdateCount - parameterUpdatesAsOfLastCheck) > 200) {
             parameterUpdatesAsOfLastCheck = parameterSetUpdateCount
-            val parameterSpan = (0 until initialDesignParameters.size).maxOf { idx ->
+            val parameterSpans = (0 until initialDesignParameters.size).map { idx ->
                 val allAtIdx = candidates.map { c -> c.parameters[idx] }
                 val maxVal = allAtIdx.max()
                 val minVal = allAtIdx.min()
                 (maxVal - minVal)
             }
+            val pMax = parameterSpans.mapIndexed { idx, span -> Pair(span, idx)}.minBy { it.first }
+            val scores = candidates.map { c -> c.parameters[pMax.second] }
+            val maxP = scores.max()
+            val minP = scores.min()
+            progressReporter.print("Maximum variation is on parameter ${initialDesignParameters.parameterName(pMax.second)}, ranging $minP..$maxP")
+            val parameterSpan = pMax.first
 
-            val intonationSpan =
-                ArrayList(candidates.map { it.score }).max().intonationScore - best.score.intonationScore
+            val maxIntonationScore = candidates.map { it.score }.max().intonationScore
+            val intonationSpan = maxIntonationScore - best.score.intonationScore
             lastParameterSpan = parameterSpan
             lastIntonationSpan = intonationSpan
             progressReporter.setMaximumSpans(lastIntonationSpan, lastParameterSpan)

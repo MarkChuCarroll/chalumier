@@ -193,7 +193,6 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
         it.numberOfHoles.repeat { 0.75 }
     }
 
-
     open var holeHorizAngles by ListOfDoubleParameter("Horizontal angle offsets for each hole. Using offsets " +
         "can produce an instrument that is easier to play.") {
         (0 until numberOfHoles).map { 0.0 }
@@ -575,13 +574,18 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
 
     @Suppress("UNCHECKED_CAST")
     private fun save(params: ScoredParameters) {
-        twiddleFiles(outputDir / "${instrumentName}-parameters.json5")
+        twiddleFiles(outputDir / "${name}-parameters.json5")
         val instrument = makeInstrumentFromParameters(params.parameters)
         val patchedInstrument = patchInstrument(instrument) as Inst
         patchedInstrument.prepare()
         patchedInstrument.preparePhase()
-        writeInstrument(patchedInstrument, outputDir / "${instrumentName}-parameters.json5")
+        writeInstrument(patchedInstrument, outputDir / "${name}-parameters.json5")
 
+
+        drawInstrumentDiagram(patchedInstrument)
+    }
+
+    private fun drawInstrumentDiagram(patchedInstrument: Inst) {
         val diagram = Diagram()
         drawInstrumentOntoDiagram(diagram, patchedInstrument)
 
@@ -593,7 +597,8 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
             diagram.text(textX + 90.0, thisY, " at %.1fmm".format(patchedInstrument.holePositions[i]))
 
             if (i < numberOfHoles - 1) {
-                thisY = min(textY, (-0.5 * (patchedInstrument.holePositions[i] + patchedInstrument.holePositions[i + 1])))
+                thisY =
+                    min(textY, (-0.5 * (patchedInstrument.holePositions[i] + patchedInstrument.holePositions[i + 1])))
                 diagram.text(
                     textX + 45.0,
                     thisY,
@@ -672,6 +677,10 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
         )
         textY -= 50.0 + 10.0 * max(innerDiameters.size, outerDiameters.size)
 
+        diagram.text(graphX - 150.0, textY-70.0, "CHALUMIER INSTRUMENT DESIGNER", color="#550055")
+        diagram.text(graphX - 150.0, textY-50.0, "Design for $name", color="#550055")
+
+
         diagram.text(graphX - 150.0, textY, "Outer diameters:", color = "#000000")
         val outerKinks = listOf(0.0) + patchedInstrument.outerKinks + listOf(patchedInstrument.length)
         outerDiameters.forEachIndexed { i, item ->
@@ -691,8 +700,8 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
                 describeLowHigh(item) + "mm at %.1fmm".format(innerKinks[i])
             )
         }
-        twiddleFiles(outputDir / "${instrumentName}-design.svg")
-        diagram.save(outputDir / "${instrumentName}-design.svg")
+        twiddleFiles(outputDir / "${name}-design.svg")
+        diagram.save(outputDir / "${name}-design.svg")
     }
 
     fun run(progressDisplay: ProgressDisplay,

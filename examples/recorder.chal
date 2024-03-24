@@ -1,0 +1,376 @@
+# Chalumier Instrument designer skeleton for a recorder
+#
+# This is an automatically generated template file. To create an instrument, 
+# fill in the fields you want to change, and delete the rest 
+
+
+recorder {
+   # Field:decorate
+   # Type: Boolean
+   # Description:
+   #    When building a 3d model, should embellishments be adde to the body?
+   decorate = false,
+
+   # Field:innerDiameters
+   # Type: List<Pair<Double, Double>>
+   # Description:
+   #    A description of the inner bore of the instrument. The first element is 
+   #    the bore diameter at the base of the instrument; the last element is 
+   #    the bore diameter at the top of the instrument. The bore is piecewise 
+   #    linear, where the intervening elements are boundaries between pieces 
+   #    (kinks). The exact placement may be moved as part of the optimization 
+   #    process. As an advanced option instead of a single diameter, you can 
+   #    give a tuple (low,high)  to create a step in the diameter of the bore.  
+   #    See the examples/stepped_shawm.py for an example of this. 
+   innerDiameters = [
+      (Pair: 15.556349186104049, 15.556349186104049), 
+      (Pair: 15.556349186104049, 15.556349186104049), 
+      (Pair: 14.778531726798846, 14.778531726798846), 
+      (Pair: 17.889801564019656, 17.889801564019656), 
+      (Pair: 17.889801564019656, 17.889801564019656), 
+      (Pair: 15.556349186104049, 15.556349186104049), 
+      (Pair: 15.556349186104049, 15.556349186104049)
+   ],
+
+   # Field:maxInnerSep
+   # Type: List<Double?>
+   # Description:
+   #    The maximum distances between changes in the bore diameter
+   maxInnerSep = [null, null, null, null, null, null],
+
+   # Field:tweakGapExtra
+   # Type: Double
+   tweakGapExtra = 0.6000,
+
+   # Field:scale
+   # Type: Double
+   # Description:
+   #    Scaling factor to apply to the instrument specification
+   scale = 0.5000,
+
+   # Field:xPad
+   # Type: Double
+   xPad = 0.0000,
+
+   # Field:closedTop
+   # Type: Boolean
+   # Description:
+   #    Is this a closed top instrument?
+   closedTop = false,
+
+   # Field:outerDiameters
+   # Type: List<Pair<Double, Double>>
+   # Description:
+   #    the diameters of the outer body, from bottom to top
+   outerDiameters = [
+      (Pair: 31.112698372208097, 31.112698372208097), 
+      (Pair: 21.778888860545667, 21.778888860545667), 
+      (Pair: 21.778888860545667, 21.778888860545667), 
+      (Pair: 24.890158697766477, 24.890158697766477), 
+      (Pair: 24.890158697766477, 24.890158697766477)
+   ],
+
+   # Field:initialInnerFractions
+   # Type: List<Double>
+   # Description:
+   #    Initial positions of kinks in the bore, described as fractions of the 
+   #    length of the bore. Most the time, this will be automatically generated 
+   #    from the inner diameters 
+   initialInnerFractions = [
+      0.6000, 0.6500, 0.7000, 0.7500, 0.8000
+   ],
+
+   # Field:divisions
+   # Type: List<List<Pair<Int, Double>>>
+   # Description:
+   #    For the 3d model, how should it be split into printable pieces?
+   divisions = [
+      [(Pair: 7, 0.0)], [(Pair: 0, 0.0), (Pair: 7, 0.0)], 
+      [(Pair: 0, 0.0), (Pair: 3, 0.0), (Pair: 7, 0.0)], 
+      [(Pair: 0, 0.0), (Pair: 3, 0.0), (Pair: 7, 0.0), (Pair: 7, 0.5)], 
+      [(Pair: 0, 0.0), (Pair: 2, 0.0), (Pair: 4, 0.0), (Pair: 7, 0.0), (Pair: 7, 0.5)]
+   ],
+
+   # Field:initialHoleFractions
+   # Type: List<Double>
+   initialHoleFractions = [
+      0.1500, 0.2000, 0.2500, 0.3000, 0.3500, 0.4000, 0.4500, 0.5000
+   ],
+
+   # Field:initialHoleDiameterFractions
+   # Type: List<Double>
+   initialHoleDiameterFractions = [
+      0.7500, 0.7500, 0.7500, 0.7500, 0.7500, 0.7500, 0.7500, 0.7500
+   ],
+
+   # Field:thickSockets
+   # Type: Boolean
+   # Description:
+   #    Make the body thicker around socket joins?
+   thickSockets = false,
+
+   # Field:initialLength
+   # Type: Double
+   # Description:
+   #    the initial length of the instrument before modeling
+   initialLength = 661.4415,
+
+   # Field:topClearanceFraction
+   # Type: Double
+   # Description:
+   #    how close to the top are finger holes allowed to be placed?
+   topClearanceFraction = 0.0000,
+
+   # Field:balance
+   # Type: List<Double?>
+   # Description:
+   #    For each triplet of holes (0, 1, 2), (1, 2, 3), ..., this is a value 
+   #    between 0 and 1 specifying how similar the spacings of the pairs of 
+   #    holes should be. The smaller the value, the more similar the spacings 
+   #    must be. 
+   balance = [0.1000, 0.0500, null, null, 0.0500, null],
+
+   # Field:numberOfHoles
+   # Type: Int
+   # Description:
+   #    the number of holes, including embouchure
+   numberOfHoles = 8,
+
+   # Field:gap
+   # Type: Double
+   # Description:
+   #    Size of the gap between sockets
+   gap = 0.0000,
+
+   # Field:outerAngles
+   # Type: List<Pair<Angle, Angle>?>
+   # Description:
+   #    angle descriptions for the outer contours of the instrument's body
+   outerAngles = [null, null, null, null, null],
+
+   # Field:initialOuterFractions
+   # Type: List<Double>
+   # Description:
+   #    Initial positions of kinks in the body shape, described as fractions of 
+   #    the length of the instrument. Most the time, this will be automatically 
+   #    generated from the outer diameters 
+   initialOuterFractions = [
+      0.1500, 0.6000, 0.8500
+   ],
+
+   # Field:minInnerSep
+   # Type: List<Double?>
+   # Description:
+   #    The minimum distance between changes in the bore diameter
+   minInnerSep = [null, null, null, null, null, null],
+
+   # Field:tweakEmissions
+   # Type: Double
+   # Description:
+   #    Experimental term added to the optimization to try to make instrument 
+   #    louder, possibly at the cost of intonation 
+   tweakEmissions = 0.0000,
+
+   # Field:minHoleSpacing
+   # Type: List<Double?>
+   # Description:
+   #    Minimum space between each pair of finger holes
+   minHoleSpacing = [0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, -35.3553],
+
+   # Field:join
+   # Type: String
+   # Description:
+   #    The type of join in a multi-part model: one of (StraightJoin, WeldJoin, 
+   #    TaperedJoin) 
+   join = "StraightJoin",
+
+   # Field:coneStep
+   # Type: Double
+   # Description:
+   #    The size of the step used when translating conic sections into curves
+   coneStep = 0.1250,
+
+   # Field:bottomClearanceFraction
+   # Type: Double
+   # Description:
+   #    how close to the bottom are finger holes allowed to be placed?
+   bottomClearanceFraction = 0.0000,
+
+   # Field:maxHoleSpacing
+   # Type: List<Double?>
+   # Description:
+   #    the maximum distance separating each pair of holes
+   maxHoleSpacing = [661.4415, 661.4415, 661.4415, 661.4415, 661.4415, 661.4415, 661.4415],
+
+   # Field:maxOuterFractionSep
+   # Type: List<Double>
+   # Description:
+   #    Maximum size of each linear segment of the bore, as a fraction of the 
+   #    overall length. 
+   maxOuterFractionSep = [
+      1.0000, 1.0000, 1.0000, 1.0000
+   ],
+
+   # Field:boreScale
+   # Type: Double
+   # Description:
+   #    Scaling factor to apply to bore diameters
+   boreScale = 1.1000,
+
+   # Field:holeAngles
+   # Type: List<Double>
+   # Description:
+   #    Vertical angle of each hole. Using angling can make an instrument 
+   #    easier to play due by making the hole spacing more comfortable. 
+   holeAngles = [
+      -30.0000, 30.0000, -30.0000, 30.0000, 0.0000, 0.0000, 0.0000, 0.0000
+   ],
+
+   # Field:minInnerFractionSep
+   # Type: List<Double>
+   # Description:
+   #    Minimum size of each linear segment of the bore, as a fraction of the 
+   #    overall length. 
+   minInnerFractionSep = [
+      0.3000, 0.0100, 0.0100, 0.0100, 0.0100, 0.0100
+   ],
+
+   # Field:yPad
+   # Type: Double
+   yPad = 0.0000,
+
+   # Field:length
+   # Type: Double
+   # Description:
+   #    the length of the instrument
+   length = 330.7207,
+
+   # Field:maxInnerFractionSep
+   # Type: List<Double>
+   # Description:
+   #    Maximum size of each linear segment of the bore, as a fraction of the 
+   #    overall length. 
+   maxInnerFractionSep = [
+      1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000
+   ],
+
+   # Field:fingerings
+   # Type: List<Fingering>
+   # Description:
+   #    list of specifications of fingerings and the notes they should produce
+   fingerings = [
+      { noteName="C4", fingers=["X", "X", "X", "X", "X", "X", "X", "X"] },
+      { noteName="C5", fingers=["X", "X", "X", "X", "X", "X", "X", "X"] },
+      { noteName="G5", fingers=["X", "X", "X", "X", "X", "X", "X", "X"] },
+      { noteName="D4", fingers=["O", "X", "X", "X", "X", "X", "X", "X"] },
+      { noteName="D5", fingers=["O", "X", "X", "X", "X", "X", "X", "X"] },
+      { noteName="A5", fingers=["O", "X", "X", "X", "X", "X", "X", "X"] },
+      { noteName="E4", fingers=["O", "O", "X", "X", "X", "X", "X", "X"] },
+      { noteName="B5", fingers=["O", "O", "X", "X", "X", "X", "X", "X"] },
+      { noteName="F4", fingers=["X", "X", "O", "X", "X", "X", "X", "X"] },
+      { noteName="F4", fingers=["O", "X", "O", "X", "X", "X", "X", "X"] },
+      { noteName="F#4", fingers=["O", "X", "X", "O", "X", "X", "X", "X"] },
+      { noteName="G4", fingers=["O", "O", "O", "O", "X", "X", "X", "X"] },
+      { noteName="G#4", fingers=["O", "X", "X", "X", "O", "X", "X", "X"] },
+      { noteName="A4", fingers=["O", "O", "O", "O", "O", "X", "X", "X"] },
+      { noteName="Bb4", fingers=["O", "O", "O", "X", "X", "O", "X", "X"] },
+      { noteName="B4", fingers=["O", "O", "O", "O", "O", "O", "X", "X"] },
+      { noteName="C5", fingers=["O", "O", "O", "O", "O", "X", "O", "X"] },
+      { noteName="C#5", fingers=["O", "O", "O", "O", "O", "X", "X", "O"] },
+      { noteName="D5", fingers=["O", "O", "O", "O", "O", "X", "O", "O"] },
+      { noteName="Eb5", fingers=["O", "X", "X", "X", "X", "X", "O", "O"] },
+      { noteName="E5", fingers=["O", "O", "X", "X", "X", "X", "X", "O"] },
+      { noteName="E5", fingers=["O", "O", "X", "X", "X", "X", "X", "X"] },
+      { noteName="F5", fingers=["O", "X", "O", "X", "X", "X", "X", "O"] },
+      { noteName="F5", fingers=["O", "X", "O", "X", "X", "X", "X", "X"] },
+      { noteName="F#5", fingers=["O", "O", "X", "O", "X", "X", "X", "O"] },
+      { noteName="F#5", fingers=["O", "O", "X", "O", "X", "X", "X", "X"] },
+      { noteName="G5", fingers=["O", "O", "O", "O", "X", "X", "X", "X"] },
+      { noteName="A5", fingers=["O", "O", "O", "O", "O", "X", "X", "X"] }
+   ],
+
+   # Field:minHoleDiameters
+   # Type: List<Double>
+   # Description:
+   #    the minimum acceptable diameters of holes
+   minHoleDiameters = [
+      2.3335, 2.3335, 2.3335, 2.3335, 2.3335, 2.3335, 2.3335, 2.3335
+   ],
+
+   # Field:dilate
+   # Type: Double
+   # Description:
+   #    Dilate the body of the instrument by this much
+   dilate = 0.0000,
+
+   # Field:minOuterFractionSep
+   # Type: List<Double>
+   # Description:
+   #    Minimum size of each linear segment of the instrument, as a fraction of 
+   #    the overall length. 
+   minOuterFractionSep = [
+      0.1500, 0.3000, 0.3500, 0.1500
+   ],
+
+   # Field:maxHoleDiameters
+   # Type: List<Double>
+   # Description:
+   #    the maximum acceptable diameter of holes
+   maxHoleDiameters = [
+      9.3338, 10.8894, 10.8894, 10.8894, 10.8894, 10.8894, 10.8894, 10.8894
+   ],
+
+   # Field:holeHorizAngles
+   # Type: List<Double>
+   # Description:
+   #    Horizontal angle offsets for each hole. Using offsets can produce an 
+   #    instrument that is easier to play. 
+   holeHorizAngles = [
+      -15.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 180.0000
+   ],
+
+   # Field:outerAdd
+   # Type: Boolean
+   # Description:
+   #    Should the body thickness be automatically increased?
+   outerAdd = false,
+
+   # Field:name
+   # Type: String
+   name = "recorder",
+
+   # Field:generatePads
+   # Type: Boolean
+   # Description:
+   #    Generate pads around holes?
+   generatePads = true,
+
+   # Field:transpose
+   # Type: Int
+   # Description:
+   #    an optional transposition, in chromatic steps, to apply to the 
+   #    instrument specification 
+   transpose = 12,
+
+   # Field:innerAngles
+   # Type: List<Pair<Angle, Angle>?>
+   # Description:
+   #    angle descriptions for the inner contours of the instrument's bore.
+   innerAngles = [null, null, null, null, null, null, null],
+
+   # Field:tweakBoreLess
+   # Type: Double
+   tweakBoreLess = 0.3000,
+
+   # Field:maxLength
+   # Type: Double? (This field is optional.)
+   # Description:
+   #    The maximum length that the design should make the instrument when 
+   #    modelling 
+   maxLength = null,
+
+   # Field:rootNote
+   # Type: String? (This field is optional.)
+   rootNote = null
+}
+

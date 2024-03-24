@@ -1,0 +1,4 @@
+folkShawm {
+    name = "Simple Shawm",
+    closedTop = true
+}
