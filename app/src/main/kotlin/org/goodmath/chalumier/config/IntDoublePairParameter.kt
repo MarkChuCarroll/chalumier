@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -120,7 +120,7 @@ val ListOfIntDoublePairKind = object: ListParameterKind<Pair<Int, Double>>(IntDo
 }
 val ListOfListOfIntDoublePairKind = ListParameterKind(ListOfIntDoublePairKind)
 
-fun<T: Configurable<T>> ListOfListOfIntDoublePairParam(help: String = "", gen: (T) -> List<List<Pair<Int, Double>>>): ConfigParameter<T, List<List<Pair<Int, Double>>>> {
+fun<T: Configurable<T>> listOfListOfIntDoublePairParam(help: String = "", gen: (T) -> List<List<Pair<Int, Double>>>): ConfigParameter<T, List<List<Pair<Int, Double>>>> {
     val mutGen: (T) -> List<List<Pair<Int, Double>>> = { target ->
         ArrayList(gen(target).map { ArrayList(it) })
     }

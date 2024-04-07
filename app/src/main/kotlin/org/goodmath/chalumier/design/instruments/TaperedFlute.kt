@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll  and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -42,67 +42,84 @@ class TaperedFlute(
     override var trueLength: Double = length,
     override var emissionDivide: Double = 1.0,
     override var scale: Double = 1.0,
-    override var divisions: List<List<Pair<Int, Double>>>): SimpleInstrument() {
-
+    override var divisions: List<List<Pair<Int, Double>>>,
+) : SimpleInstrument() {
     override var steppedInner: Profile = inner.asStepped(coneStep)
 
     override fun dup(): Instrument {
-        return TaperedFlute(name, innerTaper, outerTaper,
-            length, inner, outer, innerKinks, outerKinks,
-            numberOfHoles, holePositions, holeAngles,
-            innerHolePositions, holeLengths,
-            holeDiameters, closedTop, coneStep, trueLength,
-            emissionDivide, scale, divisions)
+        return TaperedFlute(
+            name,
+            innerTaper,
+            outerTaper,
+            length,
+            inner,
+            outer,
+            innerKinks,
+            outerKinks,
+            numberOfHoles,
+            holePositions,
+            holeAngles,
+            innerHolePositions,
+            holeLengths,
+            holeDiameters,
+            closedTop,
+            coneStep,
+            trueLength,
+            emissionDivide,
+            scale,
+            divisions,
+        )
     }
 
     companion object {
-        val builder = object: InstrumentFactory<TaperedFlute>() {
-            override fun create(
-                designer: InstrumentDesigner<TaperedFlute>,
-                parameters: DesignParameters,
-                name: String,
-                length: Double,
-                closedTop: Boolean,
-                coneStep: Double,
-                holeAngles: List<Double>,
-                holeDiameters: List<Double>,
-                holeLengths: List<Double>,
-                holePositions: List<Double>,
-                inner: Profile,
-                outer: Profile,
-                innerHolePositions: List<Double>,
-                numberOfHoles: Int,
-                innerKinks: List<Double>,
-                outerKinks: List<Double>,
-                divisions: List<List<Pair<Int, Double>>>
-            ): TaperedFlute {
-                designer as TaperedFluteDesigner
-                return TaperedFlute(
-                    name=name,
-                    length=length,
-                    closedTop=closedTop,
-                    coneStep=coneStep,
-                    holeAngles=holeAngles.dup(),
-                    holeDiameters=holeDiameters.dup(),
-                    holeLengths=holeLengths.dup(),
-                    holePositions=holePositions.dup(),
-                    inner=inner,
-                    outer=outer,
-                    innerHolePositions=innerHolePositions.dup(),
-                    numberOfHoles=numberOfHoles,
-                    innerKinks=innerKinks.dup(),
-                    outerKinks=outerKinks.dup(),
-                    innerTaper = designer.innerTaper,
-                    outerTaper = designer.outerTaper,
-                    divisions = listOf(
-                        listOf(Pair(5, 0.0)),
-                        listOf(Pair(2, 0.0), Pair(5, 0.333)),
-                        listOf(Pair(-1, 0.9), Pair(2, 0.0), Pair(5, 0.333)),
-                        listOf(Pair(-1, 0.9), Pair(2, 0.0), Pair(5, 0.0), Pair(5, 0.7))))
+        val builder =
+            object : InstrumentFactory<TaperedFlute>() {
+                override fun create(
+                    designer: InstrumentDesigner<TaperedFlute>,
+                    parameters: DesignParameters,
+                    name: String,
+                    length: Double,
+                    closedTop: Boolean,
+                    coneStep: Double,
+                    holeAngles: List<Double>,
+                    holeDiameters: List<Double>,
+                    holeLengths: List<Double>,
+                    holePositions: List<Double>,
+                    inner: Profile,
+                    outer: Profile,
+                    innerHolePositions: List<Double>,
+                    numberOfHoles: Int,
+                    innerKinks: List<Double>,
+                    outerKinks: List<Double>,
+                    divisions: List<List<Pair<Int, Double>>>,
+                ): TaperedFlute {
+                    designer as TaperedFluteDesigner
+                    return TaperedFlute(
+                        name = name,
+                        length = length,
+                        closedTop = closedTop,
+                        coneStep = coneStep,
+                        holeAngles = holeAngles.dup(),
+                        holeDiameters = holeDiameters.dup(),
+                        holeLengths = holeLengths.dup(),
+                        holePositions = holePositions.dup(),
+                        inner = inner,
+                        outer = outer,
+                        innerHolePositions = innerHolePositions.dup(),
+                        numberOfHoles = numberOfHoles,
+                        innerKinks = innerKinks.dup(),
+                        outerKinks = outerKinks.dup(),
+                        innerTaper = designer.innerTaper,
+                        outerTaper = designer.outerTaper,
+                        divisions =
+                            listOf(
+                                listOf(Pair(5, 0.0)),
+                                listOf(Pair(2, 0.0), Pair(5, 0.333)),
+                                listOf(Pair(-1, 0.9), Pair(2, 0.0), Pair(5, 0.333)),
+                                listOf(Pair(-1, 0.9), Pair(2, 0.0), Pair(5, 0.0), Pair(5, 0.7)),
+                            ),
+                    )
+                }
             }
-
-        }
     }
 }
-
-

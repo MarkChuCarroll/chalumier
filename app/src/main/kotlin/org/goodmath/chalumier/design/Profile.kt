@@ -213,8 +213,8 @@ data class Profile(val pos: List<Double>, val low: List<Double>, val high: List<
         for (i in 0 until pos.size - 1) {
             newPos.add(pos[i])
             // For a transition from segment i to segment i+1, we want
-            // create a smooth series of steps from the diameter at the
-            // top of sigment i to the diameter of the bottom of segment i+1.
+            // to create a smooth series of steps from the diameter at the
+            // top of segment i to the diameter of the bottom of segment i+1.
             val lowerSegmentTopPosition = pos[i]
             val lowerSegmentTopDiameter = high[i]
             val higherSegmentBottomPosition = pos[i + 1]

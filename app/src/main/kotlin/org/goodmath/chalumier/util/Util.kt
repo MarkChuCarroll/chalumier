@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,10 +15,10 @@
  */
 package org.goodmath.chalumier.util
 
-
 interface Copyable<T> {
     fun copy(): T
 }
+
 fun <T> List<T>.fromEnd(i: Int): T = this[this.size - (i)]
 
 fun <T> List<T>.repeat(i: Int): List<T> {
@@ -28,5 +28,3 @@ fun <T> List<T>.repeat(i: Int): List<T> {
 fun <T> Int.repeat(f: (i: Int) -> T): List<T> {
     return (0 until this).map { f(it) }
 }
-
-

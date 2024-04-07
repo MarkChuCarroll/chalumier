@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,24 @@
  */
 package org.goodmath.chalumier.design
 
-import org.goodmath.chalumier.config.*
-import org.goodmath.chalumier.design.instruments.*
+import org.goodmath.chalumier.config.booleanParameter
+import org.goodmath.chalumier.config.Configurable
+import org.goodmath.chalumier.config.doubleParameter
+import org.goodmath.chalumier.config.intParameter
+import org.goodmath.chalumier.config.listOfBooleanParameter
+import org.goodmath.chalumier.config.listOfDoublePairParameter
+import org.goodmath.chalumier.config.listOfDoubleParameter
+import org.goodmath.chalumier.config.listOfListOfIntDoublePairParam
+import org.goodmath.chalumier.config.listOfOptDoubleParameter
+import org.goodmath.chalumier.config.optDoubleParameter
+import org.goodmath.chalumier.config.optStringParameter
+import org.goodmath.chalumier.config.stringParameter
+import org.goodmath.chalumier.config.listOfOptAnglePairsParameter
+import org.goodmath.chalumier.design.instruments.Instrument
+import org.goodmath.chalumier.design.instruments.InstrumentFactory
+import org.goodmath.chalumier.design.instruments.describeLowHigh
+import org.goodmath.chalumier.design.instruments.lowHigh
+import org.goodmath.chalumier.design.instruments.lowHighOpt
 import org.goodmath.chalumier.diagram.Diagram
 import org.goodmath.chalumier.errors.RequiredParameterException
 import org.goodmath.chalumier.errors.dAssert
@@ -28,9 +44,24 @@ import org.goodmath.chalumier.optimize.Score
 import org.goodmath.chalumier.optimize.ScoredParameters
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
-import kotlin.io.path.*
-import kotlin.math.*
-
+import kotlin.io.path.createDirectory
+import kotlin.io.path.deleteExisting
+import kotlin.io.path.div
+import kotlin.io.path.exists
+import kotlin.io.path.moveTo
+import kotlin.io.path.name
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.floor
+import kotlin.math.ln
+import kotlin.math.log2
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.pow
+import kotlin.math.round
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * MarkCC: I've refactored this quite a bit from demakein.
@@ -43,190 +74,226 @@ import kotlin.math.*
  * a little easier to understand what's going on, and to interpret
  * new states.
  */
-abstract class InstrumentDesigner<Inst: Instrument>(
+abstract class InstrumentDesigner<Inst : Instrument>(
     override val instrumentName: String,
     val outputDir: Path,
-    val builder: InstrumentFactory<Inst>): Configurable<InstrumentDesigner<Inst>>(instrumentName) {
-
-    /*
-     * Basic definitional parameters of the instrument.
-     */
-    open var name by StringParameter("The name of the instrument being designed.") {
-        instrumentName
+    val builder: InstrumentFactory<Inst>,
+) : Configurable<InstrumentDesigner<Inst>>(instrumentName) {
+        /*
+         * Basic definitional parameters of the instrument.
+         */
+    open var name by stringParameter("The name of the instrument being designed.") {
+        it.instrumentName
     }
 
-    open var rootNote by OptStringParameter("The lowest note on the instrument, when all holes are closed") {
+    open var designer by optStringParameter("the name of the person who designed this instrument") { null }
+
+    open var description by optStringParameter("a description of the instrument") { null }
+
+    open var rootNote by optStringParameter("The lowest note on the instrument, when all holes are closed") {
         null
     }
 
-    open var closedTop by BooleanParameter("Is this a closed top instrument?") { false }
+    open var closedTop by booleanParameter("Is this a closed top instrument?") { false }
 
-    open var transpose by IntParameter("an optional transposition, in chromatic steps, to apply to the instrument specification") { 0 }
+    open var transpose by intParameter("an optional transposition, in chromatic steps, to apply to the instrument specification") { 0 }
 
-    open var numberOfHoles by IntParameter("the number of holes, including embouchure") { c -> c.maxHoleDiameters.size }
+    open var numberOfHoles by intParameter("the number of holes, including embouchure") { c -> c.maxHoleDiameters.size }
 
-    open var fingerings by ConfigParameter(ListOfFingeringsKind,"list of specifications of fingerings and the notes they should produce") {
+    open var fingerings by listOfFingeringsParam("list of specifications of fingerings and the notes they should produce") {
         throw RequiredParameterException("fingerings")
     }
 
-
     /*
-    * Parameters that define the profile/size/shape of the instrument.
-    */
+     * Parameters that define the profile/size/shape of the instrument.
+     */
 
-    open var length by DoubleParameter("the length of the instrument") { it.initialLength * it.scale }
+    open var length by doubleParameter("the length of the instrument") { it.initialLength * it.scale }
 
-    open var maxLength by OptDoubleParameter(
-        "The maximum length that the design should make the instrument when modelling",) {
+    open var minLength by optDoubleParameter("the minimum acceptable length of the instrument") {
+        it.initialLength * it.scale * 0.6
+    }
+    open var maxLength by optDoubleParameter(
+        "The maximum length that the design should make the instrument when modelling",
+    ) {
         null
     }
 
-    open var initialLength by DoubleParameter("the initial length of the instrument before modeling") {
-        rootNote?.let { wavelength(it) / 2.0 }?: throw RequiredParameterException("initialLength")
+    open var initialLength by doubleParameter("the initial length of the instrument before modeling") {
+        rootNote?.let { wavelength(it) / 2.0 } ?: throw RequiredParameterException("initialLength")
     }
 
-
-    open var innerDiameters by ListOfDoublePairParameter(
+    open var innerDiameters by listOfDoublePairParameter(
         "A description of the inner bore of the instrument. The first element is the bore diameter at the base " +
-                "of the instrument; the last element is the bore diameter at the top of the instrument. " +
-                "The bore is piecewise linear, where the intervening elements are boundaries between pieces (kinks). "+
-                "The exact placement may be moved as part of the optimization process. As an advanced option " +
-                "instead of a single diameter, you can give a tuple (low,high)  to create a step in the " +
-                "diameter of the bore.  See the examples/stepped_shawm.py for an example of this.") {
+            "of the instrument; the last element is the bore diameter at the top of the instrument. " +
+            "The bore is piecewise linear, where the intervening elements are boundaries between pieces (kinks). " +
+            "The exact placement may be moved as part of the optimization process. As an advanced option " +
+            "instead of a single diameter, you can give a tuple (low,high)  to create a step in the " +
+            "diameter of the bore.  See the examples/stepped_shawm.py for an example of this.",
+    ) {
         throw RequiredParameterException("innerDiameters")
     }
 
-    open var outerDiameters by ListOfDoublePairParameter("the diameters of the outer body, from bottom to top") {
+    open var outerDiameters by listOfDoublePairParameter("the diameters of the outer body, from bottom to top") {
         throw RequiredParameterException("outerDiameters", "must have at least two elements")
     }
 
-    open var innerAngles by ListOfOptAnglePairsParameter("angle descriptions for the inner contours of the instrument's bore.") {
+    open var innerAngles by listOfOptAnglePairsParameter("angle descriptions for the inner contours of the instrument's bore.") {
         innerDiameters.map { null }
     }
 
-    open var outerAngles by ListOfOptAnglePairsParameter("angle descriptions for the outer contours of the instrument's body") {
+    open var outerAngles by listOfOptAnglePairsParameter("angle descriptions for the outer contours of the instrument's body") {
         outerDiameters.map { null }
     }
 
-    open var coneStep by DoubleParameter("The size of the step used when translating conic sections into curves") { 0.125 }
+    open var coneStep by doubleParameter("The size of the step used when translating conic sections into curves") { 0.125 }
 
-    open var topClearanceFraction by DoubleParameter( "how close to the top are finger holes allowed to be placed?") { 0.0 }
+    open var topClearanceFraction by doubleParameter("how close to the top are finger holes allowed to be placed?") { 0.0 }
 
-    open var bottomClearanceFraction by DoubleParameter("how close to the bottom are finger holes allowed to be placed?") { 0.0 }
+    open var bottomClearanceFraction by doubleParameter("how close to the bottom are finger holes allowed to be placed?") { 0.0 }
 
-    open var scale: Double by DoubleParameter("Scaling factor to apply to the instrument specification") {
-        2.0.pow(-transpose/12.0)
+    open var scale: Double by doubleParameter("Scaling factor to apply to the instrument specification") {
+        2.0.pow(-it.transpose / 12.0)
     }
 
     /*
      * Characteristics of holes that effect optimization.
      */
 
-    open var tweakEmissions by DoubleParameter("Experimental term added to the optimization to try to make instrument louder, possibly at the cost of intonation") {  0.0 }
+    open var tweakEmissions by doubleParameter(
+        "Experimental term added to the optimization to try to make instrument louder, possibly at the cost of intonation",
+    ) {
+        0.0
+    }
 
+    open var minHoleDiameters by listOfDoubleParameter("the minimum acceptable diameters of holes") { c -> c.numberOfHoles.repeat { 0.5 } }
 
-    open var minHoleDiameters by ListOfDoubleParameter("the minimum acceptable diameters of holes") { c -> c.numberOfHoles.repeat { 0.5 } }
-
-    open var maxHoleDiameters by ListOfDoubleParameter("the maximum acceptable diameter of holes") {
+    open var maxHoleDiameters by listOfDoubleParameter("the maximum acceptable diameter of holes") {
         throw RequiredParameterException("maxHoleDiameters")
     }
 
-
-    open var minHoleSpacing by ListOfOptDoubleParameter(
-        "Minimum space between each pair of finger holes") {
-        (it.numberOfHoles-1).repeat { 0.0 }
+    open var minHoleSpacing by listOfOptDoubleParameter(
+        "Minimum space between each pair of finger holes",
+    ) {
+        (it.numberOfHoles - 1).repeat { 0.0 }
     }
 
-    open var maxHoleSpacing by ListOfOptDoubleParameter("the maximum distance separating each pair of holes") { c ->
+    open var maxHoleSpacing by listOfOptDoubleParameter("the maximum distance separating each pair of holes") { c ->
         (c.numberOfHoles - 1).repeat { c.initialLength }
     }
-    open var balance by ListOfOptDoubleParameter("For each triplet of holes (0, 1, 2), (1, 2, 3), ..., this is a " +
+    open var balance by listOfOptDoubleParameter(
+        "For each triplet of holes (0, 1, 2), (1, 2, 3), ..., this is a " +
             "value between 0 and 1 specifying how similar the spacings of the pairs of holes should be. " +
-            "The smaller the value, the more similar the spacings must be.") { c -> (c.numberOfHoles - 2).repeat { null } }
+            "The smaller the value, the more similar the spacings must be.",
+    ) { c -> (c.numberOfHoles - 2).repeat { null } }
 
-    open var holeAngles by ListOfDoubleParameter( "Vertical angle of each hole. Using angling can " +
-            "make an instrument easier to play due by making the hole spacing more comfortable.") { it.numberOfHoles.repeat { 0.0 } }
+    open var holeAngles by listOfDoubleParameter(
+        "Vertical angle of each hole. Using angling can " +
+            "make an instrument easier to play due by making the hole spacing more comfortable.",
+    ) { it.numberOfHoles.repeat { 0.0 } }
 
-open var initialInnerFractions by ListOfDoubleParameter("Initial positions of kinks in the bore, described as " +
-        "fractions of the length of the bore. Most the time, this will be automatically " +
-        "generated from the inner diameters") { c ->
+    open var initialInnerFractions by listOfDoubleParameter(
+        "Initial positions of kinks in the bore, described as " +
+            "fractions of the length of the bore. Most the time, this will be automatically " +
+            "generated from the inner diameters",
+    ) { c ->
         (c.innerDiameters.size - 2).repeat { (it + 1.0) / (c.innerDiameters.size - 1) }
     }
 
-    open var minInnerFractionSep by ListOfDoubleParameter("Minimum size of each linear segment of the bore, " +
-            "as a fraction of the overall length.") {
+    open var minInnerFractionSep by listOfDoubleParameter(
+        "Minimum size of each linear segment of the bore, " +
+            "as a fraction of the overall length.",
+    ) {
         (it.innerDiameters.size - 1).repeat { 0.0 }
     }
-    open var maxInnerFractionSep by ListOfDoubleParameter("Maximum size of each linear segment of the bore, " +
-            "as a fraction of the overall length.") {
+    open var maxInnerFractionSep by listOfDoubleParameter(
+        "Maximum size of each linear segment of the bore, " +
+            "as a fraction of the overall length.",
+    ) {
         (it.innerDiameters.size - 1).repeat { 1.0 }
     }
 
-    open var minInnerSep by ListOfOptDoubleParameter("The minimum distance between changes in the bore diameter") {
+    open var minInnerSep by listOfOptDoubleParameter("The minimum distance between changes in the bore diameter") {
         (it.innerDiameters.size - 1).repeat { null }
     }
 
-    open var maxInnerSep by ListOfOptDoubleParameter("The maximum distances between changes in the bore diameter") {
+    open var maxInnerSep by listOfOptDoubleParameter("The maximum distances between changes in the bore diameter") {
         (it.innerDiameters.size - 1).repeat { null }
     }
-    open var initialOuterFractions by ListOfDoubleParameter("Initial positions of kinks in the body shape, described as " +
+    open var initialOuterFractions by listOfDoubleParameter(
+        "Initial positions of kinks in the body shape, described as " +
             "fractions of the length of the instrument. Most the time, this will be automatically " +
-            "generated from the outer diameters") { c ->
+            "generated from the outer diameters",
+    ) { c ->
         (c.outerDiameters.size - 2).repeat { (it + 1.0) / (c.outerDiameters.size - 1) }
     }
 
-    open var minOuterFractionSep by ListOfDoubleParameter("Minimum size of each linear segment of the instrument, " +
-            "as a fraction of the overall length.") { c ->
+    open var minOuterFractionSep by listOfDoubleParameter(
+        "Minimum size of each linear segment of the instrument, " +
+            "as a fraction of the overall length.",
+    ) { c ->
         (c.outerDiameters.size - 1).repeat { 0.0 }
     }
 
-    open var maxOuterFractionSep by ListOfDoubleParameter("Maximum size of each linear segment of the bore, " +
-            "as a fraction of the overall length.") {
+    open var maxOuterFractionSep by listOfDoubleParameter(
+        "Maximum size of each linear segment of the bore, " +
+            "as a fraction of the overall length.",
+    ) {
         (it.outerDiameters.size - 1).repeat { 1.0 }
     }
 
-    open var initialHoleFractions by ListOfDoubleParameter("Initial hole locations, defined as fractions of the length of the instrument") { c ->
+    open var initialHoleFractions by listOfDoubleParameter(
+        "Initial hole locations, defined as fractions of the length of the instrument",
+    ) { c ->
         c.numberOfHoles.repeat { (it + 3.0) / (c.numberOfHoles + 2) * 0.5 }
     }
 
-    open var initialHoleDiameterFractions by ListOfDoubleParameter("Initial hole diameters, defined as fractions of the instrument's bore size.") {
+    open var initialHoleDiameterFractions by listOfDoubleParameter(
+        "Initial hole diameters, defined as fractions of the instrument's bore size.",
+    ) {
         it.numberOfHoles.repeat { 0.75 }
     }
 
-    open var holeHorizAngles by ListOfDoubleParameter("Horizontal angle offsets for each hole. Using offsets " +
-        "can produce an instrument that is easier to play.") {
-        (0 until numberOfHoles).map { 0.0 }
+    open var holeHorizAngles by listOfDoubleParameter(
+        "Horizontal angle offsets for each hole. Using offsets " +
+            "can produce an instrument that is easier to play.",
+    ) {
+        (0 until it.numberOfHoles).map { 0.0 }
     }
 
     /*
      * Parameters for the 3d model of the instrument.
      */
-    open var decorate by BooleanParameter("When building a 3d model, should embellishments be adde to the body?") { false }
+    open var decorate by booleanParameter("When building a 3d model, should embellishments be added to the body?") { false }
 
-    open var dilate by DoubleParameter("Dilate the body of the instrument by this much") { 0.0 }
+    open var dilate by doubleParameter("Dilate the body of the instrument by this much") { 0.0 }
 
-    open var join by StringParameter("The type of join in a multi-part model: one of (StraightJoin, WeldJoin, TaperedJoin)") {
+    open var join by stringParameter("The type of join in a multi-part model: one of (StraightJoin, WeldJoin, TaperedJoin)") {
         JoinType.StraightJoin.toString()
     }
 
-    open var generatePads by BooleanParameter("Generate pads around holes?") {
+    open var generatePads by booleanParameter("Generate pads around holes?") {
         true
     }
 
-    open var thickSockets by BooleanParameter("Make the body thicker around socket joins?") {
+    open var fingerPads by listOfBooleanParameter("For each hole, should this hole get a fingerpad?") {
+        it.numberOfHoles.repeat { false }
+    }
+
+    open var thickSockets by booleanParameter("Make the body thicker around socket joins?") {
         false
     }
 
-    open var gap by DoubleParameter("Size of the gap between sockets")  {  0.0 }
+    open var gap by doubleParameter("Size of the gap between sockets") { 0.0 }
 
-    open var outerAdd by ConfigParameter(BooleanParameterKind, "Should the body thickness be automatically increased?") { false }
+    open var outerAdd by booleanParameter("Should the body thickness be automatically increased?") { false }
 
-    open var divisions by ListOfListOfIntDoublePairParam("For the 3d model, how should it be split into printable pieces?") {
+    open var divisions by listOfListOfIntDoublePairParam("For the 3d model, how should it be split into printable pieces?") {
         listOf(
             listOf(Pair(5, 0.0)),
             listOf(Pair(2, 0.0), Pair(5, 0.333)),
             listOf(Pair(-1, 0.9), Pair(2, 0.0), Pair(5, 0.333)),
-            listOf(Pair(-1, 0.9), Pair(2, 0.0), Pair(5, 0.0), Pair(5, 0.7))
+            listOf(Pair(-1, 0.9), Pair(2, 0.0), Pair(5, 0.0), Pair(5, 0.7)),
         )
     }
 
@@ -237,27 +304,41 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
     private fun validate() {
         dAssert(initialHoleFractions.size == numberOfHoles, "initialHoleFractions has wrong length")
         dAssert(
-            initialHoleDiameterFractions.size == numberOfHoles, "initialHoleDiameterFractions has wrong length"
+            initialHoleDiameterFractions.size == numberOfHoles,
+            "initialHoleDiameterFractions has wrong length",
         )
         dAssert(
-            initialInnerFractions.size == innerDiameters.size - 2, "initialInnerFractions has wrong length"
+            initialInnerFractions.size == innerDiameters.size - 2,
+            "initialInnerFractions has wrong length",
         )
         dAssert(
-            initialOuterFractions.size == outerDiameters.size - 2, "initialOuterFractions has wrong length"
+            initialOuterFractions.size == outerDiameters.size - 2,
+            "initialOuterFractions has wrong length",
         )
-        dAssert(fingerings.all { it.fingers.size == numberOfHoles},
-            "Fingerings must have the same number of open/closed as the number of holes")
-        dAssert(minHoleSpacing.size == numberOfHoles - 1,"minHoleSpacing must have one fewer value than numberOfHoles ")
-        dAssert(maxHoleSpacing.size == numberOfHoles - 1,  "maxHoleSpacing must have one fewer value than numberOfHoles ")
-        dAssert(balance.size == numberOfHoles - 2, "balance must have two fewer value than numberOfHoles  ${balance.size} vs ${numberOfHoles})")
-        dAssert(balance.all { it == null || (it in 0.0..1.0)}, "balance values must be between 0 and 1")
+        dAssert(
+            fingerings.all { it.fingers.size == numberOfHoles },
+            "Fingerings must have the same number of open/closed as the number of holes",
+        )
+        dAssert(minHoleSpacing.size == numberOfHoles - 1, "minHoleSpacing must have one fewer value than numberOfHoles ")
+        dAssert(
+            maxHoleSpacing.size == numberOfHoles - 1,
+            "maxHoleSpacing must have one fewer value than numberOfHoles (${maxHoleSpacing.size} vs $numberOfHoles ",
+        )
+        dAssert(
+            balance.size == numberOfHoles - 2,
+            "balance must have two fewer value than numberOfHoles  ${balance.size} vs $numberOfHoles)",
+        )
+        dAssert(balance.all { it == null || (it in 0.0..1.0) }, "balance values must be between 0 and 1")
         dAssert(holeAngles.size == numberOfHoles, "There must be one hole angle per hole")
         dAssert(holeHorizAngles.size == numberOfHoles, "There must be one hole horizontal angle per hole")
     }
 
     abstract fun readInstrument(path: Path): Inst
 
-    abstract fun writeInstrument(instrument: Inst, path: Path)
+    abstract fun writeInstrument(
+        instrument: Inst,
+        path: Path,
+    )
 
     fun getInstrumentMaker(specFilePath: Path): InstrumentMaker<Inst> {
         val inst = readInstrument(specFilePath)
@@ -276,10 +357,14 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
      */
     fun initialDesignParameters(): DesignParameters {
         validate()
-        val result = DesignParameters.make(1.0,
-            initialHoleFractions,
-            ArrayList(initialHoleDiameterFractions.map { it * it}),
-            initialInnerFractions, initialOuterFractions)
+        val result =
+            DesignParameters.make(
+                1.0,
+                initialHoleFractions,
+                ArrayList(initialHoleDiameterFractions.map { it * it }),
+                initialInnerFractions,
+                initialOuterFractions,
+            )
         return result
     }
 
@@ -294,34 +379,39 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
         val (outerLow, outerHigh) = lowHigh(outerDiameters)
         val (innerAngleLow, innerAngleHigh) = lowHighOpt(innerAngles)
         val (outerAngleLow, outerAngleHigh) = lowHighOpt(outerAngles)
-        val instHolePositions = ArrayList(parameters.holePositions.map {
-            it * length
-        })
+        val instHolePositions =
+            ArrayList(
+                parameters.holePositions.map {
+                    it * length
+                },
+            )
 
-        val innerKinks = ArrayList(parameters.innerKinks.map {  it * length })
+        val innerKinks = ArrayList(parameters.innerKinks.map { it * length })
         val outerKinks = ArrayList(parameters.outerKinks.map { it * length })
-        val instInner = Profile.curvedProfile(
-            ArrayList(listOf(0.0) + innerKinks + listOf(length)),
-            innerLow,
-            innerHigh,
-            innerAngleLow,
-            innerAngleHigh
-        )
-        val instOuterBase = Profile.curvedProfile(
-            ArrayList(listOf(0.0) + outerKinks + listOf(length)),
-            outerLow,
-            outerHigh,
-            outerAngleLow,
-            outerAngleHigh
-        )
-        val instOuter = if (outerAdd) {
-            instOuterBase + instInner
-        } else {
-            instOuterBase
-        }
+        val instInner =
+            Profile.curvedProfile(
+                ArrayList(listOf(0.0) + innerKinks + listOf(length)),
+                innerLow,
+                innerHigh,
+                innerAngleLow,
+                innerAngleHigh,
+            )
+        val instOuterBase =
+            Profile.curvedProfile(
+                ArrayList(listOf(0.0) + outerKinks + listOf(length)),
+                outerLow,
+                outerHigh,
+                outerAngleLow,
+                outerAngleHigh,
+            )
+        val instOuter =
+            if (outerAdd) {
+                instOuterBase + instInner
+            } else {
+                instOuterBase
+            }
 
-
-        //val instHoleAngles = holeAngles
+        // val instHoleAngles = holeAngles
         val instInnerHolePositions = ArrayList(numberOfHoles.repeat { 0.0 })
         val instHoleLengths = ArrayList(numberOfHoles.repeat { 0.0 })
 
@@ -340,12 +430,15 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
             parameters,
             instrumentName,
             length = length,
-            closedTop=closedTop,
-            coneStep=coneStep,
+            closedTop = closedTop,
+            coneStep = coneStep,
             holeAngles = holeAngles,
-            holeDiameters = ArrayList(parameters.holeAreas.mapIndexed { idx, area ->
-                    minHoleDiameters[idx] + signedSqrt(area) * (maxHoleDiameters[idx] - minHoleDiameters[idx])
-            }),
+            holeDiameters =
+                ArrayList(
+                    parameters.holeAreas.mapIndexed { idx, area ->
+                        minHoleDiameters[idx] + signedSqrt(area) * (maxHoleDiameters[idx] - minHoleDiameters[idx])
+                    },
+                ),
             holeLengths = instHoleLengths,
             holePositions = instHolePositions,
             inner = instInner,
@@ -354,9 +447,9 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
             numberOfHoles = numberOfHoles,
             innerKinks = innerKinks,
             outerKinks = outerKinks,
-            divisions=divisions)
+            divisions = divisions,
+        )
     }
-
 
     /**
      * Compute a constraint score for the instrument, which describes how
@@ -369,6 +462,10 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
         val ml = maxLength
         if (ml != null) {
             scores.add(ml * scale - inst.length)
+        }
+        val minL = minLength
+        if (minL != null) {
+            scores.add(inst.length - (minL * scale))
         }
 
         // Check that the inner kinks are within their bounds.
@@ -424,12 +521,15 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
         // Check the balance.
         balance.forEachIndexed { i, balanceConstraint ->
             if (balanceConstraint != null) {
-                scores.add((balanceConstraint * 0.5) * (inst.holePositions[i + 2] - inst.holePositions[i]) -
-                        abs(0.5 * inst.holePositions[i] + 0.5 * inst.holePositions[i + 2] - inst.holePositions[i + 1]
-                        ))
+                scores.add(
+                    (balanceConstraint * 0.5) * (inst.holePositions[i + 2] - inst.holePositions[i]) -
+                        abs(
+                            0.5 * inst.holePositions[i] + 0.5 * inst.holePositions[i + 2] - inst.holePositions[i + 1],
+                        ),
+                )
             }
         }
-        val negScores = scores.filter { it < -0.05  }.map { -it }
+        val negScores = scores.filter { it < -0.05 }.map { -it }
         return if (negScores.isNotEmpty()) {
             negScores.sum()
         } else {
@@ -452,14 +552,17 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
      *
      * Let-s Flute_designer rate emission relative to embouchure hole.
      */
-    open fun calcEmission(emission: List<Double>, fingers: List<Hole>): Double {
+    open fun calcEmission(
+        emission: List<Double>,
+        fingers: List<Hole>,
+    ): Double {
         return sqrt(emission.sumOf { e -> e * e })
     }
 
     /**
      * Compute an evaluation score for the instruments intonation and emission.
      */
-    fun intonationScore(i: Instrument): Double {
+    private fun intonationScore(i: Instrument): Double {
         val inst = patchInstrument(i)
         var score = 0.0
         var div = 0.0
@@ -480,11 +583,12 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
             val fingering = fingerings[idx]
             val fingers = fingering.fingers
             val desiredWavelength = fingering.wavelength(transpose)
-            val actualWavelength = if (fingering.nth == null) {
-                inst.trueWavelengthNear(desiredWavelength, fingers)
-            } else {
-                inst.trueNthWavelengthNear(desiredWavelength, fingers, fingering.nth)
-            }
+            val actualWavelength =
+                if (fingering.nth == null) {
+                    inst.trueWavelengthNear(desiredWavelength, fingers)
+                } else {
+                    inst.trueNthWavelengthNear(desiredWavelength, fingers, fingering.nth)
+                }
             val diff = abs(ln(desiredWavelength) - ln(actualWavelength)) * s
             val weight = 1.0
             score += weight * diff.pow(3)
@@ -519,7 +623,7 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
         diagram: Diagram,
         instrument: Instrument,
         color: String = "#000000",
-        redColor: String = "#ff0000"
+        redColor: String = "#ff0000",
     ) {
         instrument.prepare()
         (0 until numberOfHoles).forEach { i ->
@@ -532,7 +636,8 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
         if (closedTop) {
             val d = instrument.steppedInner(instrument.length)
             diagram.line(
-                listOf(Pair(-0.5 * d, -instrument.length), Pair(0.5 * d, -instrument.length)), color
+                listOf(Pair(-0.5 * d, -instrument.length), Pair(0.5 * d, -instrument.length)),
+                color,
             )
         }
 
@@ -555,10 +660,12 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
      * Set up a value to make it easy to pass the save function as
      * a parameter for the optimizer.
      */
-    private val saver = { pars: ScoredParameters,
-                  _: List<DesignParameters> -> save(pars) }
-
-
+    private val saver = {
+            pars: ScoredParameters,
+            _: List<DesignParameters>,
+        ->
+        save(pars)
+    }
 
     private fun twiddleFiles(path: Path) {
         if (path.exists()) {
@@ -574,13 +681,12 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
 
     @Suppress("UNCHECKED_CAST")
     private fun save(params: ScoredParameters) {
-        twiddleFiles(outputDir / "${name}-parameters.json5")
+        twiddleFiles(outputDir / "$name-parameters.json5")
         val instrument = makeInstrumentFromParameters(params.parameters)
         val patchedInstrument = patchInstrument(instrument) as Inst
         patchedInstrument.prepare()
         patchedInstrument.preparePhase()
-        writeInstrument(patchedInstrument, outputDir / "${name}-parameters.json5")
-
+        writeInstrument(patchedInstrument, outputDir / "$name-parameters.json5")
 
         drawInstrumentDiagram(patchedInstrument)
     }
@@ -602,12 +708,14 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
                 diagram.text(
                     textX + 45.0,
                     thisY,
-                    "%.1fmm".format(patchedInstrument.holePositions[i + 1] - patchedInstrument.holePositions[i])
+                    "%.1fmm".format(patchedInstrument.holePositions[i + 1] - patchedInstrument.holePositions[i]),
                 )
             }
         }
         diagram.text(
-            textX + 90.0, min(textY, -patchedInstrument.length), "%.1fmm".format(patchedInstrument.length)
+            textX + 90.0,
+            min(textY, -patchedInstrument.length),
+            "%.1fmm".format(patchedInstrument.length),
         )
         textX = diagram.maxX
         val graphX = textX + 200
@@ -616,56 +724,71 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
         fingerings.map { item ->
             val fingers = item.fingers
             val w1 = item.wavelength(transpose)
-            val w2: Double = if (item.nth != 0) {
-                patchedInstrument.trueWavelengthNear(w1, fingers)
-            } else {
-                patchedInstrument.trueNthWavelengthNear(w1, fingers, item.nth)
-            }
+            val w2: Double =
+                if (item.nth != 0) {
+                    patchedInstrument.trueWavelengthNear(w1, fingers)
+                } else {
+                    patchedInstrument.trueNthWavelengthNear(w1, fingers, item.nth)
+                }
             val cents = round(log2(w2 / w1) * 1200.0).toInt()
             val nProbes = 301
             val maxCents = 2400.0
             val width = 200
             val step = 0.5.pow(maxCents / ((nProbes - 1) * 0.5 * 1200.0))
             val low = w1 * step.pow(-(nProbes - 1) / 2.0)
-            val probes = (0 until nProbes).map { i ->
-                low * step.pow(i)
-            }
+            val probes =
+                (0 until nProbes).map { i ->
+                    low * step.pow(i)
+                }
 
             val scores = probes.map { probe -> patchedInstrument.resonancePhase(probe, fingers) }
 
-            val points = scores.mapIndexed { i, score ->
-                Pair(
-                    graphX + i * width / nProbes, textY - (((score + 0.5) % 1.0) - 0.5) * 14.0
-                )
-            }
+            val points =
+                scores.mapIndexed { i, score ->
+                    Pair(
+                        graphX + i * width / nProbes,
+                        textY - (((score + 0.5) % 1.0) - 0.5) * 14.0,
+                    )
+                }
 
             (0 until probes.size - 1).forEach { i ->
                 val c = floor(scores[i] + 0.5)
                 if (c == floor(scores[i + 1] + 0.5)) {
-                    fun expr(c: Double, offset: Double): Int {
+                    fun expr(
+                        c: Double,
+                        offset: Double,
+                    ): Int {
                         return floor((cos((c / 5.0 + offset) * PI * 2.0) * 0.5 + 0.5) * 200).toInt()
                     }
 
                     val rgb = listOf(0.0, 1.0 / 3, 2.0 / 3).map { offset -> expr(c, offset) }
                     diagram.line(
-                        points.slice(i until i + 2), "#%02x%02x%02x".format(rgb[0], rgb[1], rgb[2]), 0.2
+                        points.slice(i until i + 2),
+                        "#%02x%02x%02x".format(rgb[0], rgb[1], rgb[2]),
+                        0.2,
                     )
                 }
             }
             diagram.line(
-                listOf(Pair(graphX + width * 0.5, textY + 7), Pair(graphX + width * 0.5, textY - 7)), "#0000ff", 0.2
+                listOf(Pair(graphX + width * 0.5, textY + 7), Pair(graphX + width * 0.5, textY - 7)),
+                "#0000ff",
+                0.2,
             )
             diagram.line(listOf(Pair(graphX, textY), Pair(graphX + width, textY)), "#0000ff", 0.2)
             diagram.text(
-                textX, textY, "%5s %s %-4d cents".format(
-                    describe(w1), if (cents == 0) {
+                textX,
+                textY,
+                "%5s %s %-4d cents".format(
+                    describe(w1),
+                    if (cents == 0) {
                         "     "
                     } else if (cents > 0) {
                         " flat"
                     } else {
                         "sharp"
-                    }, abs(cents)
-                )
+                    },
+                    abs(cents),
+                ),
             )
             val phase = patchedInstrument.resonancePhase(w2, fingers)
             diagram.text(emitX, textY, "$phase")
@@ -673,13 +796,15 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
         }
 
         diagram.text(
-            graphX, textY - 10, "Nearby resonances:", color = "#000000"
+            graphX,
+            textY - 10,
+            "Nearby resonances:",
+            color = "#000000",
         )
         textY -= 50.0 + 10.0 * max(innerDiameters.size, outerDiameters.size)
 
-        diagram.text(graphX - 150.0, textY-70.0, "CHALUMIER INSTRUMENT DESIGNER", color="#550055")
-        diagram.text(graphX - 150.0, textY-50.0, "Design for $name", color="#550055")
-
+        diagram.text(graphX - 150.0, textY - 70.0, "CHALUMIER INSTRUMENT DESIGNER", color = "#550055")
+        diagram.text(graphX - 150.0, textY - 50.0, "Design for $name", color = "#550055")
 
         diagram.text(graphX - 150.0, textY, "Outer diameters:", color = "#000000")
         val outerKinks = listOf(0.0) + patchedInstrument.outerKinks + listOf(patchedInstrument.length)
@@ -687,7 +812,7 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
             diagram.text(
                 graphX - 150.0,
                 textY + 10.0 + (outerDiameters.size - i) * 10.0,
-                describeLowHigh(item) + "mm at %.1fmm".format(outerKinks[i])
+                describeLowHigh(item) + "mm at %.1fmm".format(outerKinks[i]),
             )
         }
 
@@ -697,39 +822,48 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
             diagram.text(
                 graphX,
                 textY + 10.0 + (innerDiameters.size - i) * 10.0,
-                describeLowHigh(item) + "mm at %.1fmm".format(innerKinks[i])
+                describeLowHigh(item) + "mm at %.1fmm".format(innerKinks[i]),
             )
         }
-        twiddleFiles(outputDir / "${name}-design.svg")
-        diagram.save(outputDir / "${name}-design.svg")
+        twiddleFiles(outputDir / "$name-design.svg")
+        diagram.save(outputDir / "$name-design.svg")
     }
 
-    fun run(progressDisplay: ProgressDisplay,
-            reportingInterval: Int = 5000) : Instrument {
+    fun run(
+        progressDisplay: ProgressDisplay,
+        reportingInterval: Int = 5000,
+    ): Instrument {
         if (!outputDir.exists()) {
             outputDir.createDirectory()
         }
         val initialDesignParameters = initialDesignParameters()
-        val newInstrument = optimizeInstrument(progressDisplay,
-            constraintScorer, intonationScorer, initialDesignParameters,
-            reportingInterval,
-            monitor = saver)
+        val newInstrument =
+            optimizeInstrument(
+                progressDisplay,
+                constraintScorer,
+                intonationScorer,
+                initialDesignParameters,
+                reportingInterval,
+                monitor = saver,
+            )
         save(ScoredParameters(newInstrument, fullScore(newInstrument)))
         return makeInstrumentFromParameters(newInstrument)
     }
 
     open fun scaler(values: List<Double?>): ArrayList<Double?> {
-        return ArrayList(values.map {
-            if (it != null) {
-                it * scale
-            } else {
-                null
-            }
-        })
+        return ArrayList(
+            values.map {
+                if (it != null) {
+                    it * scale
+                } else {
+                    null
+                }
+            },
+        )
     }
 
     fun sqrtScaler(values: List<Double?>): List<Double?> {
-        val scaleFactor = scale.pow(0.5)
+        val scaleFactor = sqrt(scale)
         return values.map {
             if (it != null) {
                 it * scaleFactor
@@ -739,7 +873,10 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
         }
     }
 
-    fun powerScaler(power: Double, values: List<Double?>): List<Double?> {
+    fun powerScaler(
+        power: Double,
+        values: List<Double?>,
+    ): List<Double?> {
         val scaleFactor = scale.pow(power)
         return values.map {
             if (it != null) {
@@ -756,39 +893,54 @@ open var initialInnerFractions by ListOfDoubleParameter("Initial positions of ki
         scorer: (DesignParameters) -> Double,
         initialDesignParameters: DesignParameters,
         reportingInterval: Int,
-        monitor: (ScoredParameters, List<DesignParameters>) -> Unit): DesignParameters {
-        val optimizer = Optimizer(instrumentName, initialDesignParameters,  constrainer, scorer, reportingInterval,
-            progressReporter = progressDisplay, monitor=monitor)
+        monitor: (ScoredParameters, List<DesignParameters>) -> Unit,
+    ): DesignParameters {
+        val optimizer =
+            Optimizer(
+                instrumentName,
+                initialDesignParameters,
+                constrainer,
+                scorer,
+                reportingInterval,
+                progressReporter = progressDisplay,
+                monitor = monitor,
+            )
         return optimizer.optimizeInstrument()
     }
-
 }
 
-abstract class InstrumentDesignerWithBoreScale<Inst: Instrument> (
+abstract class InstrumentDesignerWithBoreScale<Inst : Instrument>(
     n: String,
     dir: Path,
-    build: InstrumentFactory<Inst>
-   ):  InstrumentDesigner<Inst>(n, dir, build) {
-
-    open fun boreScaler(value: List<Double?>, maximum: Double = 1e30): ArrayList<Double?> {
+    build: InstrumentFactory<Inst>,
+) : InstrumentDesigner<Inst>(n, dir, build) {
+    open fun boreScaler(
+        value: List<Double?>,
+        maximum: Double = 1e30,
+    ): ArrayList<Double?> {
         val scale = sqrt(scale) * boreScale
-        return ArrayList(value.map { i ->
-            if (i != null) {
+        return ArrayList(
+            value.map { i ->
+                if (i != null) {
+                    min(i * scale, maximum)
+                } else {
+                    null
+                }
+            },
+        )
+    }
+
+    open fun boreScaler(
+        value: List<Double>,
+        maximum: Double = 1e30,
+    ): List<Double> {
+        val scale = sqrt(scale) * boreScale
+        return ArrayList(
+            value.map { i ->
                 min(i * scale, maximum)
-            } else {
-                null
-            }
-        })
+            },
+        )
     }
 
-    open fun boreScaler(value: List<Double>, maximum: Double = 1e30): List<Double> {
-        val scale = sqrt(scale) * boreScale
-        return ArrayList(value.map { i ->
-            min(i * scale, maximum)
-        })
-    }
-
-    open val boreScale: Double by DoubleParameter("Scaling factor to apply to bore diameters") { 1.0 }
+    open val boreScale: Double by doubleParameter("Scaling factor to apply to bore diameters") { 1.0 }
 }
-
-

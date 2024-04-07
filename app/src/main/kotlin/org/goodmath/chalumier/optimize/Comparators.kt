@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 package org.goodmath.chalumier.optimize
 import kotlin.math.min
 
-
 /*
  * In trying to match semantics with demakein's scoring system, we need
  * to be able to do order comparisons on things that are not normally
@@ -25,8 +24,11 @@ import kotlin.math.min
  * or a_0 == b_0 and a_1 < b_1, ...
  */
 
-object DoublePairComparator: Comparator<Pair<Double, Double>> {
-    override fun compare(o1: Pair<Double, Double>?, o2: Pair<Double, Double>?): Int {
+object DoublePairComparator : Comparator<Pair<Double, Double>> {
+    override fun compare(
+        o1: Pair<Double, Double>?,
+        o2: Pair<Double, Double>?,
+    ): Int {
         if (o1 == null) {
             if (o2 == null) {
                 return 0
@@ -48,8 +50,11 @@ object DoublePairComparator: Comparator<Pair<Double, Double>> {
     }
 }
 
-object DoubleListComparator: Comparator<ArrayList<Double>> {
-    override fun compare(one: ArrayList<Double>?, other: java.util.ArrayList<Double>?): Int {
+object DoubleListComparator : Comparator<ArrayList<Double>> {
+    override fun compare(
+        one: ArrayList<Double>?,
+        other: java.util.ArrayList<Double>?,
+    ): Int {
         if (one == null) {
             if (other == null) {
                 return 0
@@ -77,9 +82,9 @@ object DoubleListComparator: Comparator<ArrayList<Double>> {
             return 0
         }
     }
-
 }
-operator fun  ArrayList<Double>.compareTo(other: ArrayList<Double>): Int {
+
+operator fun ArrayList<Double>.compareTo(other: ArrayList<Double>): Int {
     val minLen = min(size, other.size)
     for (i in 0 until minLen) {
         if (this[i] < other[i]) {
@@ -98,9 +103,6 @@ operator fun  ArrayList<Double>.compareTo(other: ArrayList<Double>): Int {
     }
 }
 
-
-operator fun  Pair<Double, Double>.compareTo(other: Pair<Double, Double>): Int {
+operator fun Pair<Double, Double>.compareTo(other: Pair<Double, Double>): Int {
     return DoublePairComparator.compare(this, other)
 }
-
-

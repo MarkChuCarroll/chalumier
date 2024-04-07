@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,6 +23,20 @@ fun assertFloatListEquals(expected: List<Double>, actual: List<Double>, delta: D
         assertEquals(
             expected[i], actual[i], delta,
             "${description}[${i}] was incorrect"
+        )
+    }
+}
+
+fun assertPointListEquals(expected: List<Point>, actual: List<Point>, delta: Double, description: String) {
+    assertEquals(expected.size, actual.size)
+    (0 until actual.size).forEach { i ->
+        assertEquals(
+            expected[i].x, actual[i].x, delta,
+            "${description}[${i}].x was incorrect"
+        )
+        assertEquals(
+            expected[i].y, actual[i].y, delta,
+            "${description}[${i}].y was incorrect"
         )
     }
 }

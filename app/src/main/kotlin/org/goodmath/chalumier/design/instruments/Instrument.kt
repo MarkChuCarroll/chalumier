@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -311,7 +311,6 @@ sealed class SimpleInstrument: Instrument {
             events.add(InstrumentBoreChange(pos, "hole", i))
         }
         events.sortBy { it.position }
-        //System.err.println("Events = $events")
         var position = -endFlangeLengthCorrection(
             outer(0.0, true), steppedInner(0.0, true)
         )
@@ -408,7 +407,6 @@ sealed class SimpleInstrument: Instrument {
             if (scores.fromEnd(2) >= 0.0 && scores.fromEnd(1) < 0.0) {
                 return evaluate(scores.size - 2)
             }
-            val newProbe = probes[0]/step
             probes.add(0, probes[0] / step)
             scores.add(0, scorer(probes[0]))
 

@@ -1,6 +1,5 @@
-
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,12 +32,6 @@ import kotlin.math.*
  * prefixed with "ph:".
  *
  */
-
-/**
- * The absolute value of a complex number is its modulus - aka
- * its length considered as a vector.
- */
-fun Complex.absoluteValue(): Double = mod
 
 /**
  * ph: frequency response of a tree of connected pipes depends on area.

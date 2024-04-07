@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,21 +21,18 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import com.github.ajalt.clikt.parameters.types.int
 import com.github.ajalt.clikt.parameters.types.path
-import org.goodmath.chalumier.optimize.ProgressDisplay
 import org.goodmath.chalumier.optimize.TerminalProgressDisplay
 import java.nio.file.Path
 import kotlin.io.path.div
 
-class Design: ChalumierCommand(name = "design", help="Compute an instrument design from a specification") {
-
+class Design : ChalumierCommand(name = "design", help = "Compute an instrument design from a specification") {
     private val specFile: Path by argument("instrument-spec.json5").path(mustExist = true)
     private val outputDir: Path by option("--output-dir").path().required()
     private val reportingInterval: Int by option("--report-interval").int().default(5000)
 
-
     override fun run() {
         val des = builder.getDesigner(specFile, outputDir)
         val progressDisplay = TerminalProgressDisplay(des.name)
-        val i = des.run(progressDisplay, reportingInterval)
+        des.run(progressDisplay, reportingInterval)
     }
 }

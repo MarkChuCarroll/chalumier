@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,6 @@ import java.nio.file.Path
 import kotlin.math.PI
 import kotlin.math.sqrt
 
-
 class WhistleHeadMaker(
     prefix: String,
     dir: Path,
@@ -40,6 +39,7 @@ class WhistleHeadMaker(
 
     val gapWidth: Double = effectiveGapDiameter(boreDiam)
     val gapLength: Double = effectiveGapHeight(boreDiam, outsideDiam)
+
     companion object {
 
         fun effectiveGapDiameter(boreDiam: Double,
@@ -55,12 +55,14 @@ class WhistleHeadMaker(
 
     }
     fun construct(): List<CSG> {
+        reporter.print("Running head constructor")
+        Thread.sleep(2000)
         val boreLength = boreDiam * 1.5
         val gapLength = boreLength * this.gapLength
         val windCutterLength = boreDiam * 1.0  // Why???
         val airwayLength = boreDiam * 1.5
         val zMin = -boreLength
-        val zGap0 = zMin + boreLength + gapLength
+        val zGap0 = zMin + boreLength - gapLength
         val zGap1 = zMin + boreLength
         val zWindCutter0 = zGap0 - windCutterLength
         val zWindCutter1 = zGap0
@@ -99,25 +101,21 @@ class WhistleHeadMaker(
             )
         )
         var body = extrudeProfile(
-            listOf(
                 Profile.makeProfile(
                     listOf(listOf(zMin, outsideDiam), listOf(zMax, outsideDiam))
-                )
             )
         )
         val boreSpace = extrudeProfile(
-            listOf(
                 Profile.makeProfile(
                     listOf(
                         listOf(zMin, boreDiam),
                         listOf(zGap1, boreDiam)
                     )
                 )
-            )
         )
 
         val windCutterSpace = extrudeProfile(
-            listOf(zWindCutterLine.clipped(zWindCutter0 - 1.0, zGap1)),
+            zWindCutterLine.clipped(zWindCutter0 - 1.0, zGap1),
             crossSection = { xList ->
                 val x = xList.first()
                 roundedRectangle(
@@ -128,7 +126,7 @@ class WhistleHeadMaker(
             })
         body = body.difference(windCutterSpace)
         val underCutterSpace = extrudeProfile(
-            listOf(underCutterLine.clipped(zWindCutter0, zGap1)),
+            underCutterLine.clipped(zWindCutter0, zGap1),
             crossSection = { xs ->
                 dAssert(xs.size == 1, "Only expected 1 element for the crosssection of undercutter")
                 val x = xs.first()
@@ -138,10 +136,9 @@ class WhistleHeadMaker(
                 )
             })
         var space = boreSpace.difference(underCutterSpace).union(underCutterSpace)
-        val airwaySpace = extrudeProfile(listOf(
+        val airwaySpace = extrudeProfile(
             airwayLine0.clipped(zGap0, zAirway1 + airwayXSize * 2),
-            airwayLine1.clipped(zGap0, zAirway1 + airwayXSize * 2)
-        ),
+            airwayLine1.clipped(zGap0, zAirway1 + airwayXSize * 2),
             crossSection = { xs ->
                 dAssert(xs.size == 2, "Expected 2 params for airwayspace")
                 val x0 = xs[0]
@@ -162,14 +159,12 @@ class WhistleHeadMaker(
 
         val cutawayDiameter = outsideDiam * 1.5
         var cutawaySpace = extrudeProfile(
-            listOf(
                 Profile.makeProfile(
                     listOf(
                         listOf(-outsideDiam * 0.51, cutawayDiameter),
                         listOf(outsideDiam * 0.51, cutawayDiameter)
                     )
                 )
-            )
         )
         cutawaySpace = cutawaySpace.transformed(
             Transform()
@@ -181,10 +176,8 @@ class WhistleHeadMaker(
 
         var d = airwayXLow * 2
         val jawClipper = extrudeProfile(
-            listOf(
-                Profile.makeProfile(
-                    listOf(listOf(-outsideDiam * 0.5 - 10, d), listOf(outsideDiam * 0.5 + 10.0, d))
-                )
+            Profile.makeProfile(
+                listOf(listOf(-outsideDiam * 0.5 - 10, d), listOf(outsideDiam * 0.5 + 10.0, d))
             ),
             crossSection = { xs ->
                 dAssert(xs.size == 1, "Expected 1 parameter extruding jawclipper")
@@ -201,7 +194,7 @@ class WhistleHeadMaker(
         var (body, space, jawClipper) = construct()
 
         body = body.difference(space)
-        save(body, "whistle")
+        save(body, "whistle-body")
 
         val jaw = body.intersect(jawClipper)
         val head = body.difference(jawClipper)
@@ -222,32 +215,34 @@ class WhistleMaker(
     }
 
     override fun run(): List<CSG> {
-        val headMaker = WhistleHeadMaker(outputPrefix,workingDir, instrument, designer,
+        val headMaker = WhistleHeadMaker(outputPrefix, workingDir, instrument, designer,
             boreDiam = instrument.inner(instrument.length),
-            outsideDiam = instrument.outer(instrument.length)
-
-            )
-
-        var (whistleOuter, whistleInner, _) = headMaker.construct()
-
-        whistleInner = whistleInner.transformed(Transform()
+            outsideDiam = instrument.outer(instrument.length))
+        val before = System.currentTimeMillis()
+        var (whistleHeadOuter, whistleHeadInner, whistleJawClipper) = headMaker.construct()
+        whistleHeadInner = whistleHeadInner.transformed(Transform()
             .translate(0.0, 0.0, designer.length)
             .rotZ(90.0))
-        whistleOuter = whistleOuter.transformed(Transform()
+        whistleHeadOuter = whistleHeadOuter.transformed(Transform()
             .translate(0.0, 0.0, designer.length).rotZ(90.0))
+        val afterHead = System.currentTimeMillis()
+        reporter.print("Head took ${afterHead - before}ms")
         val inst = makeInstrument(
-            innerProfile = instrument.inner.clipped(-50.0, designer.length),
-            outerProfile = instrument.outer.clipped(0.0, designer.length - headMaker.boreDiam*1.5),
+            innerProfile = instrument.inner.clipped(-50.0, instrument.length),
+            outerProfile = instrument.outer.clipped(0.0, instrument.length - headMaker.boreDiam*1.5),
             holePositions = instrument.holePositions,
             holeDiameters = instrument.holeDiameters,
-            holeVertAngles = designer.holeAngles,
+            holeVertAngles = instrument.holeAngles,
             holeHorizAngles = designer.holeHorizAngles,
-            withFingerpad = listOf(true).repeat(designer.numberOfHoles),
-            outsideExtras = listOf(whistleOuter),
-            boreExtras = listOf(whistleInner),
-            xPad = listOf(0.0).repeat(designer.numberOfHoles),
-            yPad =listOf(0.0).repeat(designer.numberOfHoles)
+            withFingerpad = listOf(true).repeat(designer.numberOfHoles),  // TODO
+            outsideExtras = listOf(whistleHeadOuter),
+            boreExtras = listOf(whistleHeadInner),
+            xPad = designer.xPad,
+            yPad = designer.yPad
         )
+        val afterBody = System.currentTimeMillis()
+        val bodyTime = afterBody - afterHead
+        reporter.print("Body took $bodyTime ms")
         val parts = makeParts(true)
         return listOf(inst) + parts
     }

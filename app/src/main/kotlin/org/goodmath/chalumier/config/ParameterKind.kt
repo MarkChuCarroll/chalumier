@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-@file:Suppress("UNCHECKED_CAST")
 
 package org.goodmath.chalumier.config
 
@@ -31,7 +30,6 @@ interface ParameterKind<T> {
     val name: String
 
     val isOptional: Boolean
-
 
     /**
      * Check if an arbitrary value is either this type, or a
@@ -52,18 +50,19 @@ interface ParameterKind<T> {
 
     fun toConfigValue(t: T): String
 
-
     /**
      * convert a value of this type to json.
      */
     fun dump(t: T?): JsonElement
 
-
     /**
      * Internal method used for serializing an entire configurable
      * object to JSON.
      */
-    fun<C: Configurable<C>> dumpByName(c: C, paramName: String): JsonElement? {
+    fun <C : Configurable<C>> dumpByName(
+        c: C,
+        paramName: String,
+    ): JsonElement? {
         val v = c.getConfigParameterValue<T>(paramName)
         return dump(v)
     }
@@ -73,16 +72,14 @@ interface ParameterKind<T> {
      */
     fun fromJson(t: JsonElement): T?
 
-    fun error(v: Any?): ConfigurationParameterValueException =
-        ConfigurationParameterValueException(name, v)
-
+    fun error(v: Any?): ConfigurationParameterValueException = ConfigurationParameterValueException(name, v)
 }
 
 /**
  * Given a kind of type T, generate a kind of type T?
  */
-fun<T> opt(pk: ParameterKind<T>): ParameterKind<T?> {
-    return object: ParameterKind<T?> {
+fun <T> opt(pk: ParameterKind<T>): ParameterKind<T?> {
+    return object : ParameterKind<T?> {
         override val name: String = "${pk.name}?"
         override val isOptional = true
 
@@ -90,7 +87,7 @@ fun<T> opt(pk: ParameterKind<T>): ParameterKind<T?> {
             return if (v == null || v == "null") {
                 null
             } else {
-                 pk.fromConfigValue(v)
+                pk.fromConfigValue(v)
             }
         }
 
@@ -103,7 +100,7 @@ fun<T> opt(pk: ParameterKind<T>): ParameterKind<T?> {
         }
 
         override fun checkConfigValue(v: Any?): Boolean {
-            return v?.let { it == "null" || pk.checkConfigValue(it) }?: true
+            return v?.let { it == "null" || pk.checkConfigValue(it) } ?: true
         }
 
         override fun fromJson(t: JsonElement): T? {
@@ -111,8 +108,11 @@ fun<T> opt(pk: ParameterKind<T>): ParameterKind<T?> {
         }
 
         override fun dump(t: T?): JsonElement {
-            return if (t == null) { JsonNull }
-            else { pk.dump(t) }
+            return if (t == null) {
+                JsonNull
+            } else {
+                pk.dump(t)
+            }
         }
     }
 }

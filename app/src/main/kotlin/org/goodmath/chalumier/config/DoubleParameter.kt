@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -88,19 +88,17 @@ val OptDoubleParameterKind = opt(DoubleParameterKind)
 val ListOfDoubleParameterKind = ListParameterKind(DoubleParameterKind)
 val ListOfOptDoubleParameterKind = ListOfOptParameterKind(OptDoubleParameterKind)
 
-fun<T: Configurable<T>> DoubleParameter(help: String = "", gen: (T) -> Double): ConfigParameter<T, Double> =
+fun<T: Configurable<T>> doubleParameter(help: String = "", gen: (T) -> Double): ConfigParameter<T, Double> =
     ConfigParameter(DoubleParameterKind, help, gen=gen)
 
-fun<T: Configurable<T>> OptDoubleParameter(help: String = "", gen: (T) -> Double?): ConfigParameter<T, Double?> =
+fun<T: Configurable<T>> optDoubleParameter(help: String = "", gen: (T) -> Double?): ConfigParameter<T, Double?> =
     ConfigParameter(OptDoubleParameterKind, help, gen=gen)
 
-fun<T: Configurable<T>> ListOfDoubleParameter(help: String = "", gen: (T) -> List<Double>): ConfigParameter<T, List<Double>> {
-    val genMutable = { target: T -> ArrayList(gen(target)) }
-    return ConfigParameter(ListOfDoubleParameterKind, help, gen=genMutable)
+fun<T: Configurable<T>> listOfDoubleParameter(help: String = "", gen: (T) -> List<Double>): ConfigParameter<T, List<Double>> {
+    return ConfigParameter(ListOfDoubleParameterKind, help, gen=gen)
 }
 
-fun<T: Configurable<T>> ListOfOptDoubleParameter(help: String = "", gen: (T) -> List<Double?>): ConfigParameter<T, List<Double?>> {
-    val genMutable = { target: T -> ArrayList(gen(target)) }
-    return ConfigParameter(ListOfOptDoubleParameterKind, help, gen=genMutable)
+fun<T: Configurable<T>> listOfOptDoubleParameter(help: String = "", gen: (T) -> List<Double?>): ConfigParameter<T, List<Double?>> {
+    return ConfigParameter(ListOfOptDoubleParameterKind, help, gen=gen)
 }
 

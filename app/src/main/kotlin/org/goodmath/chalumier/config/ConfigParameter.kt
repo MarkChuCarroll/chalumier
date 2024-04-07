@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,6 @@
  */
 package org.goodmath.chalumier.config
 
-import org.goodmath.chalumier.errors.ConfigurationParameterException
-import org.goodmath.chalumier.errors.ConfigurationParameterValueException
-import java.io.BufferedWriter
 import kotlin.reflect.KProperty
 
 /**
@@ -31,21 +28,17 @@ import kotlin.reflect.KProperty
  * The parameter is also registered into its class configurable parameters table,
  * which will make is serializable as part of its class.
  */
-open class ConfigParameter<T: Configurable<T>, V>(
+open class ConfigParameter<T : Configurable<T>, V>(
     val kind: ParameterKind<V>,
     val help: String = "",
-    var gen: (T) -> V) {
-
+    var gen: (T) -> V,
+) {
     lateinit var name: String
     lateinit var ref: T
 
-    private object UNINITIALIZED
-
-    var v: Any? = UNINITIALIZED
-
     operator fun provideDelegate(
         thisRef: T,
-        prop: KProperty<*>
+        prop: KProperty<*>,
     ): ConfigParameter<T, V> {
         this.name = prop.name
         this.ref = thisRef
@@ -53,22 +46,14 @@ open class ConfigParameter<T: Configurable<T>, V>(
         return this
     }
 
-    @Suppress("UNCHECKED_CAST")
-    fun get(thisRef: T): V {
-        return if (v == UNINITIALIZED) {
-            synchronized(this) {
-                v = gen(thisRef)
-                v as V
-            }
-        } else {
-            v as V
-        }
-    }
+    fun get(thisRef: T): V = gen(thisRef)
 
-    operator fun getValue(thisRef: T, property: KProperty<*>): V {
+    operator fun getValue(
+        thisRef: T,
+        property: KProperty<*>,
+    ): V {
         return get(thisRef)
     }
-
 
     fun setConfigValue(v: Any?): Boolean {
         if (kind.checkConfigValue(v)) {
@@ -80,10 +65,14 @@ open class ConfigParameter<T: Configurable<T>, V>(
     }
 
     fun set(value: V) {
-        v = value
+        gen = { value }
     }
 
-    operator fun setValue(thisRef: T, property: KProperty<*>, value: V) {
+    operator fun setValue(
+        thisRef: T,
+        property: KProperty<*>,
+        value: V,
+    ) {
         set(value)
     }
 
@@ -93,11 +82,12 @@ open class ConfigParameter<T: Configurable<T>, V>(
      */
     fun render(fieldName: String): String {
         val result = StringBuilder()
-        val optStr = if (kind.isOptional) {
-            " (This field is optional.)"
-        } else {
-            ""
-        }
+        val optStr =
+            if (kind.isOptional) {
+                " (This field is optional.)"
+            } else {
+                ""
+            }
         result.append("   # Field:$fieldName\n")
         result.append("   # Type: ${kind.name}$optStr\n")
         if (help != "") {
@@ -107,5 +97,4 @@ open class ConfigParameter<T: Configurable<T>, V>(
         result.append("   $fieldName = ${kind.toConfigValue(get(ref))}")
         return result.toString()
     }
-
 }

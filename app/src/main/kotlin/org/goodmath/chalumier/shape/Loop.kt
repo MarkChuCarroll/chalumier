@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,11 +15,11 @@
  */
 package org.goodmath.chalumier.shape
 
-import io.github.xn32.json5k.Json5
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
 import org.goodmath.chalumier.config.Configurable
-import org.goodmath.chalumier.config.DoubleParameter
+import org.goodmath.chalumier.config.doubleParameter
 import org.goodmath.chalumier.util.Point
 import org.goodmath.chalumier.util.fromEnd
 import java.util.Collections.max
@@ -38,6 +38,7 @@ import kotlin.math.sqrt
  */
 
 // Internal measurements are all mm.
+@OptIn(ExperimentalSerializationApi::class)
 val pretty = Json {
     prettyPrint = true
     prettyPrintIndent = "  "
@@ -85,11 +86,11 @@ class Loop(valueList: List<Point>): Configurable<Loop>("loop") {
     fun fromEnd(i: Int): Point = loopValues[loopValues.size - i - 1]
 
 
-    val circumference by DoubleParameter {
+    val circumference by doubleParameter {
         var total = 0.0
         var last = loopValues.fromEnd(1)
-        var dx = 0.0
-        var dy = 0.0
+        var dx: Double
+        var dy: Double
         for (point in loopValues) {
             dx = last.x - point.x
             dy = last.y - point.y
@@ -99,7 +100,7 @@ class Loop(valueList: List<Point>): Configurable<Loop>("loop") {
         total
     }
 
-    val area by DoubleParameter {
+    val area by doubleParameter {
         var total = 0.0
         var last = loopValues.fromEnd(1)
         for (point in loopValues) {

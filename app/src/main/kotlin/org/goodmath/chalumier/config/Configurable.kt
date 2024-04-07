@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -46,23 +46,68 @@ import java.nio.file.Path
  * kotlin vars, but which have this infrastructure backing them.
  *
  */
+
+data class ParameterGroup(val groupName: String, val parameters: List<String>)
+
 abstract class Configurable<T: Configurable<T>>(open val instrumentName: String) {
 
     private val configParameters = HashMap<String, ConfigParameter<T, *>>()
 
+    private val parameterGroups: List<ParameterGroup> = listOf(
+        ParameterGroup("Basic",
+            listOf("name", "designer", "description", "rootNote", "initialLength", "numberOfHoles",
+                "tweakEmissions")),
+        ParameterGroup("Fingerings and holes",
+            listOf("fingerings",
+                "minHoleDiameters", "maxHoleDiameters", "minHoleSpacing", "maxHoleSpacing",
+                "balance", "holeAngles", "holeHorizAngles",
+                "initialHoleFractions", "initialHoleDiameterFractions",
+                "topClearanceFraction", "bottomClearanceFraction")),
+        ParameterGroup("Countour/shape",
+            listOf("maxLength", "closedTop", "innerDiameters", "outerDiameters", "innerAngles", "outerAngles",
+                "coneStep", "scale", "initialInnerFractions", "minInnerFractionSep",
+                "maxInnerFractionSep", "minInnerStep", "maxInnerStep",
+                "initialOuterFractions", "minOuterFractionSep", "dilate")),
+        ParameterGroup("3d Modeling",
+            listOf("join", "generatePads", "decorate", "thickSockets", "gap", "outerAdd", "divisions"))
+    )
+
     fun generateDescriptionTemplate(): String {
+        val fields = HashSet(configParameters.keys)
+
         val result = StringBuilder()
-        result.append("# Chalumier Instrument designer skeleton for a $instrumentName\n")
+        val name = configParameters["name"] ?: instrumentName
+        result.append("# Chalumier Instrument designer skeleton for a $name, based on the $instrumentName template\n")
         result.append("#\n")
         result.append(wrapString("This is an automatically generated template file. To create an instrument, fill in the fields you want to change, and delete the rest",
                                 "# "))
         result.append("\n\n")
         result.append("$instrumentName {\n")
 
-        result.append( configParameters.map { (paramName, param) ->
-            param.render(paramName)
-        }.joinToString(",\n\n" ))
-        result.append("\n}\n")
+        for (group in parameterGroups) {
+            result.append("\n\n")
+            result.append("   ######################################################\n")
+            result.append("   # ${group.groupName} parameters\n\n")
+            for (key in group.parameters) {
+                val param = configParameters[key]
+                if (param != null) {
+                    result.append(configParameters[key]?.render(key))
+                    result.append("\n\n")
+                    fields.remove(key)
+                }
+            }
+        }
+        result.append("\n\n")
+        result.append("   ######################################################\n")
+        result.append("   # Uncategorized Parameters\n\n")
+        for (key in fields) {
+            val param = configParameters[key]
+            if (param != null) {
+                result.append(param.render(key))
+                result.append("\n\n")
+            }
+        }
+        result.append("}\n")
         return result.toString()
     }
 

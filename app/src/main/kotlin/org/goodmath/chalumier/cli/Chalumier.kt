@@ -18,14 +18,11 @@ package org.goodmath.chalumier.cli
 import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.subcommands
 
-
-class Chalumier: CliktCommand() {
+class Chalumier : CliktCommand() {
     override fun run() {
     }
 }
 
-
 fun main(args: Array<String>) {
-     Chalumier().subcommands(Design(), Model(), Make(), Skeleton()).main(args)
+    Chalumier().subcommands(Design(), Model(), Make(), Skeleton()).main(args)
 }
-

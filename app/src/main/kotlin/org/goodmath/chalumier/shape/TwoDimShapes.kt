@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,7 +79,7 @@ fun rectangle(p0: Point, p1: Point): Loop {
 }
 
 fun roundedRectangle(p0: Point, p1: Point, diameter: Double): Loop {
-    val radius = min(diameter, min(p1.x - p0.x, p1.y - p0.y)) * 0.5
+    val radius = listOf(diameter, p1.x - p0.x, p1.y - p0.y).min() * 0.5
     val result = (0 until QUALITY).map { i ->
         val a = (i.toDouble() + 0.5) * PI * 2.0 / QUALITY.toDouble()
         var x = cos(a) * radius

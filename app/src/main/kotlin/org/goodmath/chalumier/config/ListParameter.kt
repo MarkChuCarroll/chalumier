@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -70,7 +70,7 @@ open class ListParameterKind<T>(val pk: ParameterKind<T>): ParameterKind<List<T>
             }
             sep = ", "
         }
-        result += line + "\n   ]"
+        result += "$line\n   ]"
         return result
     }
 
@@ -123,7 +123,7 @@ class ListOfOptParameterKind<T>(private val pk: ParameterKind<T?>): ParameterKin
     }
 
     override fun toConfigValue(t: List<T?>): String {
-        val elements = t.map { pk.toConfigValue(it) }.joinToString(", ")
+        val elements = t.joinToString(", ") { pk.toConfigValue(it) }
         return "[$elements]"
     }
 

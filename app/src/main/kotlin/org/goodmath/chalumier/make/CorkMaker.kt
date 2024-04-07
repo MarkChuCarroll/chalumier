@@ -1,3 +1,18 @@
+/*
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.goodmath.chalumier.make
 
 import eu.mihosoft.jcsg.CSG
@@ -16,17 +31,20 @@ class CorkMaker(
     val diameter: Double = 10.0,
     val taperIn: Double = 0.25,
     val taperOut: Double = 0.125,
-): InstrumentMaker<TaperedFlute>(outputPrefix,workingDir, instrument, designer) {
-
+) : InstrumentMaker<TaperedFlute>(outputPrefix, workingDir, instrument, designer) {
     override fun run(): List<CSG> {
         val d1 = diameter - taperOut
         val d2 = diameter - taperIn
-        val cork = extrudeProfile(
-            listOf(Profile.makeProfile(
-                listOf(listOf(0.0, d1),
-                    listOf(length, d2)))))
+        val cork =
+            extrudeProfile(
+                Profile.makeProfile(
+                    listOf(
+                        listOf(0.0, d1),
+                        listOf(length, d2),
+                    ),
+                ),
+            )
         save(cork, "cork")
         return listOf(cork)
     }
-
 }

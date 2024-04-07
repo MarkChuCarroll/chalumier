@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,11 +26,21 @@ import kotlin.math.round
 
 val semitoneName: ArrayList<String> = arrayListOf("C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B")
 
-val semitone: Map<Char, Int> = mapOf(
-    'C' to 0, 'D' to 2, 'E' to 4, 'F' to 5, 'G' to 7, 'A' to 9, 'B' to 11
-)
+val semitone: Map<Char, Int> =
+    mapOf(
+        'C' to 0,
+        'D' to 2,
+        'E' to 4,
+        'F' to 5,
+        'G' to 7,
+        'A' to 9,
+        'B' to 11,
+    )
 
-fun wavelength(noteName: String, transpose: Int = 0): Double {
+fun wavelength(
+    noteName: String,
+    transpose: Int = 0,
+): Double {
     val w = SPEED_OF_SOUND / frequency(noteName)
     return w / (2.0.pow(transpose.toDouble() / 12.0))
 }
@@ -61,12 +71,11 @@ fun frequency(noteName: String): Double {
     return 440.0 * 2.0.pow((semitone.toDouble() - 57.0) / 12.0) * mult
 }
 
-
 fun describe(wavelength: Double): String {
     val f = SPEED_OF_SOUND / wavelength
 
     val note = (round(log2(f / 440.0) * 12.0 + 57)).toInt()
     val octave = note / 12
     val semitone = note % 12
-    return "${semitoneName[semitone]}${octave}"
+    return "${semitoneName[semitone]}$octave"
 }

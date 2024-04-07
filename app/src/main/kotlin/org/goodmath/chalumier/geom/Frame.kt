@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,6 @@ import kotlin.math.sqrt
  * ph: Origin and orthogonal basis.
  */
 data class Frame(val origin: XYZ, val x: XYZ, val y: XYZ, val z: XYZ) {
-
     fun apply(point: XYZ): XYZ {
         return origin + x * point.x + y * point.y + z * point.z
     }
@@ -42,19 +41,22 @@ data class Frame(val origin: XYZ, val x: XYZ, val y: XYZ, val z: XYZ) {
 }
 
 data class Path(
-    val path: SBasis<XYZ>, val velocity: SBasis<XYZ>, val normal: SBasis<XYZ>, val position: SBasis<Double>
+    val path: SBasis<XYZ>,
+    val velocity: SBasis<XYZ>,
+    val normal: SBasis<XYZ>,
+    val position: SBasis<Double>,
 ) {
     val math = path.math
+
     fun find(positionParam: Double): Double {
-        var pos = positionParam
         var low = 0.0
         var high = 1.0
         for (i in 0 until 32) {
             val mid = (low + high) / 2.0
             val value = position.invoke(mid)
-            if (pos < value) {
+            if (positionParam < value) {
                 high = mid
-            } else if (pos > value) {
+            } else if (positionParam > value) {
                 low = mid
             } else {
                 return mid // Unlikely.
@@ -65,7 +67,6 @@ data class Path(
     }
 
     fun getLength(): Double = position[0].a1
-
 
     fun getFrame(position: Double): Frame {
         val t = find(position)
@@ -83,7 +84,10 @@ data class Path(
         return path.invoke(p)
     }
 
-    fun getBentness(a: Double, b: Double): Double {
+    fun getBentness(
+        a: Double,
+        b: Double,
+    ): Double {
         val pdp = doubleBridge(XYZMath)
 
         val aa = find(a)
@@ -97,9 +101,14 @@ data class Path(
     }
 
     companion object {
-        fun path(point0: XYZ, vec0: XYZ, norm0: XYZ, point1: XYZ, vec1: XYZ, norm1: XYZ): Path {
-            val ppp = XYZMath.selfBridge
-            val pdp = doubleBridge(XYZMath)
+        fun path(
+            point0: XYZ,
+            vec0: XYZ,
+            norm0: XYZ,
+            point1: XYZ,
+            vec1: XYZ,
+            norm1: XYZ,
+        ): Path {
             // ph: a = S_basis([Linear(XYZ(0.0,0.0,0.0), XYZ(1.0,1.0,0.0))])
             // ph: b = S_basis([Linear(XYZ(3.0,0.0,0.0), XYZ(0.0,-1.0,0.0))])
             // ph: arc = a + (S_basis([Linear(-a[0].tri(),a[0].tri())])+b).shifted(1)
@@ -107,32 +116,38 @@ data class Path(
             var length = tri.mag()
             val vec0unit = vec0.unit()
             val vec1unit = vec1.unit()
-            var path = SBasis(
-                listOf(
-                    Linear(point0, point1, XYZMath), Linear(point0, point1, XYZMath)
-                ), XYZMath
-            )
+            var path =
+                SBasis(
+                    listOf(
+                        Linear(point0, point1, XYZMath),
+                        Linear(point0, point1, XYZMath),
+                    ),
+                    XYZMath,
+                )
             var velocity = path.derivative()
             var position = SBasis(listOf(Linear(0.0, 0.0, DoubleMath)), DoubleMath)
             for (i in 0 until 3) {
                 val s = length
-                path = SBasis(
-                    listOf(
-                        Linear(point0, point1, XYZMath),
-                        Linear(vec0unit.times(s).minus(tri), vec1unit.times(-s).plus(tri), XYZMath)
-                    ), XYZMath
-                )
+                path =
+                    SBasis(
+                        listOf(
+                            Linear(point0, point1, XYZMath),
+                            Linear(vec0unit.times(s).minus(tri), vec1unit.times(-s).plus(tri), XYZMath),
+                        ),
+                        XYZMath,
+                    )
                 velocity = path.derivative()
                 val speed = velocity.dot(velocity).sqrt(6)
                 position = speed.integral()
-                position = position.minus(
-                    position.ONE.scaled(position[0].a0, DoubleMath.selfBridge), DoubleMath.selfBridge
-                )
+                position =
+                    position.minus(
+                        position.ONE.scaled(position[0].a0, DoubleMath.selfBridge),
+                        DoubleMath.selfBridge,
+                    )
                 length = position[0].a1
             }
             val normal = SBasis(listOf(Linear(norm0, norm1, XYZMath)), XYZMath)
             return Path(path, velocity, normal, position)
         }
-
     }
 }

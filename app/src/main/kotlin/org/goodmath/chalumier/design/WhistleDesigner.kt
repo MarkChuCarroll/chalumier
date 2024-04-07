@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -40,17 +40,17 @@ abstract class AbstractWhistleDesigner(n: String,
 ):
     InstrumentDesignerWithBoreScale<Whistle>(n, outputDir, builder) {
     // ph: From 2014-15-whistle-tweaking
-    open var tweakGapExtra by DoubleParameter {
+    open var tweakGapExtra by doubleParameter {
         0.6
     }
-    open var tweakBoreLess: Double by DoubleParameter {
+    open var tweakBoreLess: Double by doubleParameter {
         0.3
 
     }
 
-    override var boreScale: Double by DoubleParameter { 1.1 }
-    override var closedTop: Boolean by BooleanParameter { false }
-    override var divisions by ListOfListOfIntDoublePairParam  {
+    override var boreScale: Double by doubleParameter { 1.1 }
+    override var closedTop: Boolean by booleanParameter { false }
+    override var divisions by listOfListOfIntDoublePairParam  {
         emptyList()
     }
 
@@ -79,12 +79,12 @@ abstract class AbstractWhistleDesigner(n: String,
     #tweak_boreless = 0.65 #0.49
     */
 
-    open var xPad: Double by DoubleParameter {
-        0.0
+    open var xPad by listOfDoubleParameter {
+        listOf(0.0).repeat(it.numberOfHoles)
     }
 
-    open var yPad: Double by DoubleParameter {
-        0.0
+    open var yPad by listOfDoubleParameter {
+        listOf(0.0).repeat(it.numberOfHoles)
     }
 
     override fun patchInstrument(inst: Instrument): Instrument {
@@ -135,13 +135,12 @@ class SixHoleWhistleDesigner(n: String,
                              outputDir: Path,
                              builder: InstrumentFactory<Whistle>
     ) : AbstractWhistleDesigner(n, outputDir, builder) {
-    override var transpose: Int by IntParameter { 12 }
+    override var transpose: Int by intParameter { 12 }
 
-    override var divisions by ListOfListOfIntDoublePairParam {
+    override var divisions by listOfListOfIntDoublePairParam {
         listOf(
             listOf(Pair(5, 0.0)),
             listOf(Pair(1, 0.0), Pair(5, 0.0), Pair(5, 0.5)),
-            listOf(Pair(-1, 0.75), Pair(1, 0.0), Pair(2, 1.0), Pair(5, 0.0), Pair(5, 0.3), Pair(5, 0.6))
         )
     }
 
@@ -153,57 +152,57 @@ class SixHoleWhistleDesigner(n: String,
         path.writeText(Json5.encodeToString<Whistle>(instrument))
     }
 
-    override var minHoleDiameters by ListOfDoubleParameter {
+    override var minHoleDiameters by listOfDoubleParameter {
         boreScaler(listOf(3.0).repeat(6))
     }
 
 
-    override var maxHoleDiameters by ListOfDoubleParameter {
+    override var maxHoleDiameters by listOfDoubleParameter {
         boreScaler(listOf(12.0).repeat(6), maximum = 12.0)
     }
 
-    override var holeHorizAngles by ListOfDoubleParameter {
+    override var holeHorizAngles by listOfDoubleParameter {
         listOf(0.0).repeat(6)
     }
 
-    override var balance by ListOfOptDoubleParameter {
+    override var balance by listOfOptDoubleParameter {
         listOf(0.05, null, null, 0.05)
     }
 
-    override var minHoleSpacing by ListOfOptDoubleParameter {
+    override var minHoleSpacing by listOfOptDoubleParameter {
         scaler(listOf(null, null, 35.0, null, null))
     }
 
-    override var maxHoleSpacing by ListOfOptDoubleParameter {
+    override var maxHoleSpacing by listOfOptDoubleParameter {
         sqrtScaler(listOf(35.0, 35.0, null, 35.0, 35.0))
     }
 
-    override var innerDiameters by ListOfDoublePairParameter {
+    override var innerDiameters by listOfDoublePairParameter {
         boreScaler(listOf(14.0, 14.0, 20.0, 22.0, 22.0, 20.0, 20.0)).map { Pair(it, it) }
     }
 
-    override var initialInnerFractions by ListOfDoubleParameter {
+    override var initialInnerFractions by listOfDoubleParameter {
         listOf(0.2, 0.6, 0.65, 0.7, 0.75)
     }
 
-    override var minInnerFractionSep by ListOfDoubleParameter {
+    override var minInnerFractionSep by listOfDoubleParameter {
         listOf(0.01, 0.5, 0.01, 0.01, 0.01, 0.01)
     }
 
-    override var outerDiameters by ListOfDoublePairParameter {
+    override var outerDiameters by listOfDoublePairParameter {
         boreScaler(listOf(40.0, 28.0, 28.0, 32.0, 32.0)).map { Pair(it, it) }
     }
-    override var outerAngles by ListOfOptAnglePairsParameter {
+    override var outerAngles by listOfOptAnglePairsParameter {
         listOf(
             Angle(Angle.AngleDirection.Exact, -15.0), Angle(Angle.AngleDirection.Exact, 0.0), null, null, null
         ).map { angle -> angle?.let { Pair(it, it) } }
     }
 
-    override var initialOuterFractions by ListOfDoubleParameter {
+    override var initialOuterFractions by listOfDoubleParameter {
         listOf(0.15, 0.5, 0.85)
     }
 
-    override var minOuterFractionSep by ListOfDoubleParameter {
+    override var minOuterFractionSep by listOfDoubleParameter {
         listOf(0.15, 0.3, 0.35, 0.15)
     }
 }
@@ -263,13 +262,13 @@ class RecorderDesigner(override val instrumentName: String,
 ) : AbstractWhistleDesigner(instrumentName, outputDir, Whistle.builder) {
 
 
-    override var initialLength by DoubleParameter {
+    override var initialLength by doubleParameter {
         wavelength("C4") * 0.5
     }
 
-    override var transpose by IntParameter { 12 }
+    override var transpose by intParameter { 12 }
 
-    override var divisions by ListOfListOfIntDoublePairParam {
+    override var divisions by listOfListOfIntDoublePairParam {
         listOf(
             listOf(Pair(7, 0.0)),
             listOf(Pair(0, 0.0), Pair(7, 0.0)),
@@ -287,55 +286,55 @@ class RecorderDesigner(override val instrumentName: String,
         path.writeText(Json5.encodeToString(instrument))
     }
 
-    override var minHoleDiameters by ListOfDoubleParameter {
+    override var minHoleDiameters by listOfDoubleParameter {
         boreScaler(listOf(3.0).repeat(8))
     }
 
-    override var maxHoleDiameters by ListOfDoubleParameter {
+    override var maxHoleDiameters by listOfDoubleParameter {
         boreScaler(listOf(12.0) + listOf(14.0).repeat(7))
     }
 
-    override var minHoleSpacing by ListOfOptDoubleParameter {
+    override var minHoleSpacing by listOfOptDoubleParameter {
         sqrtScaler(listOf(0.0).repeat(6) + listOf(-50.0))
     }
 
-    override var holeHorizAngles by ListOfDoubleParameter {
+    override var holeHorizAngles by listOfDoubleParameter {
         listOf(-15.0) + listOf(0.0).repeat(6) + listOf(180.0)
     }
 
-    override var holeAngles by ListOfDoubleParameter {
+    override var holeAngles by listOfDoubleParameter {
         listOf(-30.0, 30.0, -30.0, 30.0, 0.0, 0.0, 0.0, 0.0)
     }
 
-    override var balance by ListOfOptDoubleParameter {
+    override var balance by listOfOptDoubleParameter {
         listOf(0.1, 0.05, null, null, 0.05, null)
     }
 
-    override var innerDiameters by ListOfDoublePairParameter {
+    override var innerDiameters by listOfDoublePairParameter {
         boreScaler(listOf(20.0, 20.0, 19.0, 23.0, 23.0, 20.0, 20.0)).map { Pair(it, it) }
     }
 
-    override var initialInnerFractions by ListOfDoubleParameter {
+    override var initialInnerFractions by listOfDoubleParameter {
         listOf(0.6, 0.65, 0.7, 0.75, 0.8)
     }
 
-    override var minInnerFractionSep by ListOfDoubleParameter {
+    override var minInnerFractionSep by listOfDoubleParameter {
         listOf(0.3, 0.01, 0.01, 0.01, 0.01, 0.01)
     }
 
-    override var outerDiameters by ListOfDoublePairParameter {
+    override var outerDiameters by listOfDoublePairParameter {
         boreScaler(listOf(40.0, 28.0, 28.0, 32.0, 32.0)).map { Pair(it, it) }
     }
 
-    override var initialOuterFractions by ListOfDoubleParameter {
+    override var initialOuterFractions by listOfDoubleParameter {
         listOf(0.15, 0.6, 0.85)
     }
 
-    override var minOuterFractionSep by ListOfDoubleParameter {
+    override var minOuterFractionSep by listOfDoubleParameter {
         listOf(0.15, 0.3, 0.35, 0.15)
     }
 
-    override var fingerings by ListOfFingeringsParam {
+    override var fingerings by listOfFingeringsParam {
         listOf(
             Fingering("C4", listOf(X, X, X, X, X, X, X, X)),
             // ph:  Inter-register locking

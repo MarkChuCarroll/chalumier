@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,21 +21,21 @@ import org.junit.jupiter.api.Assertions.*
 import kotlin.math.PI
 
 class DelegateTest: Configurable<DelegateTest>("test") {
-    var a: Double by DoubleParameter { 3.0 }
+    var a: Double by doubleParameter { 3.0 }
 }
 
 class MultiFieldTest: Configurable<MultiFieldTest>("multi-test") {
-    var one by DoubleParameter { 27.3 }
-    var two by ListOfDoubleParameter { listOf(21.0, 1.0, 2.0, 3.5)}
-    var three by IntParameter { 17  }
+    var one by doubleParameter { 27.3 }
+    var two by listOfDoubleParameter { listOf(21.0, 1.0, 2.0, 3.5)}
+    var three by intParameter { 17  }
 }
 
 class MultiFieldTestWithNulls: Configurable<MultiFieldTestWithNulls>("multi-test-nullable") {
-    var one by DoubleParameter { 27.3 }
-    var two by ListOfDoubleParameter { listOf(21.0, 1.0, 2.0, 3.5)}
-    var three by OptIntParameter { 17  }
-    var four by OptIntParameter { null }
-    var five by ListOfOptDoubleParameter { listOf(-1.0, null, -2.0, null, 3.0) }
+    var one by doubleParameter { 27.3 }
+    var two by listOfDoubleParameter { listOf(21.0, 1.0, 2.0, 3.5)}
+    var three by optIntParameter { 17  }
+    var four by optIntParameter { null }
+    var five by listOfOptDoubleParameter { listOf(-1.0, null, -2.0, null, 3.0) }
 }
 
 class ConfigParameterTest {

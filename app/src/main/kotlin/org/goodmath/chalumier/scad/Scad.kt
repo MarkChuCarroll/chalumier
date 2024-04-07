@@ -1,3 +1,19 @@
+/*
+ * Copyright 2024 Mark C. Chu-Carroll  and Paul Francis Harrison
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.goodmath.chalumier.scad
 
 data class ThreeDimensionalValue(val x: Double, val y: Double, val z: Double) {
@@ -7,7 +23,8 @@ data class ThreeDimensionalValue(val x: Double, val y: Double, val z: Double) {
 }
 
 data class Hole(
-    val elevation: Double, val diameter: Double
+    val elevation: Double,
+    val diameter: Double,
 )
 
 interface Shape {
@@ -19,11 +36,13 @@ interface Shape {
 }
 
 class Cylinder(
-    val height: Double, val lowerDiam: Double, val upperDiam: Double = lowerDiam, val facets: Int = 0
+    val height: Double,
+    val lowerDiam: Double,
+    val upperDiam: Double = lowerDiam,
+    val facets: Int = 0,
 ) : Shape {
-
     override fun render(i: Int): String {
-        return "${ind(i)}cylinder(h=${height}, " + "r1=${lowerDiam}, r2=${upperDiam}," + "\$fn=${facets});\n"
+        return "${ind(i)}cylinder(h=$height, " + "r1=$lowerDiam, r2=$upperDiam," + "\$fn=$facets);\n"
     }
 }
 
@@ -39,8 +58,9 @@ abstract class Module(val name: String, geos: List<Shape>) : Shape {
     abstract fun renderParams(): String
 
     override fun render(i: Int): String {
-        return "${ind(i)}${name}(${renderParams()}) {\n" + geometries.map { it.render(i + 1) }
-            .joinToString("\n") + "${ind(i)}}\n"
+        return "${ind(i)}$name(${renderParams()}) {\n" +
+            geometries.map { it.render(i + 1) }
+                .joinToString("\n") + "${ind(i)}}\n"
     }
 
     fun add(shape: Shape) {
@@ -55,29 +75,24 @@ class Union(shapes: List<Shape>) : Module("union", shapes) {
 }
 
 class Difference(shapes: List<Shape>) : Module("difference", shapes) {
-
     override fun renderParams(): String {
         return ""
     }
 }
 
 class Intersection(shapes: List<Shape>) : Module("intersection", shapes) {
-
     override fun renderParams(): String {
         return ""
     }
-
 }
 
 class Translate(val offset: ThreeDimensionalValue, shapes: List<Shape>) : Module("translate", shapes) {
-
     override fun renderParams(): String {
         return offset.toString()
     }
 }
 
 class Rotate(val rotation: ThreeDimensionalValue, shapes: List<Shape>) : Module("rotate", shapes) {
-
     override fun renderParams(): String {
         return rotation.toString()
     }
@@ -88,5 +103,3 @@ class Scale(val scale: ThreeDimensionalValue, shapes: List<Shape>) : Module("sca
         return scale.toString()
     }
 }
-
-

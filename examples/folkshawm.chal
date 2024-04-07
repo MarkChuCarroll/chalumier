@@ -41,18 +41,6 @@ folkShawm {
       [(Pair: -1, 0.5), (Pair: 0, 0.5), (Pair: 3, 0.25), (Pair: 5, 0.5)]
    ],
 
-   # Field:initialHoleFractions
-   # Type: List<Double>
-   initialHoleFractions = [
-      0.1500, 0.2500, 0.3500, 0.4500, 0.5500, 0.6500, 0.7500
-   ],
-
-   # Field:initialHoleDiameterFractions
-   # Type: List<Double>
-   initialHoleDiameterFractions = [
-      0.8889, 0.8333, 0.7778, 0.7222, 0.6667, 0.6111, 0.5556
-   ],
-
    # Field:balance
    # Type: List<Double?>
    # Description:
@@ -102,12 +90,6 @@ folkShawm {
    #    Experimental term added to the optimization to try to make instrument 
    #    louder, possibly at the cost of intonation 
    tweakEmissions = 0.0000,
-
-   # Field:minHoleSpacing
-   # Type: List<Double?>
-   # Description:
-   #    Minimum space between each pair of finger holes
-   minHoleSpacing = [0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000],
 
    # Field:join
    # Type: String
@@ -186,7 +168,7 @@ folkShawm {
    # Description:
    #    the minimum acceptable diameters of holes
    minHoleDiameters = [
-      2.0000, 2.0000, 2.0000, 2.0000, 2.0000, 2.0000, 2.0000
+      0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5
    ],
 
    # Field:dilate
@@ -284,12 +266,6 @@ folkShawm {
    #    Make the body thicker around socket joins?
    thickSockets = false,
 
-   # Field:initialLength
-   # Type: Double
-   # Description:
-   #    the initial length of the instrument before modeling
-   initialLength = 661.4415,
-
    # Field:topClearanceFraction
    # Type: Double
    # Description:
@@ -374,6 +350,6 @@ folkShawm {
 
    # Field:rootNote
    # Type: String? (This field is optional.)
-   rootNote = null
+   rootNote = "C4"
 }
 

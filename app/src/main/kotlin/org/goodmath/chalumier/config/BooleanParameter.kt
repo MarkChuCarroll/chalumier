@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -74,12 +74,13 @@ object BooleanParameterKind: ParameterKind<Boolean> {
     }
 }
 
-fun<T: Configurable<T>> BooleanParameter(help: String = "", gen: (T) -> Boolean): ConfigParameter<T, Boolean> {
+fun<T: Configurable<T>> booleanParameter(help: String = "", gen: (T) -> Boolean): ConfigParameter<T, Boolean> {
     return ConfigParameter(BooleanParameterKind, help, gen=gen)
 }
 
 val ListOfBooleanParameterKind = ListParameterKind(BooleanParameterKind)
 
-fun <T: Configurable<T>> ListOfBooleanParameter(help: String = "", gen: (T) -> List<Boolean>): ConfigParameter<T, List<Boolean>> {
-    return ConfigParameter(ListOfBooleanParameterKind, help, gen=gen)
+fun <T: Configurable<T>> listOfBooleanParameter(help: String = "", gen: (T) -> List<Boolean>): ConfigParameter<T, List<Boolean>> {
+        return ConfigParameter(ListOfBooleanParameterKind, help, gen=gen)
 }
+

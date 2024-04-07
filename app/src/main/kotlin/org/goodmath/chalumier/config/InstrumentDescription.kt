@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -186,9 +186,8 @@ class DescriptionParser(private val input: Reader) {
     return when(currentTokenType) {
       TokenType.TStr -> tokStr!!
       TokenType.TIdent -> {
-        val s = tokStr!!
-        when(s) {
-          null -> null
+        when(val s = tokStr!!) {
+          "null" -> null
           "true" -> true
           "false" -> false
           else -> s

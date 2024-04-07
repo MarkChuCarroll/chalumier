@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import eu.mihosoft.vvecmath.Transform
 import eu.mihosoft.vvecmath.Vector3d
 import org.goodmath.chalumier.design.Profile
 import org.goodmath.chalumier.errors.dAssert
-import org.goodmath.chalumier.geom.XYZ
 import org.goodmath.chalumier.util.fromEnd
 
 /*
@@ -29,8 +28,10 @@ import org.goodmath.chalumier.util.fromEnd
  * basicways.
  */
 
-
-fun extrusion(zs: List<Double>, shapes: List<Loop>, name: String? = null): CSG {
+fun extrusion(
+    zs: List<Double>,
+    shapes: List<Loop>,
+): CSG {
     val nZ = zs.size
     val nShape = shapes[0].len()
     val verts = ArrayList<Vector3d>()
@@ -49,13 +50,17 @@ fun extrusion(zs: List<Double>, shapes: List<Loop>, name: String? = null): CSG {
         for (j in (0 until nShape)) {
             faces.add(
                 listOf(
-                    (i + 1) * nShape + j, i * nShape + j, i * nShape + ((j + 1)% nShape)
-                )
+                    (i + 1) * nShape + j,
+                    i * nShape + j,
+                    i * nShape + ((j + 1) % nShape),
+                ),
             )
             faces.add(
                 listOf(
-                    (i + 1) * nShape + j, i * nShape + ((j + 1) % nShape), (i + 1) * nShape + ((j + 1) % nShape)
-                )
+                    (i + 1) * nShape + j,
+                    i * nShape + ((j + 1) % nShape),
+                    (i + 1) * nShape + ((j + 1) % nShape),
+                ),
             )
         }
     }
@@ -64,15 +69,21 @@ fun extrusion(zs: List<Double>, shapes: List<Loop>, name: String? = null): CSG {
         faces.add(listOf(i1, i, end0))
         faces.add(
             listOf(
-                i + nShape * (nZ - 1), i1 + nShape * (nZ - 1), end1
-            )
+                i + nShape * (nZ - 1),
+                i1 + nShape * (nZ - 1),
+                end1,
+            ),
         )
     }
     return Polyhedron(verts, faces).toCSG()
 }
 
-
-fun block(p1: Vector3d, p2: Vector3d, name: String? = null, ramp: Double = 0.0): CSG {
+fun block(
+    p1: Vector3d,
+    p2: Vector3d,
+    name: String? = null,
+    ramp: Double = 0.0,
+): CSG {
     val verts = ArrayList<Vector3d>()
     for (x in listOf(p1.x, p2.x)) {
         for (y in listOf(p1.y, p2.y)) {
@@ -85,7 +96,13 @@ fun block(p1: Vector3d, p2: Vector3d, name: String? = null, ramp: Double = 0.0):
         }
     }
     val faces = ArrayList<List<Int>>()
-    fun quad(a: Int, b: Int, c: Int, d: Int) {
+
+    fun quad(
+        a: Int,
+        b: Int,
+        c: Int,
+        d: Int,
+    ) {
         faces.add(listOf(a, b, c))
         faces.add(listOf(a, c, d))
     }
@@ -101,10 +118,20 @@ fun circleCrossSection(params: List<Double>): Loop {
 }
 
 fun extrudeProfile(
+    vararg profiles: Profile,
+    name: String? = null,
+    crossSection: (List<Double>) -> Loop = ::circleCrossSection,
+): CSG {
+    val (zs, shapes) = prepareExtrudeProfile(profiles.toList(), crossSection, name)
+    return extrusion(zs, shapes)
+}
+
+// Separated out to allow testing by comparison to demakein.
+fun prepareExtrudeProfile(
     profiles: List<Profile>,
     crossSection: (List<Double>) -> Loop = ::circleCrossSection,
-    name: String? = null
-): CSG {
+    name: String? = null,
+): Pair<ArrayList<Double>, ArrayList<Loop>> {
     val zs = ArrayList<Double>()
     val shapes = ArrayList<Loop>()
     val posSet = HashSet<Double>()
@@ -117,22 +144,25 @@ fun extrudeProfile(
         val highs = profiles.map { item -> item(z, true) }
         if (i != 0) {
             zs.add(z)
-            shapes.add(crossSection(lows))
+            val shape = crossSection(lows)
+            shapes.add(shape)
         }
         if (i == 0 || (i < (pos.size) - 1 && (lows != highs))) {
             zs.add(z)
             shapes.add(crossSection(highs))
         }
     }
-    return extrusion(zs, shapes, name)
+    return Pair(zs, shapes)
 }
 
-
 fun prism(
-    height: Double, diameter: Double, crossSection: (List<Double>) -> Loop = ::circleCrossSection, name: String? = null
+    height: Double,
+    diameter: Double,
+    crossSection: (List<Double>) -> Loop = ::circleCrossSection,
+    name: String? = null,
 ): CSG {
     val span = Profile(arrayListOf(0.0, height), arrayListOf(diameter, diameter))
-    return extrudeProfile(listOf(span), crossSection = crossSection, name = name)
+    return extrudeProfile(span, name = name, crossSection = crossSection)
 }
 
 fun makeSegment(
@@ -142,15 +172,16 @@ fun makeSegment(
     high: Double,
     radius: Double,
     pad: Double = 0.0,
-    clipHalf: Boolean = true
+    clipHalf: Boolean = true,
 ): CSG {
-    val (y1, y2) = if (!clipHalf) {
-        Pair(-radius, radius)
-    } else if (top) {
-        Pair(0.0, radius)
-    } else {
-        Pair(-radius, 0.0)
-    }
+    val (y1, y2) =
+        if (!clipHalf) {
+            Pair(-radius, radius)
+        } else if (top) {
+            Pair(0.0, radius)
+        } else {
+            Pair(-radius, 0.0)
+        }
     val clip = block(Vector3d.xyz(-radius, y1, low - pad), Vector3d.xyz(radius, y2, high + pad))
     val segment = instrument.clone().intersect(clip)
     dAssert((segment.bounds.bounds.y - (high - low + pad * 2)) < 1e-3, "Need more padding for construction")
@@ -172,7 +203,7 @@ fun makeSegments(
     topFractions: List<Double>,
     bottomFractions: List<Double>,
     pad: Double = 0.0,
-    clipHalf: Boolean = true
+    clipHalf: Boolean = true,
 ): Pair<List<CSG>, List<Double>> {
     val parts = ArrayList<CSG>()
     val lengths = ArrayList<Double>()
@@ -181,8 +212,14 @@ fun makeSegments(
         lengths.add(z[i + 1] - z[i])
         parts.add(
             makeSegment(
-                instrument, true, z[i], z[i + 1], radius, pad, clipHalf
-            )
+                instrument,
+                true,
+                z[i],
+                z[i + 1],
+                radius,
+                pad,
+                clipHalf,
+            ),
         )
     }
     val z2 = bottomFractions.map { item -> item * length }
@@ -190,20 +227,29 @@ fun makeSegments(
         lengths.add(z2[i + 1] - z2[i])
         parts.add(
             makeSegment(
-                instrument, false, z2[i], z2[i + 1], radius, pad, clipHalf
-            )
+                instrument,
+                false,
+                z2[i],
+                z2[i + 1],
+                radius,
+                pad,
+                clipHalf,
+            ),
         )
     }
     return Pair(parts, lengths)
 }
 
 fun CSG.positionNicely(): CSG {
-    return transformed(Transform()
-        .translate(-0.5*(bounds.min.x + bounds.max.x),
-            -0.5*(bounds.min.y + bounds.max.y),
-            -bounds.min.z))
+    return transformed(
+        Transform()
+            .translate(
+                -0.5 * (bounds.min.x + bounds.max.x),
+                -0.5 * (bounds.min.y + bounds.max.y),
+                -bounds.min.z,
+            ),
+    )
 }
-
 
 // ph's code had a function here called makeFormwork, which
 // made absolutely no sense (it made calls to pack.pack(template, List<packables>)
@@ -214,4 +260,3 @@ fun CSG.positionNicely(): CSG {
 // Similarly, the original call had a function "frame_extrusion",
 // which was only called from path_extrusion, which was never called.
 // So again, I'm not including them.
-

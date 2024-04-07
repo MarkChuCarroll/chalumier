@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 package org.goodmath.chalumier.config
 
 import kotlinx.serialization.json.*
-import kotlin.random.Random
 
 object IntParameterKind: ParameterKind<Int> {
     override val name = "Int"
@@ -72,11 +71,11 @@ object IntParameterKind: ParameterKind<Int> {
 }
 
 
-fun<T: Configurable<T>> IntParameter(help: String="", gen: (T) -> Int): ConfigParameter<T,Int> {
+fun<T: Configurable<T>> intParameter(help: String="", gen: (T) -> Int): ConfigParameter<T,Int> {
     return ConfigParameter(IntParameterKind, help, gen=gen)
 }
 
 
-fun<T: Configurable<T>> OptIntParameter(help: String="", gen: (T) -> Int?): ConfigParameter<T,Int?> {
+fun<T: Configurable<T>> optIntParameter(help: String="", gen: (T) -> Int?): ConfigParameter<T,Int?> {
     return ConfigParameter(opt(IntParameterKind), help, gen=gen)
 }

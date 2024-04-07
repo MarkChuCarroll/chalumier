@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -239,7 +239,7 @@ class TerminalProgressDisplay(var instrumentName: String): ProgressDisplay {
             footer {
                 cellBorders = Borders.NONE
                 val lines = transcript.transcript()
-                lines.map {
+                lines.reversed().map() {
                     row {
                         cell(it) {
                             align = TextAlign.LEFT

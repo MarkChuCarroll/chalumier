@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,13 +21,13 @@ import org.goodmath.chalumier.design.DesignParameters
 import org.goodmath.chalumier.design.InstrumentDesigner
 import org.goodmath.chalumier.design.Profile
 
-fun<T> ArrayList<T>.dup(): ArrayList<T> {
+fun <T> ArrayList<T>.dup(): ArrayList<T> {
     val result = ArrayList<T>()
     result.addAll(this)
     return result
 }
 
-fun<T> List<T>.dup(): ArrayList<T> {
+fun <T> List<T>.dup(): ArrayList<T> {
     val result = ArrayList<T>()
     result.addAll(this)
     return result
@@ -53,8 +53,7 @@ class Whistle(
     override var emissionDivide: Double = 1.0,
     override var scale: Double = 1.0,
     override var divisions: List<List<Pair<Int, Double>>>,
-    ) : SimpleInstrument() {
-
+) : SimpleInstrument() {
     @Transient
     override val actions = ArrayList<ActionFunction>()
 
@@ -63,67 +62,71 @@ class Whistle(
 
     override val initialEmission = ArrayList<Double>()
     override var steppedInner = inner.asStepped(coneStep)
+
     override fun dup(): Instrument {
-        return Whistle(name,
-            length=length,
-            inner=inner.dup(),
-            outer=outer.dup(),
-            innerKinks=innerKinks.dup(),
-            outerKinks=outerKinks.dup(),
-            numberOfHoles=numberOfHoles,
-            holePositions=holePositions.dup(),
-            holeAngles=holeAngles.dup(),
-            innerHolePositions=innerHolePositions.dup(),
-            holeLengths=holeLengths.dup(),
-            holeDiameters=holeDiameters.dup(),
-            closedTop=closedTop,
-            coneStep=coneStep,
-            trueLength=trueLength,
-            emissionDivide=emissionDivide,
-            scale=scale,
-            divisions=divisions)
+        return Whistle(
+            name,
+            length = length,
+            inner = inner.dup(),
+            outer = outer.dup(),
+            innerKinks = innerKinks.dup(),
+            outerKinks = outerKinks.dup(),
+            numberOfHoles = numberOfHoles,
+            holePositions = holePositions.dup(),
+            holeAngles = holeAngles.dup(),
+            innerHolePositions = innerHolePositions.dup(),
+            holeLengths = holeLengths.dup(),
+            holeDiameters = holeDiameters.dup(),
+            closedTop = closedTop,
+            coneStep = coneStep,
+            trueLength = trueLength,
+            emissionDivide = emissionDivide,
+            scale = scale,
+            divisions = divisions,
+        )
     }
 
     companion object {
-        val builder = object : InstrumentFactory<Whistle>() {
-            override fun create(
-                designer: InstrumentDesigner<Whistle>,
-                parameters: DesignParameters,
-                name: String,
-                length: Double,
-                closedTop: Boolean,
-                coneStep: Double,
-                holeAngles: List<Double>,
-                holeDiameters: List<Double>,
-                holeLengths: List<Double>,
-                holePositions: List<Double>,
-                inner: Profile,
-                outer: Profile,
-                innerHolePositions: List<Double>,
-                numberOfHoles: Int,
-                innerKinks: List<Double>,
-                outerKinks: List<Double>,
-                divisions: List<List<Pair<Int, Double>>>
-            ): Whistle {
-                return Whistle(
-                    name = name,
-                    length = length,
-                    closedTop = closedTop,
-                    coneStep = coneStep,
-                    holeAngles = holeAngles.dup(),
-                    holeDiameters = holeDiameters.dup(),
-                    holeLengths = holeLengths.dup(),
-                    holePositions = holePositions.dup(),
-                    inner = inner.dup(),
-                    outer = outer.dup(),
-                    innerHolePositions = innerHolePositions.dup(),
-                    numberOfHoles = numberOfHoles,
-                    innerKinks = innerKinks.dup(),
-                    outerKinks = outerKinks.dup(),
-                    trueLength = length,
-                    divisions = divisions
-                )
+        val builder =
+            object : InstrumentFactory<Whistle>() {
+                override fun create(
+                    designer: InstrumentDesigner<Whistle>,
+                    parameters: DesignParameters,
+                    name: String,
+                    length: Double,
+                    closedTop: Boolean,
+                    coneStep: Double,
+                    holeAngles: List<Double>,
+                    holeDiameters: List<Double>,
+                    holeLengths: List<Double>,
+                    holePositions: List<Double>,
+                    inner: Profile,
+                    outer: Profile,
+                    innerHolePositions: List<Double>,
+                    numberOfHoles: Int,
+                    innerKinks: List<Double>,
+                    outerKinks: List<Double>,
+                    divisions: List<List<Pair<Int, Double>>>,
+                ): Whistle {
+                    return Whistle(
+                        name = name,
+                        length = length,
+                        closedTop = closedTop,
+                        coneStep = coneStep,
+                        holeAngles = holeAngles.dup(),
+                        holeDiameters = holeDiameters.dup(),
+                        holeLengths = holeLengths.dup(),
+                        holePositions = holePositions.dup(),
+                        inner = inner.dup(),
+                        outer = outer.dup(),
+                        innerHolePositions = innerHolePositions.dup(),
+                        numberOfHoles = numberOfHoles,
+                        innerKinks = innerKinks.dup(),
+                        outerKinks = outerKinks.dup(),
+                        trueLength = length,
+                        divisions = divisions,
+                    )
+                }
             }
-        }
     }
 }

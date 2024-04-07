@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +33,7 @@ enum class Hole {
  *    hole is open or closed for this note. X means closed, O means open.
  * @param nth an optional value that specifies the dominant overtone
  *    number (primarily used on reeded instruments, where a register break
- *    forces to switch to a different dominant overtine.
+ *    forces to switch to a different dominant overtone).
  *
  * For description files, this is written as an object:
  * ```
@@ -52,6 +52,50 @@ object FingeringParameterKind: ParameterKind<Fingering> {
     override val name: String = "Fingering"
     override val isOptional = false
 
+
+    private fun parseFingers(v: Any): List<Hole> {
+        return when(v) {
+            is String ->  v.mapNotNull { c ->
+                when(c) {
+                    'X', '1' -> Hole.X
+                    'O', '0' -> Hole.O
+                    else -> null
+                }
+            }
+            is List<*> -> {
+                v.map { hole ->
+                    when(hole) {
+                        "X" -> Hole.X
+                        "O" -> Hole.O
+                        else -> {
+                            throw error(v)
+                        }
+                    }
+                }
+            }
+            else -> {
+                throw error(v)
+            }
+        }
+    }
+    private fun stringIsValidFingering(s: String): Boolean {
+        return s.all {c -> c == 'X' || c == 'O' || c == '/' || c.isWhitespace() }
+    }
+
+    private fun arrayIsValidFingering(s: List<*>): Boolean {
+        return s.all { c -> (c is String && (c == "X" || c == "O")) ||
+                (c is Double && (c == 1.0 || c == 0.0)) }
+    }
+
+    private fun isValidFingering(f: Any?): Boolean {
+        return when(f) {
+            null -> false
+            is List<*> -> arrayIsValidFingering(f)
+            is String -> stringIsValidFingering(f)
+            else -> false
+        }
+    }
+
     override fun checkConfigValue(v: Any?): Boolean {
         return when (v) {
             is Map<*, *> -> {
@@ -59,8 +103,7 @@ object FingeringParameterKind: ParameterKind<Fingering> {
                 val fingers = v["fingers"]
                 val nth = v["nth"]
                 noteName != null &&
-                        fingers != null && fingers is List<*> &&
-                        fingers.all { it == "X" || it == "O" }
+                        isValidFingering(fingers) &&
                         (nth == null || nth is Double)
             }
             is Tuple -> {
@@ -70,7 +113,7 @@ object FingeringParameterKind: ParameterKind<Fingering> {
                     val noteName = v.body[0]
                     val fingers = v.body[1]
                     val nth = if (v.body.size == 3) { v.body[2] } else {null}
-                    noteName is String && fingers is List<*> && fingers.all { it == "X" || it == "O" } &&
+                    noteName is String && isValidFingering(fingers) &&
                             (nth == null || nth is Double)
                 }
             }
@@ -101,25 +144,14 @@ object FingeringParameterKind: ParameterKind<Fingering> {
         return when(v) {
             is Map<*, *> -> {
                 val name = v["noteName"] as String
-                val fingers = (v["fingers"] as List<*>).map {
-                    if (it == "X") {
-                        Hole.X
-                    } else {
-                        Hole.O
-                    }
-                }
+
+                val fingers = parseFingers(v["fingers"] ?: throw error(v))
                 val nth = (v["nth"] as Double?)?.toInt()
                 Fingering(name, fingers, nth)
             }
             is Tuple -> {
                 val name = v.body[0] as String
-                val fingers =  (v.body[1] as List<*>).map {
-                    if (it == "X") {
-                        Hole.X
-                    } else {
-                        Hole.O
-                    }
-                }
+                val fingers = parseFingers(v.body[1] ?: throw error(v))
                 val nth = if (v.body.size == 3) { v.body[2]?.let { it as Double} } else { null }
                 Fingering(name,  fingers, nth?.toInt())
             }
@@ -159,12 +191,24 @@ object FingeringParameterKind: ParameterKind<Fingering> {
 }
 
 val ListOfFingeringsKind = object: ListParameterKind<Fingering>(FingeringParameterKind) {
+    override fun checkConfigValue(v: Any?): Boolean {
+        return (v is List<*>) && v.all { FingeringParameterKind.checkConfigValue(it) }
+    }
+
+    override fun fromConfigValue(v: Any?): List<Fingering> {
+        return if (v is List<*>) {
+            v.map { FingeringParameterKind.fromConfigValue(it) }
+        } else {
+            throw error(v)
+        }
+    }
+
     override fun toConfigValue(t: List<Fingering>): String {
         val fingerings = t.joinToString(",\n      ") { FingeringParameterKind.toConfigValue(it) }
         return "[\n      $fingerings\n   ]"
     }
 }
-fun<T: Configurable<T>> ListOfFingeringsParam(help: String = "", gen: (T) -> List<Fingering>): ConfigParameter<T, List<Fingering>> {
+fun<T: Configurable<T>> listOfFingeringsParam(help: String = "", gen: (T) -> List<Fingering>): ConfigParameter<T, List<Fingering>> {
     val mutGen: (T) -> List<Fingering> = { target ->
         ArrayList(gen(target))
     }

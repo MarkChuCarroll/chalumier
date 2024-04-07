@@ -1,3 +1,18 @@
+/*
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.goodmath.chalumier.make
 
 import eu.mihosoft.jcsg.CSG
@@ -37,6 +52,12 @@ enum class JoinType {
     }
 }
 
+interface InstrumentMakerProgressUpdater {
+    fun update(name: String, stage: String, total: Int, current: Int)
+    fun print(a: Any)
+}
+
+
 /**
  * @param gap Amount of gap around the joins between segments for
  *     straight or tapered joins. The best value for this will depend
@@ -54,6 +75,17 @@ abstract class InstrumentMaker<Inst: Instrument>(
     open val instrument: Inst,
     open val designer: InstrumentDesigner<Inst>,
 ) {
+    open var reporter: InstrumentMakerProgressUpdater = object:InstrumentMakerProgressUpdater {
+        override fun update(name: String, stage: String, total: Int, current: Int) {
+            System.err.println("Update: ($name, $stage, $total, $current)")
+        }
+
+        override fun print(a: Any) {
+            System.err.println(a)
+        }
+
+    }
+
     val bodyCost: Int = 21
     val boreCost: Int = 23
     val cutCost: Int = 1
@@ -79,10 +111,17 @@ abstract class InstrumentMaker<Inst: Instrument>(
     open var outside: CSG? = null
     open var bore: CSG? = null
     open var progress: Int = 0
-    var statusUpdater: ((String) -> Unit) = { s -> System.out.println(s) }
+    var stage: String = "not started"
+    val name: String
+        get() = designer.name
+
+    open fun report() {
+        reporter.update(name, stage, totalSteps().toInt(), progress)
+    }
 
     fun save(shape: CSG, name: String) {
         (workingDir / "${outputPrefix}-${name}.stl").writeText(shape.toStlString())
+        (workingDir / "${outputPrefix}-${name}.obj").writeText(shape.toObjString())
     }
 
     var top: Double = 0.0
@@ -93,7 +132,12 @@ abstract class InstrumentMaker<Inst: Instrument>(
 
     open fun getCuts(): List<List<Double>> {
         return designer.divisions.map { divisions ->
-            divisions.map { (hole, above) ->
+            divisions.map { (holeIndex, above) ->
+                val hole = if (holeIndex < 0) {
+                    designer.numberOfHoles + holeIndex
+                } else {
+                    holeIndex
+                }
                 progress += cutCost
                 val lower = if (hole >= 0) {
                     instrument.holePositions[hole] + 2 * instrument.holeDiameters[hole]
@@ -111,7 +155,7 @@ abstract class InstrumentMaker<Inst: Instrument>(
     }
 
     fun makeSegments(up: Boolean = false, flipTop: Boolean = false): List<CSG> {
-        return getCuts().map { segment(it, up, flipTop) }.flatten()
+        return getCuts().map { cuts -> segment(cuts, up, flipTop) }.flatten()
     }
 
     fun makeInstrument(
@@ -125,13 +169,24 @@ abstract class InstrumentMaker<Inst: Instrument>(
         outsideExtras: List<CSG> = emptyList(),
         boreExtras: List<CSG> = emptyList()
     ): CSG {
-
-        var outside = extrudeProfile(listOf(outerProfile))
+        stage = "building profile"
+        report()
+        val before = System.currentTimeMillis()
+        var outside = extrudeProfile(outerProfile)
         progress += bodyCost
+        report()
         var instrumentBody = outside.clone()
-        var bore = extrudeProfile(listOf(innerProfile + designer.dilate))
+        stage = "building bore"
+        report()
+        var bore = extrudeProfile(innerProfile + designer.dilate)
         progress += boreCost
+        val afterBore = System.currentTimeMillis()
+        reporter.print("Main body took ${afterBore - before}ms")
+        report()
         holePositions.forEachIndexed { i, pos ->
+            val beforeHole = System.currentTimeMillis()
+            stage = "Drilling hole $i"
+            report()
             val angle = holeVertAngles[i]
             val radians = angle * PI / 180.0
             val height = outerProfile(pos) * 0.5
@@ -154,28 +209,30 @@ abstract class InstrumentMaker<Inst: Instrument>(
             hole = hole.transformed(Transform()
                 .rotX(-90.0)
                 .rotY(holeHorizAngles[i])
-                .translate(0.0, pos + shift, 0.0))
+                .translate(0.0, 0.0, pos + shift))
             if (withFingerpad[i] && designer.generatePads) {
                 val padHeight = height * 0.5 + 0.5 * sqrt(height * height - (holeDiameters[i] * 0.5).pow(2))
                 val padDepth = padHeight - insideHeight
                 val padMid = padDepth / 4.0
                 val padDiam = holeDiameter * 1.3
-                var fingerPad = extrudeProfile(listOf(
+                var fingerPad = extrudeProfile(
                     Profile(
                         arrayListOf(-padDepth, -padMid, 0.0),
                         arrayListOf(padDiam + padMid * 2.0, padDiam + padMid * 2, padDiam)
-                    )
-                ),
-                    { cs -> crossSection(cs[0]) }
+                    ),
+                    crossSection = { cs ->
+                        if (cs.size != 1) {
+                            throw Exception("Invalid parameters in CS")
+                        }
+                        crossSection(cs[0]) }
                 )
                 var fingerPadNegative = extrudeProfile(
-                    listOf(
-                        Profile(
-                            arrayListOf(0.0, padMid, padDepth),
-                            arrayListOf(padDiam, padDiam + padMid * 8.0, padDiam + padMid * 8.0)
-                        )
+                    Profile(
+                        arrayListOf(0.0, padMid, padDepth),
+                        arrayListOf(padDiam, padDiam + padMid * 8.0, padDiam + padMid * 8.0)
                     ),
-                    { cs -> crossSection(cs[0]) })
+                    name = "fingerPadNeg[$i]",
+                    crossSection = { cs -> crossSection(cs[0]) })
                 val wallAngle = -atan2(
                     0.5 * (outerProfile(pos + padDiam * 0.5) -
                             outerProfile(pos - padDiam * 0.5)),
@@ -183,15 +240,15 @@ abstract class InstrumentMaker<Inst: Instrument>(
                 ) * 180.0 / PI
                 val fpTransform = Transform()
                     .rotX(wallAngle)
-                    .translate(0.0, padHeight, 0.0)
+                    .translate(0.0, -padHeight, 0.0)
                     .rotX(-90.0)
-                    .rotY(holeHorizAngles[i])
+                    .rotZ(holeHorizAngles[i])
                     .translate(0.0, pos, 0.0)
                 val fpNegTransform = Transform()
                     .rotX(wallAngle)
-                    .translate(0.0, padHeight, 0.0)
+                    .translate(0.0, -padHeight, 0.0)
                     .rotX(-90.0)
-                    .rotY(holeHorizAngles[i])
+                    .rotZ(holeHorizAngles[i])
                     .translate(0.0, pos, 0.0)
 
                 fingerPad = fingerPad.transformed(fpTransform)
@@ -205,8 +262,13 @@ abstract class InstrumentMaker<Inst: Instrument>(
             if (angle != 0.0 || holeHorizAngles[i] != 0.0) {
                 outside = outside.difference(hole)
             }
+            reporter.print("Hole $i took ${System.currentTimeMillis() - beforeHole}ms")
             progress += holeCost
+            report()
         }
+        stage = "assembling body"
+        report()
+        val beforeAssembly = System.currentTimeMillis()
         outsideExtras.forEach { i ->
             outside = outside.union(i)
             instrumentBody = instrumentBody.union(i)
@@ -215,14 +277,21 @@ abstract class InstrumentMaker<Inst: Instrument>(
             bore = bore.union(i)
         }
         instrumentBody = instrumentBody.difference(bore)
+        val afterAssembly = System.currentTimeMillis()
+        reporter.print("Assembly took ${afterAssembly - beforeAssembly}ms")
         progress += bodyMinusBoreCost
+        report()
         instrumentBody.transformed(Transform().rotY(180.0))
         progress += bodyRotateCost
+        stage = "writing"
+        report()
         this.instrumentBody = instrumentBody
         this.outside = outside
         this.bore = bore
         this.top = instrumentBody.bounds.bounds.z
         save(instrumentBody, "full")
+        reporter.print("Body model size = ${instrumentBody.toStlString().length}")
+
         return instrumentBody
     }
 
@@ -234,7 +303,10 @@ abstract class InstrumentMaker<Inst: Instrument>(
         var inner = instrument.inner
         var outer = instrument.outer
         var cuts = originalCuts
-
+        stage = "segmenting"
+        reporter.print("Doing segmentation ${originalCuts}")
+        val before = System.currentTimeMillis()
+        report()
         if (up) {
             cuts = cuts.reversed().map { length - it }
             remainder = remainder.transformed(Transform().rotY(180.0).translate(0.0, length, 0.0))
@@ -245,10 +317,15 @@ abstract class InstrumentMaker<Inst: Instrument>(
             inner = inner.reversed().moved(length)
             outer = outer.reversed().moved(length)
             progress += 11
+            report()
         }
         val socket = JoinType.fromString(designer.join).joiner(this)
         val shapes = ArrayList<CSG>()
-        for (cut in cuts) {
+        cuts.indices.forEach { idx ->
+            val beforeCut = System.currentTimeMillis()
+            reporter.print("..Performing cut $idx")
+            report()
+            val cut = cuts[idx]
             val d1 = inner(cut)
             var d4 = outer(cut)
             val d5 = outer.maximum() * 2.0
@@ -266,7 +343,7 @@ abstract class InstrumentMaker<Inst: Instrument>(
                     arrayListOf(p1 - (d4 - d4Orig), p1, p3),
                     arrayListOf((d1 + d4) * 0.5, d4, d4)
                 )
-                val thicker = extrudeProfile(listOf(profThicker)).difference(workingBore!!)
+                val thicker = extrudeProfile(profThicker).difference(workingBore!!)
                 remainder = remainder.union(thicker)
             }
 
@@ -276,9 +353,15 @@ abstract class InstrumentMaker<Inst: Instrument>(
             remainder = remainder.intersect(maskInside)
             shapes.add(item)
             progress += 12
+            val afterCut = System.currentTimeMillis()
+            reporter.print("Cut $idx took ${afterCut - beforeCut}ms")
+            report()
         }
         shapes.add(remainder)
         shapes.reverse()
+        val afterCuts = System.currentTimeMillis()
+        reporter.print("All cuts took ${afterCuts - before}ms")
+        report()
         return shapes.mapIndexed { i, item ->
             val updatedItem = if (!flipTop || (up && i != shapes.size - 1) ||
                 (!up && i != 0)) {
@@ -289,17 +372,17 @@ abstract class InstrumentMaker<Inst: Instrument>(
             val positioned = updatedItem.positionNicely()
             save(positioned, "${shapes.size}-piece-${i + 1}")
             progress += 13
+            report()
             positioned
         }
     }
-
 
     fun weldJoin(_z0: Double, z1: Double, zMax: Double, d0: Double, d1: Double, dMax: Double): Pair<CSG, CSG> {
         val prof = Profile(
             arrayListOf(z1, zMax+50.0),
             arrayListOf(dMax, dMax)
         )
-        var maskUpper = extrudeProfile(listOf(prof))
+        var maskUpper = extrudeProfile(prof)
         var maskLower = maskUpper
 
         val triangle = Loop(listOf(
@@ -351,8 +434,8 @@ abstract class InstrumentMaker<Inst: Instrument>(
             arrayListOf(d1, d2b, d2b, d4),
             arrayListOf(d1, d2b, d4, d4)
         )
-        val maskInside = extrudeProfile(listOf(profInside))
-        val maskOutside = extrudeProfile(listOf(profOutside))
+        val maskInside = extrudeProfile(profInside)
+        val maskOutside = extrudeProfile(profOutside)
         return Pair(maskInside, maskOutside)
     }
     fun taperedSocket(p1: Double, p3: Double, length: Double, d1: Double, d4: Double, d5: Double): Pair<CSG, CSG> {
@@ -380,12 +463,14 @@ abstract class InstrumentMaker<Inst: Instrument>(
             arrayListOf(d1,  d2b, d3b, d5),
             arrayListOf( d1,  d2b, d5,  d5 ))
 
-        val maskInside = extrudeProfile(listOf(profInside))
-        val maskOutside = extrudeProfile(listOf(profOutside))
+        val maskInside = extrudeProfile(profInside)
+        val maskOutside = extrudeProfile(profOutside)
         return Pair(maskInside, maskOutside)
     }
 
     fun decorateProfile(prof: Profile, pos: Double, align: Double, amount: Double=0.2): Profile {
+        stage = "decorate profile"
+        report()
         val decoThickness = prof(pos) * amount
         val updatedPos = pos + decoThickness * align
         val decoratedProfile = Profile(ArrayList(listOf(-1.0, 0.0, 1.0).map { i -> updatedPos + decoThickness * i }),

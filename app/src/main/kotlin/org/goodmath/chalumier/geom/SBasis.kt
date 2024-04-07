@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -91,7 +91,6 @@ open class SBasis<T>(b: List<Linear<T>>, val math: Math<T>) {
         val size = max(len(), other.len())
         val normalizedThis = if (len() < size) {
             //  self = type(other)(tuple(self) + (self[0]*0,)*(size-len(self)))
-            val x = listOf(this[0].times(math.zero)).repeat(size - len())
             SBasis(basis + listOf(this[0].times(math.zero)).repeat(size - len()), math)
         } else {
             this
@@ -226,20 +225,10 @@ open class SBasis<T>(b: List<Linear<T>>, val math: Math<T>) {
         return leastSquares(
             SBasis(listOf(lin), math),
             { x: SBasis<T> -> other.times(x, ttt).minus(this, ttt) },
-            { x: SBasis<T> -> other },
-            { x: SBasis<T> -> ZERO(math) },
+            { _: SBasis<T> -> other },
+            { _: SBasis<T> -> ZERO(math) },
             k
-        )/* ph:
-            #remainder = self
-            #result = [ ]
-            #for i in xrange(k):
-            #    if len(remainder) <= i:
-            #        break
-            #    ci = Linear(remainder[i].a0/other[0].a0, remainder[i].a1/other[0].a1)
-            #    result.append(ci)
-            #    remainder = remainder - (S_basis([ci])*other).shifted(i)
-            #return S_basis(result)
-         */
+        )
     }
 
     fun reciprocal(k: Int): SBasis<T> {
@@ -253,7 +242,7 @@ open class SBasis<T>(b: List<Linear<T>>, val math: Math<T>) {
             this,
             { x -> x.times(x, x.math.selfBridge).minus(this, x.math.selfBridge) },
             { x -> x.scaled(2.0, tdt) },
-            { x -> ONE.scaled(2.0, tdt) },
+            { _ -> ONE.scaled(2.0, tdt) },
             k
         )
 
@@ -327,7 +316,7 @@ open class SBasis<T>(b: List<Linear<T>>, val math: Math<T>) {
             }
             // ph: plot(*basis)
             // ph: foo
-            var step: T = math.one
+            var step: T
             for (i in 0..k * 8) {
                 for (item in basis) {
                     // ph: c = score(result)

@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,10 @@
  */
 package org.goodmath.chalumier.geom
 
-
 /**
  * ph: f(t) = a0*(1-t)+a1*t
  */
 open class Linear<T>(val a0: T, val a1: T, val math: Math<T>) {
-
     operator fun compareTo(other: Linear<T>): Int {
         return when {
             math.lt(a0, other.a0) -> -1
@@ -30,21 +28,28 @@ open class Linear<T>(val a0: T, val a1: T, val math: Math<T>) {
         }
     }
 
-
     operator fun invoke(t: Double): T {
         return math.plus(math.times(a0, (1 - t)), math.times(a1, t))
     }
 
-    fun <U, V> plus(other: Linear<U>, tuvBridge: MathBridge<T, U, V>): Linear<V> {
+    fun <U, V> plus(
+        other: Linear<U>,
+        tuvBridge: MathBridge<T, U, V>,
+    ): Linear<V> {
         return Linear(tuvBridge.plus(a0, other.a0), tuvBridge.plus(a1, other.a1), tuvBridge.prodMath)
     }
 
-    fun <U, V> minus(other: Linear<U>, tuvBridge: MathBridge<T, U, V>): Linear<V> {
+    fun <U, V> minus(
+        other: Linear<U>,
+        tuvBridge: MathBridge<T, U, V>,
+    ): Linear<V> {
         return Linear(tuvBridge.minus(a0, other.a0), tuvBridge.minus(a1, other.a1), tuvBridge.prodMath)
     }
 
-
-    fun <U, V> times(other: U, bridge: MathBridge<T, U, V>): Linear<V> {
+    fun <U, V> times(
+        other: U,
+        bridge: MathBridge<T, U, V>,
+    ): Linear<V> {
         return Linear(bridge.times(a0, other), bridge.times(a1, other), bridge.prodMath)
     }
 
@@ -52,9 +57,7 @@ open class Linear<T>(val a0: T, val a1: T, val math: Math<T>) {
         return times(other, math.selfBridge)
     }
 
-
     fun tri(): T = math.minus(a1, a0)
 
     fun hat(): T = math.div(math.plus(a1, a0), 2.0)
-
 }

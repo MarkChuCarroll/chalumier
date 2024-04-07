@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ package org.goodmath.chalumier.config
 
 import kotlinx.serialization.json.*
 
-open class PairParameterKind<T, U>(
+open class PairParameter<T, U>(
     private val tKind: ParameterKind<T>,
     private val uKind: ParameterKind<U>): ParameterKind<Pair<T, U>> {
     override val name: String = "Pair<${tKind.name}, ${uKind.name}>"

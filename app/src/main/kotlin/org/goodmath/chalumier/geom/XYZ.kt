@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 package org.goodmath.chalumier.geom
 
 import kotlin.math.sqrt
-
 
 data class XYZ(val x: Double, val y: Double, val z: Double) {
     operator fun unaryMinus(): XYZ {
@@ -41,7 +40,9 @@ data class XYZ(val x: Double, val y: Double, val z: Double) {
 
     fun cross(other: XYZ): XYZ {
         return XYZ(
-            y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x
+            y * other.z - z * other.y,
+            z * other.x - x * other.z,
+            x * other.y - y * other.x,
         )
     }
 

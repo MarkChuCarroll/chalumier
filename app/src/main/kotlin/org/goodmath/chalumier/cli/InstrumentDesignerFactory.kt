@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,20 +21,34 @@ import org.goodmath.chalumier.errors.ChalumierException
 import java.nio.file.Path
 import kotlin.io.path.reader
 
-class InstrumentDesignerFactory(private val templates: Map<String,
-            (name: String, outputDir: Path) -> InstrumentDesigner<*>>) {
-
-    fun getDesigner(instrumentType: String, outputDir: Path): InstrumentDesigner<*> {
-        val t = templates[instrumentType]?:  throw ChalumierException("Unknown instrument type $instrumentType. Supported instruments are ${templates.keys}")
+class InstrumentDesignerFactory(
+    private val templates: Map<
+        String,
+        (name: String, outputDir: Path) -> InstrumentDesigner<*>,
+    >,
+) {
+    fun getDesigner(
+        instrumentType: String,
+        outputDir: Path,
+    ): InstrumentDesigner<*> {
+        val t =
+            templates[instrumentType] ?: throw ChalumierException(
+                "Unknown instrument type $instrumentType. Supported instruments are ${templates.keys}",
+            )
         return t(instrumentType, outputDir)
     }
 
-    fun getDesigner(descriptionFile: Path, outputDir: Path): InstrumentDesigner<*> {
+    fun getDesigner(
+        descriptionFile: Path,
+        outputDir: Path,
+    ): InstrumentDesigner<*> {
         val desc = DescriptionParser(descriptionFile.reader()).parseConfig()
-        val template = templates[desc.name] ?: throw ChalumierException("Unknown instrument type ${desc.name}. Supported instruments are ${templates.keys}")
+        val template =
+            templates[desc.name] ?: throw ChalumierException(
+                "Unknown instrument type ${desc.name}. Supported instruments are ${templates.keys}",
+            )
         val designer = template(desc.name, outputDir)
         designer.updateFromConfig(desc)
         return designer
     }
-
 }

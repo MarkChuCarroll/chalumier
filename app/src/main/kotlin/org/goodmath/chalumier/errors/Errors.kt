@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,18 +15,23 @@
  */
 package org.goodmath.chalumier.errors
 
-fun dAssert(v: Boolean, msg: String) {
+fun dAssert(
+    v: Boolean,
+    msg: String,
+) {
     if (!v) {
         throw AssertionException(msg)
     }
 }
 
 open class ChalumierException(msg: String, cause: Throwable? = null) : Exception(msg, cause)
+
 class RequiredParameterException(name: String, msg: String = "is a required parameter") :
     ChalumierException("$name $msg")
 
-class ConfigurationParameterValueException(val expected: String, val value: Any?)
-    : ChalumierException("Configuration parameter expected a $expected value, but found '$value'")
+class ConfigurationParameterValueException(val expected: String, val value: Any?) :
+    ChalumierException("Configuration parameter expected a $expected value, but found '$value'")
 
-class ConfigurationParameterException(error: String): ChalumierException("Config error: $error")
+class ConfigurationParameterException(error: String) : ChalumierException("Config error: $error")
+
 class AssertionException(msg: String) : ChalumierException(msg)

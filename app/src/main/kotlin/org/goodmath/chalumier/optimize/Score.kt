@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,8 +17,7 @@ package org.goodmath.chalumier.optimize
 
 import org.goodmath.chalumier.design.DesignParameters
 
-
-data class Score(val constraintScore: Double, val intonationScore: Double): Comparable<Score> {
+data class Score(val constraintScore: Double, val intonationScore: Double) : Comparable<Score> {
     override operator fun compareTo(other: Score): Int {
         return when (val c = constraintScore.compareTo(other.constraintScore)) {
             0 -> intonationScore.compareTo(other.intonationScore)
@@ -35,5 +34,7 @@ data class Score(val constraintScore: Double, val intonationScore: Double): Comp
     }
 }
 
-data class ScoredParameters(val parameters: DesignParameters,
-                            val score: Score)
+data class ScoredParameters(
+    val parameters: DesignParameters,
+    val score: Score,
+)

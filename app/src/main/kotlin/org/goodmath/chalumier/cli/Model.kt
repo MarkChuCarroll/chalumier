@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,12 +25,15 @@ import org.goodmath.chalumier.scad.FluteModel
 import java.nio.file.Path
 import kotlin.io.path.writeText
 
-class Model: ChalumierCommand(name="model", help="Generate a 3d model of a design") {
+class Model : ChalumierCommand(name = "model", help = "Generate a 3d model of a design") {
     private val descFile: Path by argument("--description").path(mustExist = true)
-    private val specFile: Path by option("--spec", help="the path of a JSON file containing a generated instrument").path(mustExist = true).required()
-    private val workDir: Path by option("--workdir", help="The directory to save files").path(mustExist = true).required()
-    private val facets: Int by option("--facets", help="Number of outer facets on the instrument").int().default(0)
-    private val output: Path by option("--output", help="The path to write the OpenSCAD file to").path(mustExist = false).required()
+    private val specFile: Path by option(
+        "--spec",
+        help = "the path of a JSON file containing a generated instrument",
+    ).path(mustExist = true).required()
+    private val workDir: Path by option("--workdir", help = "The directory to save files").path(mustExist = true).required()
+    private val facets: Int by option("--facets", help = "Number of outer facets on the instrument").int().default(0)
+    private val output: Path by option("--output", help = "The path to write the OpenSCAD file to").path(mustExist = false).required()
 
     override fun run() {
         val des = builder.getDesigner(descFile, workDir)

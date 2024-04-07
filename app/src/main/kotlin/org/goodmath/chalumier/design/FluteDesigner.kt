@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import org.goodmath.chalumier.design.instruments.Instrument
 import org.goodmath.chalumier.design.instruments.InstrumentFactory
 import org.goodmath.chalumier.design.instruments.TaperedFlute
 import org.goodmath.chalumier.design.instruments.dup
+import org.goodmath.chalumier.errors.ConfigurationParameterException
 import org.goodmath.chalumier.make.FluteMaker
 import org.goodmath.chalumier.make.InstrumentMaker
 import org.goodmath.chalumier.util.fromEnd
@@ -53,20 +54,22 @@ abstract class FluteDesigner<Inst: Instrument>(override val instrumentName: Stri
                 "Small adjustments of this value will change the angle at which the flute needs to" +
              "be blown in order to be in tune.") { 0.53 }
 
+    override var initialLength by doubleParameter { des ->
+        des.rootNote?.let { wavelength(it) * 0.5 }
+            ?: throw ConfigurationParameterException("Either rootNote or initialLength must be provided")
+    }
 
-    override var initialLength by DoubleParameter { wavelength("D4") * 0.5 }
+    open var openBothEnds by booleanParameter("Is this open on both ends like a quena?") { false }
 
-    open var openBothEnds by BooleanParameter("Is this open on both ends like a quena?") { false }
+    open var embAspect by doubleParameter("The desired aspect ration of the embouchure hole") { 1.5 }
 
-    open var embAspect by DoubleParameter("The desired aspect ration of the embouchure hole") { 1.5 }
+    open var embSquareness by doubleParameter("The desired squareness of the embouchure hole.") { 0.0 }
 
-    open var embSquareness by DoubleParameter("The desired squareness of the emouchure hole.") { 0.0 }
-
-    override var closedTop by BooleanParameter { true  }
+    override var closedTop by booleanParameter { true  }
 
 
-    override var initialHoleFractions by ListOfDoubleParameter { _ ->
-        val l = ArrayList((0 until numberOfHoles - 1).map { i -> 0.175 + 0.5 * i / (numberOfHoles - 1) })
+    override var initialHoleFractions by listOfDoubleParameter {
+        val l = ArrayList((0 until it.numberOfHoles - 1).map { i -> 0.175 + 0.5 * i / (it.numberOfHoles - 1) })
         l.add(0.97)
         l.toMutableList()
     }
@@ -79,17 +82,17 @@ abstract class FluteDesigner<Inst: Instrument>(override val instrumentName: Stri
     //    min_hole_diameters = design.power_scaler(1/3., [ 3.0 ] * 6  + [ 11.3 ])
     //    max_hole_diameters = design.power_scaler(1/3., [ 11.4 ] * 6 + [ 11.4 ])
 
-    override var minHoleDiameters by ListOfDoubleParameter("The minimum acceptable size for tone-holes.") {
-        val x = ArrayList(listOf(3.0).repeat(numberOfHoles - 1))
+    override var minHoleDiameters by listOfDoubleParameter("The minimum acceptable size for tone-holes.") { inst ->
+        val x = ArrayList(listOf(3.0).repeat(inst.numberOfHoles - 1))
         x.add(11.3)
-        val scale = this.scale.pow(1.0 / 3.0)
+        val scale = inst.scale.pow(1.0 / 3.0)
         x.map { it * scale }.toMutableList()
     }
 
-    override var maxHoleDiameters by ListOfDoubleParameter("The maximum acceptable size for tone-holes") {
-        val x = ArrayList(listOf(11.4).repeat(numberOfHoles - 1))
+    override var maxHoleDiameters by listOfDoubleParameter("The maximum acceptable size for tone-holes") { inst ->
+        val x = ArrayList(listOf(11.4).repeat(inst.numberOfHoles - 1))
         x.add(11.4)
-        val scale = this.scale.pow(1.0 / 3.0)
+        val scale = inst.scale.pow(1.0 / 3.0)
         x.map { it * scale }.toMutableList()
     }
 
@@ -180,26 +183,6 @@ abstract class FluteDesigner<Inst: Instrument>(override val instrumentName: Stri
             // ph:  Fingering("A6", arrayListOf(O,X,X,X,X,O)), #?
         )
 
-        val dorianFingerings = listOf(
-            Fingering("D4", arrayListOf(X, X, X, X, X, X)),
-            Fingering("E4", arrayListOf(O, X, X, X, X, X)),
-            Fingering("F4", arrayListOf(O, O, X, X, X, X)),
-            Fingering("G4", arrayListOf(O, O, O, X, X, X)),
-            Fingering("A4", arrayListOf(O, O, O, O, X, X)),
-            Fingering("Bb4", arrayListOf(O, O, X, X, O, X)),
-            Fingering("B4", arrayListOf(O, O, O, O, O, X)),
-            Fingering("C5", arrayListOf(O, O, O, O, O, O)),
-            Fingering("D5", arrayListOf(X, X, X, X, X, X)),
-            Fingering("E5", arrayListOf(O, X, X, X, X, X)),
-            Fingering("F5", arrayListOf(O, O, X, X, X, X)),
-            Fingering("G5", arrayListOf(O, O, O, X, X, X)),
-            Fingering("A5", arrayListOf(O, O, O, O, X, X)),
-            Fingering("Bb5", arrayListOf(O, O, O, X, O, X)),
-            Fingering("B5", arrayListOf(O, O, O, O, O, X)),
-            Fingering("C6", arrayListOf(O, O, O, O, O, O)),
-            Fingering("D6", arrayListOf(X, X, X, X, X, X)),
-        )
-
         fun fingeringsWithEmbouchure(fingers: List<Fingering>): ArrayList<Fingering> {
             return ArrayList(fingers.map { old ->
                 Fingering(
@@ -235,12 +218,13 @@ open class TaperedFluteDesigner(override val instrumentName: String, dir: Path,
     }
 
     // ph: inner_diameters = design.sqrt_scaler([ 14.0, 14.0, 18.4, 21.0, 18.4, 18.4 ])
-    override var innerDiameters: List<Pair<Double, Double>> by ConfigParameter(DoublePairListParameterKind) {
-        val myScale = scale.pow(1.0 / 2.0)
+    override var innerDiameters: List<Pair<Double, Double>> by ConfigParameter(DoublePairListParameterKind) { inst ->
+        inst as TaperedFluteDesigner
+        val myScale = inst.scale.pow(1.0 / 2.0)
         listOf(
-            18.4 * innerTaper * myScale,
-            18.4 * innerTaper * myScale,
-            18.4 * (0.5 + innerTaper * 0.5) * myScale,
+            18.4 * inst.innerTaper * myScale,
+            18.4 * inst.innerTaper * myScale,
+            18.4 * (0.5 + inst.innerTaper * 0.5) * myScale,
             18.4 * myScale,
             21.0 * myScale,
             21.0 * myScale,
@@ -252,20 +236,21 @@ open class TaperedFluteDesigner(override val instrumentName: String, dir: Path,
     // ph: initial_inner_fractions = [ 0.25, 0.75 ]
     // ph: min_inner_fraction_sep = [ 0.0, 0.0, 0.0 ]
 
-    override var initialInnerFractions by ListOfDoubleParameter {
+    override var initialInnerFractions by listOfDoubleParameter {
         mutableListOf(0.25, 0.3, 0.7, 0.8, 0.81, 0.9)
     }
 
-    override var minInnerFractionSep by ListOfDoubleParameter {
+    override var minInnerFractionSep by listOfDoubleParameter {
         mutableListOf(0.01, 0.1, 0.1, 0.01, 0.01, 0.01, 0.01)
     }
 
 
     // ph: outer_diameters = design.sqrt_scaler([ 22.1, 32.0, 26.1 ])
-    override var outerDiameters by ListOfDoublePairParameter("The outer diameters of the profile of the instrument") {
-        val scale = this.scale.pow(1.0 / 2.0)
+    override var outerDiameters by listOfDoublePairParameter("The outer diameters of the profile of the instrument") { inst ->
+        inst as TaperedFluteDesigner
+        val scale = inst.scale.pow(1.0 / 2.0)
         listOf(
-            29.0 * outerTaper * scale, 29.0 * outerTaper * scale, 29.0 * scale, 29.0 * scale
+            29.0 * inst.outerTaper * scale, 29.0 * inst.outerTaper * scale, 29.0 * scale, 29.0 * scale
             // ph: 30.0 * scale,
             // ph: 30.0 * scale,
             // ph: 32.0 * scale,
@@ -273,11 +258,11 @@ open class TaperedFluteDesigner(override val instrumentName: String, dir: Path,
         ).map { d: Double -> Pair(d, d) }
     }
 
-    override var initialOuterFractions by ListOfDoubleParameter {
+    override var initialOuterFractions by listOfDoubleParameter {
         mutableListOf(0.01, 0.666)
     }
 
-    override var minOuterFractionSep by ListOfDoubleParameter {
+    override var minOuterFractionSep by listOfDoubleParameter {
         mutableListOf(0.0, 0.5, 0.0) // ph: Looks and feels nicer
     }
 
@@ -315,8 +300,5 @@ fun folkFluteDesigner(name: String, outputDir: Path): TaperedFluteDesigner {
     flute.maxHoleSpacing = flute.scaler(listOf(45.0, 45.0, null, 45.0, 45.0, null))
     return flute
 }
-
-
-
 
 

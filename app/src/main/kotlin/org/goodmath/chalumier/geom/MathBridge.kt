@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,32 +16,55 @@
 package org.goodmath.chalumier.geom
 
 interface MathBridge<Left, Right, Product> {
-
     val leftMath: Math<Left>
     val rightMath: Math<Right>
     val prodMath: Math<Product>
-    fun plus(one: Left, two: Right): Product
 
-    fun rPlus(one: Right, two: Left): Product {
+    fun plus(
+        one: Left,
+        two: Right,
+    ): Product
+
+    fun rPlus(
+        one: Right,
+        two: Left,
+    ): Product {
         return plus(two, one)
     }
 
-    fun minus(one: Left, two: Right): Product = this.plus(one, this.rNeg(two))
+    fun minus(
+        one: Left,
+        two: Right,
+    ): Product = this.plus(one, this.rNeg(two))
 
-    fun rMinus(one: Right, two: Left): Product = this.rPlus(one, this.neg(two))
+    fun rMinus(
+        one: Right,
+        two: Left,
+    ): Product = this.rPlus(one, this.neg(two))
 
     fun neg(t: Left): Left
 
     fun rNeg(u: Right): Right
 
-    fun times(one: Left, two: Right): Product
+    fun times(
+        one: Left,
+        two: Right,
+    ): Product
 
-    fun rTimes(one: Right, two: Left): Product = this.times(two, one)
+    fun rTimes(
+        one: Right,
+        two: Left,
+    ): Product = this.times(two, one)
 
+    fun div(
+        one: Left,
+        two: Right,
+    ): Product = this.times(one, this.rRecip(two))
 
-    fun div(one: Left, two: Right): Product = this.times(one, this.rRecip(two))
-
-    fun rDiv(one: Right, two: Left): Product = this.rTimes(one, this.recip(two))
+    fun rDiv(
+        one: Right,
+        two: Left,
+    ): Product = this.rTimes(one, this.recip(two))
 
     fun recip(t: Left): Left
 
@@ -57,10 +80,17 @@ interface MathBridge<Left, Right, Product> {
 
             override val prodMath: Math<Product> = me.prodMath
 
-            override fun plus(one: Right, two: Left): Product = me.rPlus(one, two)
+            override fun plus(
+                one: Right,
+                two: Left,
+            ): Product = me.rPlus(one, two)
 
             override fun neg(t: Right): Right = me.rNeg(t)
-            override fun times(one: Right, two: Left): Product = me.rTimes(one, two)
+
+            override fun times(
+                one: Right,
+                two: Left,
+            ): Product = me.rTimes(one, two)
 
             override fun rRecip(u: Left): Left = me.recip(u)
 
@@ -75,36 +105,41 @@ interface MathBridge<Left, Right, Product> {
     }
 }
 
-fun <T> doubleBridge(math: Math<T>): MathBridge<T, Double, T> = object : MathBridge<T, Double, T> {
-    override val leftMath: Math<T> = math
+fun <T> doubleBridge(math: Math<T>): MathBridge<T, Double, T> =
+    object : MathBridge<T, Double, T> {
+        override val leftMath: Math<T> = math
 
-    override val rightMath: Math<Double> = DoubleMath
+        override val rightMath: Math<Double> = DoubleMath
 
-    override val prodMath: Math<T> = math
+        override val prodMath: Math<T> = math
 
-    override fun rRecip(u: Double): Double {
-        return 1.0 / u
+        override fun rRecip(u: Double): Double {
+            return 1.0 / u
+        }
+
+        override fun recip(t: T): T {
+            return math.reciprocal(t)
+        }
+
+        override fun times(
+            one: T,
+            two: Double,
+        ): T {
+            return math.times(one, two)
+        }
+
+        override fun rNeg(u: Double): Double {
+            return -u
+        }
+
+        override fun neg(t: T): T {
+            return math.neg(t)
+        }
+
+        override fun plus(
+            one: T,
+            two: Double,
+        ): T {
+            throw Exception("Fuck this nonsense")
+        }
     }
-
-    override fun recip(t: T): T {
-        return math.reciprocal(t)
-    }
-
-    override fun times(one: T, two: Double): T {
-        return math.times(one, two)
-    }
-
-    override fun rNeg(u: Double): Double {
-        return -u
-    }
-
-    override fun neg(t: T): T {
-        return math.neg(t)
-    }
-
-    override fun plus(one: T, two: Double): T {
-        throw Exception("Fuck this nonsense")
-    }
-
-
-}

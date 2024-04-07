@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ package org.goodmath.chalumier.util
 
 import eu.mihosoft.vvecmath.Vector3d
 import kotlinx.serialization.Serializable
-import org.goodmath.chalumier.geom.XYZ
 
 @Serializable
 data class Point(val x: Double, val y: Double) {
@@ -39,7 +38,6 @@ data class Point(val x: Double, val y: Double) {
     operator fun plus(other: Point): Point = Point(x + other.x, y + other.y)
 
     operator fun minus(other: Point): Point = Point(x - other.x, y - other.y)
-
 }
 
 fun List<Point>.max(): Point {

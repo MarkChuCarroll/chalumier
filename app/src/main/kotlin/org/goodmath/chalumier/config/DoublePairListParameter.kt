@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Mark C. Chu-Carroll
+ * Copyright 2024 Mark C. Chu-Carroll and Paul Francis Harrison
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ package org.goodmath.chalumier.config
 
 import kotlinx.serialization.json.JsonObject
 
-object DoublePairParameterKind: PairParameterKind<Double, Double>(DoubleParameterKind, DoubleParameterKind) {
+object DoublePairParameterKind: PairParameter<Double, Double>(DoubleParameterKind, DoubleParameterKind) {
     override fun fromConfigValue(v: Any?): Pair<Double, Double> {
         return when (v) {
             is Pair<*,*> -> {
@@ -89,7 +89,7 @@ object DoublePairParameterKind: PairParameterKind<Double, Double>(DoubleParamete
 
 val DoublePairListParameterKind: ParameterKind<List<Pair<Double, Double>>> = ListParameterKind(DoublePairParameterKind)
 
-fun<T: Configurable<T>> ListOfDoublePairParameter(
+fun<T: Configurable<T>> listOfDoublePairParameter(
     help: String = "", gen: (T) -> List<Pair<Double, Double>>): ConfigParameter<T, List<Pair<Double, Double>>> {
         return ConfigParameter(DoublePairListParameterKind, help, gen=gen)
 }
