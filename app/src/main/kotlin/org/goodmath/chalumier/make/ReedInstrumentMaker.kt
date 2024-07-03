@@ -15,26 +15,28 @@
  */
 package org.goodmath.chalumier.make
 
-import eu.mihosoft.jcsg.CSG
-import eu.mihosoft.vvecmath.Transform
 import org.goodmath.chalumier.design.Profile
 import org.goodmath.chalumier.design.ReedInstrumentDesigner
 import org.goodmath.chalumier.design.instruments.ReedInstrument
+import org.goodmath.chalumier.geom.ThreeDBody
+import org.goodmath.chalumier.geom.ThreeDGeometry
+import org.goodmath.chalumier.geom.TwoDShape
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
 
-class ReedInstrumentMaker(
+class ReedInstrumentMaker<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>>(
+    geometry: ThreeDGeometry<Body, Shape>,
     prefix: String,
     outDir: Path,
     instrument: ReedInstrument,
     override val designer: ReedInstrumentDesigner<ReedInstrument>,
 ) :
-    InstrumentMaker<ReedInstrument>(prefix, outDir, instrument, designer) {
-    override fun run(): List<CSG> {
+    InstrumentMaker<ReedInstrument, Shape, Body>(geometry, prefix, outDir, instrument, designer) {
+    override fun run(): List<Body> {
         val length = instrument.length
         var outerProfile = instrument.outer
         var innerProfile = instrument.inner
-        var bauble: CSG? = null
+        var bauble: Body? = null
         var endDockLength: Double = 0.0
         if (designer.dock) {
             val dockInner =
@@ -59,7 +61,7 @@ class ReedInstrumentMaker(
         if (designer.addBauble) {
             endDockLength = 5.0
             print("Bauble dock: ${m}mm diameter, ${endDockLength}mm length")
-            bauble = BaubleMaker(outputPrefix, workingDir, instrument, designer).run().first()
+            bauble = BaubleMaker(geometry, outputPrefix, workingDir, instrument, designer).run().first()
             val fixer =
                 Profile.makeProfile(
                     arrayListOf(
@@ -103,10 +105,9 @@ class ReedInstrumentMaker(
             )
         if (designer.addBauble) {
             bauble =
-                bauble!!.transformed(
-                    Transform().rotX(180.0)
-                        .translate(0.0, 0.0, endDockLength),
-                )
+                bauble!!.rotate(180.0, 0.0, 0.0)
+                        .translate(0.0, 0.0, endDockLength)
+
             result = result.union(bauble)
         }
         instrumentBody = result

@@ -20,7 +20,11 @@ import org.goodmath.chalumier.design.Angle
 import org.goodmath.chalumier.design.Profile
 import org.goodmath.chalumier.design.ReedInstrumentDesigner
 import org.goodmath.chalumier.design.instruments.ReedInstrument
+import org.goodmath.chalumier.geom.ThreeDBody
+import org.goodmath.chalumier.geom.ThreeDGeometry
+import org.goodmath.chalumier.geom.TwoDShape
 import org.goodmath.chalumier.shape.Loop
+import org.goodmath.chalumier.shape.circleCrossSection
 import org.goodmath.chalumier.shape.extrudeProfile
 import org.goodmath.chalumier.util.Point
 import java.nio.file.Path
@@ -28,21 +32,22 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
-class BaubleMaker(
+class BaubleMaker<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>>(
+    geometry: ThreeDGeometry<Body, Shape>,
     outputPrefix: String,
     workingDir: Path,
     spec: ReedInstrument,
     override val designer: ReedInstrumentDesigner<ReedInstrument>,
-) : InstrumentMaker<ReedInstrument>(outputPrefix, workingDir, spec, designer) {
+) : InstrumentMaker<ReedInstrument, Shape, Body>(geometry, outputPrefix, workingDir, spec, designer) {
     private fun wobble(
         diameter: Double = 1.0,
         wobble: Double = 0.5,
         spin: Double = 0.0,
         period: Double = 16.0,
         n: Int = 256,
-    ): Loop {
+    ): Shape {
         val radius = diameter * 0.5
-        return Loop(
+        return geometry.lowerGeometry.polygon(
             (0 until n).map { i ->
                 val a = (i + 0.5) * PI * 2.0 / n
                 val s = spin * PI / 100.0
@@ -55,7 +60,7 @@ class BaubleMaker(
         )
     }
 
-    override fun run(): List<CSG> {
+    override fun run(): List<Body> {
         val length = designer.dockDiameter * 1.5
         val inLength = length * 0.9
         val posOuter = arrayListOf(0.0, length)
@@ -88,19 +93,19 @@ class BaubleMaker(
             Profile.makeProfile(
                 listOf(listOf(designer.dockLength * 0.5, 0.0), listOf(designer.dockLength, 1.0), listOf(length, 0.0)),
             )
-        var bauble =
-            extrudeProfile(pOuter, spin, wob, crossSection = { l ->
+        var bauble = geometry.extrudeShape(
+            profiles = listOf(pOuter, spin, wob),
+            shape = { l ->
                 val d = l[0]
                 val s = l[1]
                 val w = l[2]
                 wobble(d, w * 0.1, s, 12.0)
             })
-        val inside =
-            extrudeProfile(
-                pInner.clipped(designer.dockLength + 1.0, inLength),
+        val inside = geometry.extrudeShape(
+                profiles = listOf(pInner.clipped(designer.dockLength + 1.0, inLength),
                 spin.clipped(designer.dockLength + 1.0, inLength),
-                wob.clipped(designer.dockLength + 1.0, inLength),
-                crossSection = { l ->
+                wob.clipped(designer.dockLength + 1.0, inLength)),
+                shape = { l ->
                     val d = l[0]
                     val s = l[1]
                     val w = l[2]
@@ -117,7 +122,7 @@ class BaubleMaker(
                     listOf(designer.dockLength + designer.dockDiameter * 0.5, 0.0),
                 ),
             )
-        val dock = extrudeProfile(dockProfile)
+        val dock = geometry.extrudeShape(circleCrossSection, listOf(dockProfile))
         bauble = bauble.difference(dock)
         save(bauble, "bauble")
         return listOf(bauble)

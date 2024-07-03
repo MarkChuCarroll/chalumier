@@ -34,6 +34,9 @@ import org.goodmath.chalumier.design.instruments.InstrumentFactory
 import org.goodmath.chalumier.design.instruments.ReedInstrument
 import org.goodmath.chalumier.make.InstrumentMaker
 import org.goodmath.chalumier.make.ReedInstrumentMaker
+import org.goodmath.chalumier.geom.ThreeDBody
+import org.goodmath.chalumier.geom.ThreeDGeometry
+import org.goodmath.chalumier.geom.TwoDShape
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
 import kotlin.io.path.readText
@@ -144,8 +147,9 @@ class ReedDroneDesigner(
         path.writeText(Json5.encodeToString(instrument))
     }
 
-    override fun getInstrumentMaker(spec: ReedInstrument): InstrumentMaker<ReedInstrument> {
-        return ReedInstrumentMaker(name, outputDir, spec, this)
+    override fun<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>> getInstrumentMaker(
+        geometry: ThreeDGeometry<Body, Shape>, spec: ReedInstrument): InstrumentMaker<ReedInstrument, Shape, Body> {
+        return ReedInstrumentMaker(geometry, name, outputDir, spec, this)
     }
 
     override var fingerings by listOfFingeringsParam {
@@ -168,8 +172,10 @@ open class ReedPipeDesigner(override val instrumentName: String, outputDir: Path
         path.writeText(Json5.encodeToString(instrument))
     }
 
-    override fun getInstrumentMaker(spec: ReedInstrument): InstrumentMaker<ReedInstrument> {
-        return ReedInstrumentMaker(name, outputDir, spec, this)
+    override fun<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>> getInstrumentMaker(
+        geometry: ThreeDGeometry<Body, Shape>,
+        spec: ReedInstrument): InstrumentMaker<ReedInstrument, Shape, Body> {
+        return ReedInstrumentMaker(geometry, name, outputDir, spec, this)
     }
 
     override var innerDiameters by listOfDoublePairParameter {
@@ -354,8 +360,8 @@ open class ShawmDesigner(
         )
     }
 
-    override fun getInstrumentMaker(spec: ReedInstrument): InstrumentMaker<ReedInstrument> {
-        return ReedInstrumentMaker(name, outputDir, spec, this)
+    override fun<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>> getInstrumentMaker(geometry: ThreeDGeometry<Body, Shape>, spec: ReedInstrument): InstrumentMaker<ReedInstrument, Shape, Body> {
+        return ReedInstrumentMaker(geometry, name, outputDir, spec, this)
     }
 }
 
@@ -452,7 +458,9 @@ class FolkShawmDesigner(
         )
     }
 
-    override fun getInstrumentMaker(spec: ReedInstrument): InstrumentMaker<ReedInstrument> {
-        return ReedInstrumentMaker(name, outputDir, spec, this)
+    override fun<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>> getInstrumentMaker(
+        geometry: ThreeDGeometry<Body, Shape>,
+        spec: ReedInstrument): InstrumentMaker<ReedInstrument, Shape, Body> {
+        return ReedInstrumentMaker(geometry, name, outputDir, spec, this)
     }
 }

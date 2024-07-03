@@ -36,6 +36,9 @@ import org.goodmath.chalumier.design.instruments.lowHighOpt
 import org.goodmath.chalumier.diagram.Diagram
 import org.goodmath.chalumier.errors.RequiredParameterException
 import org.goodmath.chalumier.errors.dAssert
+import org.goodmath.chalumier.geom.ThreeDBody
+import org.goodmath.chalumier.geom.ThreeDGeometry
+import org.goodmath.chalumier.geom.TwoDShape
 import org.goodmath.chalumier.make.InstrumentMaker
 import org.goodmath.chalumier.make.JoinType
 import org.goodmath.chalumier.optimize.Optimizer
@@ -340,12 +343,15 @@ abstract class InstrumentDesigner<Inst : Instrument>(
         path: Path,
     )
 
-    fun getInstrumentMaker(specFilePath: Path): InstrumentMaker<Inst> {
+    open fun<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>> getInstrumentMaker(
+        geometry: ThreeDGeometry<Body, Shape>,
+        specFilePath: Path): InstrumentMaker<Inst, Shape, Body> {
         val inst = readInstrument(specFilePath)
-        return getInstrumentMaker(inst)
+        return getInstrumentMaker(geometry, inst)
     }
 
-    abstract fun getInstrumentMaker(spec: Inst): InstrumentMaker<Inst>
+    abstract fun<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>> getInstrumentMaker(
+        geometry: ThreeDGeometry<Body, Shape>, spec: Inst): InstrumentMaker<Inst, Shape, Body>
 
     /**
      * The instrument designer and the template instrument define the basic

@@ -15,28 +15,39 @@
  */
 package org.goodmath.chalumier.make
 
-import eu.mihosoft.jcsg.CSG
-import eu.mihosoft.vvecmath.Transform
+import java.nio.file.Path
+import kotlin.math.*
 import org.goodmath.chalumier.design.InstrumentDesigner
 import org.goodmath.chalumier.design.instruments.Instrument
 import org.goodmath.chalumier.design.Profile
 import org.goodmath.chalumier.errors.ConfigurationParameterException
+import org.goodmath.chalumier.geom.ThreeDBody
+import org.goodmath.chalumier.geom.ThreeDGeometry
+import org.goodmath.chalumier.geom.TwoDShape
 import org.goodmath.chalumier.shape.*
 import org.goodmath.chalumier.util.Point
-import java.nio.file.Path
-import kotlin.io.path.div
-import kotlin.io.path.writeText
-import kotlin.math.*
 
-typealias JoinFunction = (Double, Double,  Double, Double, Double, Double) -> Pair<CSG, CSG>
+
+
+class JoinFunction<Body: ThreeDBody<Body>>(
+    val f: (z0: Double, z1: Double, zMax: Double, d0: Double, d1: Double, dMax: Double) -> Pair<Body, Body>) {
+
+    fun apply(z0: Double, z1: Double, zMax: Double, d0: Double, d1: Double, dMax: Double): Pair<Body, Body> {
+        return f(z0, z1, zMax, d0, d1, dMax)
+    }
+}
+
+
+
 enum class JoinType {
     WeldedJoin, StraightJoin, TaperedJoin;
 
-    fun joiner(maker: InstrumentMaker<*>): JoinFunction {
+    fun<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>> joiner(maker: InstrumentMaker<*, Shape,
+            Body>): JoinFunction<Body> {
         return when(this) {
-            WeldedJoin -> maker::weldJoin
-            StraightJoin -> maker::straightSocket
-            TaperedJoin -> maker::taperedSocket
+            WeldedJoin -> JoinFunction(maker::weldJoin)
+            StraightJoin -> JoinFunction(maker::straightSocket)
+            TaperedJoin -> JoinFunction(maker::taperedSocket)
         }
     }
 
@@ -59,17 +70,11 @@ interface InstrumentMakerProgressUpdater {
 
 
 /**
- * @param gap Amount of gap around the joins between segments for
- *     straight or tapered joins. The best value for this will depend
- *     on the accuracy of your printer. If a joint is too loose and
- *     leaks, it can be sealed using wax.
- * @param thickSockets Add some extra thickness around sockets?
- * @param dilate Increase bore diameter by this much.
- *     Use if your 3D printer is poorly calibrated on concave curves.
- * @param join type of join between segments.
- * @param draft
+ *
  */
-abstract class InstrumentMaker<Inst: Instrument>(
+abstract class InstrumentMaker<Inst: Instrument,
+        Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>>(
+    open val geometry: ThreeDGeometry<Body, Shape>,
     open val outputPrefix: String,
     open val workingDir: Path,
     open val instrument: Inst,
@@ -105,11 +110,9 @@ abstract class InstrumentMaker<Inst: Instrument>(
         bodyRotateCost to "rot"
     )
 
-
-
-    open var instrumentBody: CSG? = null
-    open var outside: CSG? = null
-    open var bore: CSG? = null
+    open var instrumentBody: Body? = null
+    open var outside: Body? = null
+    open var bore: Body? = null
     open var progress: Int = 0
     var stage: String = "not started"
     val name: String
@@ -119,14 +122,13 @@ abstract class InstrumentMaker<Inst: Instrument>(
         reporter.update(name, stage, totalSteps().toInt(), progress)
     }
 
-    fun save(shape: CSG, name: String) {
-        (workingDir / "${outputPrefix}-${name}.stl").writeText(shape.toStlString())
-        (workingDir / "${outputPrefix}-${name}.obj").writeText(shape.toObjString())
+    fun save(shape: Body, name: String) {
+        shape.save(workingDir, "${outputPrefix}-${name}")
     }
 
     var top: Double = 0.0
 
-    open fun makeParts(up: Boolean = false, flipTop: Boolean = false): List<CSG> {
+    open fun makeParts(up: Boolean = false, flipTop: Boolean = false): List<Body> {
         return makeSegments(up, flipTop)
     }
 
@@ -154,10 +156,11 @@ abstract class InstrumentMaker<Inst: Instrument>(
         }
     }
 
-    fun makeSegments(up: Boolean = false, flipTop: Boolean = false): List<CSG> {
+    fun makeSegments(up: Boolean = false, flipTop: Boolean = false): List<Body> {
         return getCuts().map { cuts -> segment(cuts, up, flipTop) }.flatten()
     }
 
+    val circleCrossSection: (List<Double>) -> Shape = { args -> geometry.lowerGeometry.circle(args[0])}
     fun makeInstrument(
         innerProfile: Profile, outerProfile: Profile,
         holePositions: List<Double>, holeDiameters: List<Double>,
@@ -166,19 +169,23 @@ abstract class InstrumentMaker<Inst: Instrument>(
         xPad: List<Double>,
         yPad: List<Double>,
         withFingerpad: List<Boolean>,
-        outsideExtras: List<CSG> = emptyList(),
-        boreExtras: List<CSG> = emptyList()
-    ): CSG {
+        outsideExtras: List<Body> = emptyList(),
+        boreExtras: List<Body> = emptyList()
+    ): Body {
         stage = "building profile"
         report()
         val before = System.currentTimeMillis()
-        var outside = extrudeProfile(outerProfile)
+        var outside = geometry.extrudeShape(
+            circleCrossSection,
+            listOf(outerProfile))
+
         progress += bodyCost
         report()
-        var instrumentBody = outside.clone()
+        var instrumentBody = outside
         stage = "building bore"
         report()
-        var bore = extrudeProfile(innerProfile + designer.dilate)
+        var bore = geometry.extrudeShape(circleCrossSection,
+            listOf(innerProfile + designer.dilate))
         progress += boreCost
         val afterBore = System.currentTimeMillis()
         reporter.print("Main body took ${afterBore - before}ms")
@@ -194,65 +201,59 @@ abstract class InstrumentMaker<Inst: Instrument>(
             val shift = sin(radians) * height
             val holeDiameterCorrection = cos(radians).pow(-0.5)
             val holeDiameter = holeDiameters[i] * holeDiameterCorrection
-            val crossSection = { a: Double -> squaredCircle(xPad[i], yPad[i]).withEffectiveDiameter(a) }
+            val crossSection = { a: Double ->
+                geometry.lowerGeometry.squaredCircle(a + xPad[i]) }
+//                squaredCircle(xPad[i], yPad[i]).withEffectiveDiameter(a) }
             val h1 = insideHeight * 0.5
             val shift1 = sin(radians) * h1
             val h2 = height * 1.5
             val shift2 = sin(radians) * h2
-            var hole = extrusion(
+            var hole = geometry.extrudeShapes(
                 listOf(h1, h2),
                 listOf(
                     crossSection(holeDiameter).offset(0.0, shift1),
                     crossSection(holeDiameter).offset(0.0, shift2)
                 )
             )
-            hole = hole.transformed(Transform()
-                .rotX(-90.0)
-                .rotY(holeHorizAngles[i])
-                .translate(0.0, 0.0, pos + shift))
+            hole = hole.rotate(-90.0, holeHorizAngles[i], 0.0)
+                .translate(0.0, 0.0, pos + shift)
             if (withFingerpad[i] && designer.generatePads) {
                 val padHeight = height * 0.5 + 0.5 * sqrt(height * height - (holeDiameters[i] * 0.5).pow(2))
                 val padDepth = padHeight - insideHeight
                 val padMid = padDepth / 4.0
                 val padDiam = holeDiameter * 1.3
-                var fingerPad = extrudeProfile(
-                    Profile(
-                        arrayListOf(-padDepth, -padMid, 0.0),
-                        arrayListOf(padDiam + padMid * 2.0, padDiam + padMid * 2, padDiam)
-                    ),
-                    crossSection = { cs ->
+                var fingerPad = geometry.extrudeShape(
+                    { cs: List<Double> ->
                         if (cs.size != 1) {
                             throw Exception("Invalid parameters in CS")
                         }
-                        crossSection(cs[0]) }
-                )
-                var fingerPadNegative = extrudeProfile(
-                    Profile(
+                        crossSection(cs[0]) },
+                    listOf(Profile(
+                        arrayListOf(-padDepth, -padMid, 0.0),
+                        arrayListOf(padDiam + padMid * 2.0, padDiam + padMid * 2, padDiam)
+                    )))
+                var fingerPadNegative = geometry.extrudeShape(
+                    { cs: List<Double> -> crossSection(cs[0]) },
+                    listOf(Profile(
                         arrayListOf(0.0, padMid, padDepth),
                         arrayListOf(padDiam, padDiam + padMid * 8.0, padDiam + padMid * 8.0)
-                    ),
-                    name = "fingerPadNeg[$i]",
-                    crossSection = { cs -> crossSection(cs[0]) })
+                    )))
+
                 val wallAngle = -atan2(
                     0.5 * (outerProfile(pos + padDiam * 0.5) -
                             outerProfile(pos - padDiam * 0.5)),
                     padDiam
                 ) * 180.0 / PI
-                val fpTransform = Transform()
-                    .rotX(wallAngle)
+                fingerPad = fingerPad
+                    .rotate(wallAngle, 0.0, 0.0)
                     .translate(0.0, -padHeight, 0.0)
-                    .rotX(-90.0)
-                    .rotZ(holeHorizAngles[i])
+                    .rotate(-90.0, 0.0, holeHorizAngles[i])
                     .translate(0.0, pos, 0.0)
-                val fpNegTransform = Transform()
-                    .rotX(wallAngle)
+                fingerPadNegative = fingerPadNegative
+                    .rotate(wallAngle, 0.0, 0.0)
                     .translate(0.0, -padHeight, 0.0)
-                    .rotX(-90.0)
-                    .rotZ(holeHorizAngles[i])
+                    .rotate(-90.0, 0.0, holeHorizAngles[i])
                     .translate(0.0, pos, 0.0)
-
-                fingerPad = fingerPad.transformed(fpTransform)
-                fingerPadNegative = fingerPadNegative.transformed(fpNegTransform)
                 outside = outside.union(fingerPad)
                     .difference(fingerPadNegative)
                 instrumentBody = instrumentBody.union(fingerPad)
@@ -281,24 +282,24 @@ abstract class InstrumentMaker<Inst: Instrument>(
         reporter.print("Assembly took ${afterAssembly - beforeAssembly}ms")
         progress += bodyMinusBoreCost
         report()
-        instrumentBody.transformed(Transform().rotY(180.0))
+        instrumentBody.rotate(0.0, 180.0, 0.0)
         progress += bodyRotateCost
         stage = "writing"
         report()
         this.instrumentBody = instrumentBody
         this.outside = outside
         this.bore = bore
-        this.top = instrumentBody.bounds.bounds.z
+        this.top = instrumentBody.bounds().max.z
         save(instrumentBody, "full")
-        reporter.print("Body model size = ${instrumentBody.toStlString().length}")
+        reporter.print("Body model size = ${instrumentBody.toText().length}")
 
         return instrumentBody
     }
 
 
-    fun segment(originalCuts: List<Double>, up: Boolean, flipTop: Boolean): List<CSG> {
+    fun segment(originalCuts: List<Double>, up: Boolean, flipTop: Boolean): List<Body> {
         val length = top
-        var remainder = instrumentBody!!.clone()
+        var remainder = instrumentBody!!
         var workingBore = bore
         var inner = instrument.inner
         var outer = instrument.outer
@@ -309,10 +310,9 @@ abstract class InstrumentMaker<Inst: Instrument>(
         report()
         if (up) {
             cuts = cuts.reversed().map { length - it }
-            remainder = remainder.transformed(Transform().rotY(180.0).translate(0.0, length, 0.0))
+            remainder = remainder.rotate(0.0, 180.0, 0.0).translate(0.0, length, 0.0);
             if (designer.thickSockets) {
-                workingBore = workingBore!!.transformed(
-                    Transform().rotY(180.0).translate(0.0, length, 0.0))
+                workingBore = workingBore!!.rotate(0.0, 180.0, 0.0).translate(0.0, length, 0.0);
             }
             inner = inner.reversed().moved(length)
             outer = outer.reversed().moved(length)
@@ -320,7 +320,7 @@ abstract class InstrumentMaker<Inst: Instrument>(
             report()
         }
         val socket = JoinType.fromString(designer.join).joiner(this)
-        val shapes = ArrayList<CSG>()
+        val shapes = ArrayList<Body>()
         cuts.indices.forEach { idx ->
             val beforeCut = System.currentTimeMillis()
             reporter.print("..Performing cut $idx")
@@ -343,12 +343,13 @@ abstract class InstrumentMaker<Inst: Instrument>(
                     arrayListOf(p1 - (d4 - d4Orig), p1, p3),
                     arrayListOf((d1 + d4) * 0.5, d4, d4)
                 )
-                val thicker = extrudeProfile(profThicker).difference(workingBore!!)
+
+                val thicker = geometry.extrudeShape(circleCrossSection, listOf(profThicker)).difference(workingBore!!)
                 remainder = remainder.union(thicker)
             }
 
-            val (maskInside, maskOutside) = socket(p1, p3, length, d1, d4, d5)
-            var item = remainder.clone()
+            val (maskInside, maskOutside) = socket.apply(p1, p3, length, d1, d4, d5)
+            var item = remainder
             item = item.difference(maskOutside)
             remainder = remainder.intersect(maskInside)
             shapes.add(item)
@@ -365,7 +366,7 @@ abstract class InstrumentMaker<Inst: Instrument>(
         return shapes.mapIndexed { i, item ->
             val updatedItem = if (!flipTop || (up && i != shapes.size - 1) ||
                 (!up && i != 0)) {
-                item.transformed(Transform().rotY(180.0))
+                item.rotate(0.0, 180.0, 0.0)
             } else {
                 item
             }
@@ -377,15 +378,15 @@ abstract class InstrumentMaker<Inst: Instrument>(
         }
     }
 
-    fun weldJoin(_z0: Double, z1: Double, zMax: Double, d0: Double, d1: Double, dMax: Double): Pair<CSG, CSG> {
+    fun weldJoin(_z0: Double, z1: Double, zMax: Double, d0: Double, d1: Double, dMax: Double): Pair<Body, Body> {
         val prof = Profile(
             arrayListOf(z1, zMax+50.0),
             arrayListOf(dMax, dMax)
         )
-        var maskUpper = extrudeProfile(prof)
+        var maskUpper = geometry.extrudeShape(circleCrossSection, listOf(prof))
         var maskLower = maskUpper
 
-        val triangle = Loop(listOf(
+        val triangle = geometry.lowerGeometry.polygon(listOf(
             Point(0.5, 0.0),
             Point(0.0, sqrt(0.75)),
             Point(-0.5, 0.0)
@@ -395,29 +396,26 @@ abstract class InstrumentMaker<Inst: Instrument>(
         val d1_3 = d0*0.6666+d1*0.3334
         val d2_3 = d0*0.3334+d1*0.6666
         for (i in (1 until 5)) {
-            val upperBump = extrusion(
+            val upperBump = geometry.extrudeShapes(
                 arrayListOf(d1_3 * 0.5 - designer.gap * 0.5, d2_3 * 0.5 - designer.gap * 0.5, dMax * 0.5),
                 arrayListOf(triangleUpper.scale(0.0), triangleUpper, triangleUpper)
             )
-            val ubTransform = Transform()
-                .rotX(-90.0)
-                .rotY(180.0 + 360.0 / 5.0 * i)
-                .translate(0.0, z1, 0.0)
-            maskUpper = maskUpper.union(upperBump.transformed(ubTransform))
-            val lowerBump = extrusion(
+            val ubTransform = { shape: Body -> shape.rotate(-90.0,
+                180.0 + 360.0 / 5.0 * i, 0.0).translate(0.0, z1, 0.0) }
+            maskUpper = maskUpper.union(ubTransform(upperBump))
+            val lowerBump = geometry.extrudeShapes(
                 arrayListOf(d1_3 * 0.5 + designer.gap * 0.5, d2_3 * 0.5 + designer.gap * 0.5, 0.5),
                 arrayListOf(triangleLower.scale(0.0), triangleLower, triangleLower)
             )
-            val lbTransform = Transform()
-                .rotX(-90.0)
-                .rotY(180 + 360.0 / 5 * i)
-                .translate(0.0, z1, 0.0)
-            maskLower = maskLower.union(lowerBump.transformed(lbTransform))
+            val lbTransform = { shape: Body ->
+                shape.rotate(-90.0, 180 + 360.0 / 5 * i, 0.0)
+                .translate(0.0, z1, 0.0) }
+            maskLower = maskLower.union(lbTransform(lowerBump))
         }
         return Pair(maskLower, maskUpper)
     }
 
-    fun straightSocket(p1: Double, p3: Double, length: Double, d1: Double, d3: Double, d4: Double): Pair<CSG, CSG> {
+    fun straightSocket(p1: Double, p3: Double, length: Double, d1: Double, d3: Double, d4: Double): Pair<Body, Body> {
         val d2 = (d1 + d3) / 2.0
         val p2 = p1 + (d2 - d1) / 2.0
         val d1a = d1 - designer.gap
@@ -434,11 +432,11 @@ abstract class InstrumentMaker<Inst: Instrument>(
             arrayListOf(d1, d2b, d2b, d4),
             arrayListOf(d1, d2b, d4, d4)
         )
-        val maskInside = extrudeProfile(profInside)
-        val maskOutside = extrudeProfile(profOutside)
+        val maskInside = geometry.extrudeShape(circleCrossSection, listOf(profInside))
+        val maskOutside = geometry.extrudeShape(circleCrossSection, listOf(profOutside))
         return Pair(maskInside, maskOutside)
     }
-    fun taperedSocket(p1: Double, p3: Double, length: Double, d1: Double, d4: Double, d5: Double): Pair<CSG, CSG> {
+    fun taperedSocket(p1: Double, p3: Double, length: Double, d1: Double, d4: Double, d5: Double): Pair<Body, Body> {
 
         val d3 = (d1+d4) / 2.0
         val d2 = (d1+d3) / 2.0
@@ -463,8 +461,8 @@ abstract class InstrumentMaker<Inst: Instrument>(
             arrayListOf(d1,  d2b, d3b, d5),
             arrayListOf( d1,  d2b, d5,  d5 ))
 
-        val maskInside = extrudeProfile(profInside)
-        val maskOutside = extrudeProfile(profOutside)
+        val maskInside = geometry.extrudeShape(circleCrossSection, listOf(profInside))
+        val maskOutside = geometry.extrudeShape(circleCrossSection, listOf(profOutside))
         return Pair(maskInside, maskOutside)
     }
 
@@ -479,7 +477,7 @@ abstract class InstrumentMaker<Inst: Instrument>(
         return prof + decoratedProfile.clipped(prof.start(), prof.end())
     }
 
-    abstract fun run(): List<CSG>
+    abstract fun run(): List<Body>
 
     open fun totalSteps(): Long {
         val numberOfCuts = designer.divisions.sumOf { d -> d.size }

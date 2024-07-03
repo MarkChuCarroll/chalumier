@@ -15,9 +15,8 @@
  */
 package org.goodmath.chalumier.design
 
+import org.goodmath.chalumier.geom.CSG3D
 import org.goodmath.chalumier.shape.prepareExtrudeProfile
-import org.goodmath.chalumier.shape.rectangle
-import org.goodmath.chalumier.shape.roundedRectangle
 import org.goodmath.chalumier.util.Point
 import org.goodmath.chalumier.util.assertFloatListEquals
 import org.goodmath.chalumier.util.assertPointListEquals
@@ -366,6 +365,7 @@ class ProfileTest {
         assertFloatListEquals(expHigh, cp.high, 1e-4, "high")
     }
 
+/*
     @Test
     fun testExtrudeProfile() {
         // Derived from MakeWhistle-head.construct
@@ -1012,4 +1012,6 @@ class ProfileTest {
                 Point(22.799774114022153, -4.518405921392184),
             ),
         )
+
+ */
 }

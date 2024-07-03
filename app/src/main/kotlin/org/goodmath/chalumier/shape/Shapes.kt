@@ -81,7 +81,6 @@ fun extrusion(
 fun block(
     p1: Vector3d,
     p2: Vector3d,
-    name: String? = null,
     ramp: Double = 0.0,
 ): CSG {
     val verts = ArrayList<Vector3d>()
@@ -114,15 +113,14 @@ fun block(
 }
 
 fun circleCrossSection(params: List<Double>): Loop {
-    return circle(params[0])
+    return csgCircle(params[0])
 }
 
 fun extrudeProfile(
     vararg profiles: Profile,
-    name: String? = null,
     crossSection: (List<Double>) -> Loop = ::circleCrossSection,
 ): CSG {
-    val (zs, shapes) = prepareExtrudeProfile(profiles.toList(), crossSection, name)
+    val (zs, shapes) = prepareExtrudeProfile(profiles.toList(), crossSection)
     return extrusion(zs, shapes)
 }
 
@@ -130,7 +128,6 @@ fun extrudeProfile(
 fun prepareExtrudeProfile(
     profiles: List<Profile>,
     crossSection: (List<Double>) -> Loop = ::circleCrossSection,
-    name: String? = null,
 ): Pair<ArrayList<Double>, ArrayList<Loop>> {
     val zs = ArrayList<Double>()
     val shapes = ArrayList<Loop>()
@@ -159,10 +156,9 @@ fun prism(
     height: Double,
     diameter: Double,
     crossSection: (List<Double>) -> Loop = ::circleCrossSection,
-    name: String? = null,
 ): CSG {
     val span = Profile(arrayListOf(0.0, height), arrayListOf(diameter, diameter))
-    return extrudeProfile(span, name = name, crossSection = crossSection)
+    return extrudeProfile(span, crossSection = crossSection)
 }
 
 fun makeSegment(
@@ -240,16 +236,6 @@ fun makeSegments(
     return Pair(parts, lengths)
 }
 
-fun CSG.positionNicely(): CSG {
-    return transformed(
-        Transform()
-            .translate(
-                -0.5 * (bounds.min.x + bounds.max.x),
-                -0.5 * (bounds.min.y + bounds.max.y),
-                -bounds.min.z,
-            ),
-    )
-}
 
 // ph's code had a function here called makeFormwork, which
 // made absolutely no sense (it made calls to pack.pack(template, List<packables>)

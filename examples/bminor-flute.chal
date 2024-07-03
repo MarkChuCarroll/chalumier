@@ -1,0 +1,40 @@
+# This is where I get nerdy. This is a seven hole, nearly
+# chromatic flute with a minor primary scale.
+folkFlute {
+    name = "BMinorFlute",
+    rootNote = "B5",
+    maxLength = 400.0,
+    minLength = 300.0,
+    numberOfHoles = 8,
+    fingerings = [
+        { noteName = "B5",  fingers = "X X X X X X X / O" },
+     	{ noteName = "C6",  fingers = "O X X X X X X / O" },
+        { noteName = "C#6", fingers = "O O X X X X X / O" },
+        { noteName = "D6",  fingers = "O O O X X X X / O" },
+  	    { noteName = "E6",  fingers = "O O O O X X X / O" },
+#	    { noteName = "F6",  fingers = "O X X X O X X / O" },
+        { noteName = "F#6", fingers = "O O O O O X X / O" },
+        { noteName = "G6",  fingers = "O O O O O O X / O" },
+#        { noteName = "G#6", fingers = "O O O X X X O / O" },
+        { noteName = "A6",  fingers = "O O O O O O O / O" },
+
+        { noteName = "B6",  fingers = "X X X X X X X / O" },
+     	{ noteName = "C7",  fingers = "O X X X X X X / O" },
+        { noteName = "C#7", fingers = "O O X X X X X / O" },
+        { noteName = "D7",  fingers = "O O O X X X X / O" },
+        { noteName = "E7",  fingers = "O O O O X X X / O" },
+#       { noteName = "F7",  fingers = "O X X X O X X / O" },
+        { noteName = "F#7", fingers = "O O O O O X X / O" },
+        { noteName = "G7",  fingers = "O O O O O O X / O" }
+#        { noteName = "G#7", fingers = "O O O X X X O / O" }
+    ],
+
+    balance =          [ null,  null,  null, null, null,  null ],
+    holeAngles =       [ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 ],
+    holeHorizAngles =  [ 45.0, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
+    /maxHoleSpacing =   [ 45.0, 45.0, 45.0, null, 45.0, 45.0, null ],
+    minHoleSpacing = [5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 10.0 ],
+    minHoleDiameters = [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 11.3],
+    maxHoleDiameters = [15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 11.3]
+
+}

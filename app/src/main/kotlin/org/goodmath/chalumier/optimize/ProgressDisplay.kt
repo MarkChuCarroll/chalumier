@@ -21,7 +21,7 @@ import com.github.ajalt.mordant.table.ColumnWidth
 import com.github.ajalt.mordant.table.table
 import com.github.ajalt.mordant.terminal.Terminal
 import com.github.ajalt.mordant.widgets.ProgressBar
-import org.goodmath.chalumier.cli.BoundedTranscript
+import org.goodmath.chalumier.cli.ui.BoundedTranscript
 import kotlin.math.*
 
 /*

@@ -17,8 +17,23 @@ package org.goodmath.chalumier.cli
 
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
+import com.github.ajalt.clikt.parameters.types.enum
 import com.github.ajalt.clikt.parameters.types.path
+import org.goodmath.chalumier.cli.ui.MakerState
+import org.goodmath.chalumier.cli.ui.ProgressMonitor
+import org.goodmath.chalumier.geom.CSG2D
+import org.goodmath.chalumier.geom.CSG3D
+import org.goodmath.chalumier.geom.CSGGeometry
+import org.goodmath.chalumier.geom.Scad2D
+import org.goodmath.chalumier.geom.Scad2DShape
+import org.goodmath.chalumier.geom.Scad3D
+import org.goodmath.chalumier.make.InstrumentMaker
 import org.goodmath.chalumier.make.InstrumentMakerProgressUpdater
+import org.goodmath.chalumier.geom.Scad3DGeometry
+
+enum class Geometry {
+    CSG, SCAD
+}
 
 class Make : ChalumierCommand(name = "make", help = "Generate an STL model of an instrument") {
     private val workDir by option("--workdir", help = "The directory to use  for saving files").path(mustExist = false).required()
@@ -30,12 +45,19 @@ class Make : ChalumierCommand(name = "make", help = "Generate an STL model of an
         "--model-file",
         help = "The path to a file containing a generated model from the designer",
     ).path(mustExist = true).required()
+    private val geometry by option(
+        "--geometry",
+        help="The name of the geometry model").enum<Geometry>().required()
 
     override fun run() {
         val designer = builder.getDesigner(desc, workDir)
 
         val progress = ProgressMonitor<MakerState>(designer.name)
-        val maker = designer.getInstrumentMaker(spec)
+        val maker: InstrumentMaker<*, *, *> = if (geometry == Geometry.CSG) {
+            designer.getInstrumentMaker<CSG2D, CSG3D>(CSGGeometry, spec)
+        } else {
+            designer.getInstrumentMaker<Scad2DShape, Scad3D>(Scad3DGeometry, spec)
+        }
 
         maker.reporter =
             object : InstrumentMakerProgressUpdater {

@@ -73,7 +73,7 @@ class Loop(valueList: List<Point>): Configurable<Loop>("loop") {
         return pretty.encodeToString(j)
     }
 
-    val loopValues = ArrayList(valueList)
+    val loopValues: ArrayList<Point> = ArrayList(valueList)
 
     fun len(): Int = loopValues.size
 
@@ -148,7 +148,6 @@ class Loop(valueList: List<Point>): Configurable<Loop>("loop") {
 
     fun withArea(area: Double): Loop {
         return scale(sqrt(area / this.area))
-
     }
 
     fun withEffectiveDiameter(diameter: Double): Loop {

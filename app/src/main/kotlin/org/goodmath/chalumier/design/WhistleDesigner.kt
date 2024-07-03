@@ -24,6 +24,9 @@ import org.goodmath.chalumier.design.Hole.O
 import org.goodmath.chalumier.design.instruments.Instrument
 import org.goodmath.chalumier.design.instruments.InstrumentFactory
 import org.goodmath.chalumier.design.instruments.Whistle
+import org.goodmath.chalumier.geom.ThreeDBody
+import org.goodmath.chalumier.geom.ThreeDGeometry
+import org.goodmath.chalumier.geom.TwoDShape
 import org.goodmath.chalumier.make.InstrumentMaker
 import org.goodmath.chalumier.make.WhistleHeadMaker
 import org.goodmath.chalumier.make.WhistleMaker
@@ -124,10 +127,11 @@ abstract class AbstractWhistleDesigner(n: String,
         return patchedInst
     }
 
-    override fun getInstrumentMaker(
+    override fun<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>> getInstrumentMaker(
+        geometry: ThreeDGeometry<Body, Shape>,
         spec: Whistle,
-    ): InstrumentMaker<Whistle> {
-        return WhistleMaker("whistle", outputDir, spec, this)
+    ): InstrumentMaker<Whistle, Shape, Body> {
+        return WhistleMaker(geometry, "whistle", outputDir, spec, this)
     }
 }
 

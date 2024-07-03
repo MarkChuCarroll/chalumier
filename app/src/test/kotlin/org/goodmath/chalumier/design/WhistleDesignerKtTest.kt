@@ -33,7 +33,8 @@ class WhistleDesignerKtTest {
     @BeforeEach
     fun setup() {
         designer = folkWhistleDesigner("test", Path("/tmp/foo"))
-        val cfg = DescriptionParser(Path("/Users/mark.chu-carroll/Hack/chalumier/examples/dwhistle.chal").reader()).parseConfig()
+        System.err.println("ABS = ${Path("../examples/dwhistle.chal").toAbsolutePath()}")
+        val cfg = DescriptionParser(Path("../examples/dwhistle.chal").reader()).parseConfig()
         designer.updateFromConfig(cfg)
     }
 

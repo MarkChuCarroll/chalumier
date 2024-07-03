@@ -26,6 +26,9 @@ import org.goodmath.chalumier.design.instruments.InstrumentFactory
 import org.goodmath.chalumier.design.instruments.TaperedFlute
 import org.goodmath.chalumier.design.instruments.dup
 import org.goodmath.chalumier.errors.ConfigurationParameterException
+import org.goodmath.chalumier.geom.ThreeDBody
+import org.goodmath.chalumier.geom.ThreeDGeometry
+import org.goodmath.chalumier.geom.TwoDShape
 import org.goodmath.chalumier.make.FluteMaker
 import org.goodmath.chalumier.make.InstrumentMaker
 import org.goodmath.chalumier.util.fromEnd
@@ -193,7 +196,8 @@ abstract class FluteDesigner<Inst: Instrument>(override val instrumentName: Stri
     }
 }
 
-open class TaperedFluteDesigner(override val instrumentName: String, dir: Path,
+open class TaperedFluteDesigner(
+    override val instrumentName: String, dir: Path,
                            builder: InstrumentFactory<TaperedFlute> = TaperedFlute.builder) : FluteDesigner<TaperedFlute>(instrumentName, dir, builder) {
 
 
@@ -209,8 +213,9 @@ open class TaperedFluteDesigner(override val instrumentName: String, dir: Path,
         return Json5.decodeFromString<TaperedFlute>(path.readText())
     }
 
-    override fun getInstrumentMaker(spec: TaperedFlute): InstrumentMaker<TaperedFlute> {
-        return FluteMaker(name, outputDir, spec, this)
+    override fun<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>> getInstrumentMaker(geometry: ThreeDGeometry<Body, Shape>,
+                                                            spec: TaperedFlute): InstrumentMaker<TaperedFlute, Shape, Body> {
+        return FluteMaker(geometry, name, outputDir, spec, this)
     }
 
     override fun writeInstrument(instrument: TaperedFlute, path: Path) {

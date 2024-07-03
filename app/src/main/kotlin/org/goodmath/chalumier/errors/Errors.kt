@@ -35,3 +35,5 @@ class ConfigurationParameterValueException(val expected: String, val value: Any?
 class ConfigurationParameterException(error: String) : ChalumierException("Config error: $error")
 
 class AssertionException(msg: String) : ChalumierException(msg)
+
+class InvalidOperationException(msg: String): ChalumierException(msg)

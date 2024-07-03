@@ -20,7 +20,7 @@ import org.goodmath.chalumier.util.Point
 import kotlin.math.*
 
 
-fun circle(diameter: Double = 1.0, n: Int = QUALITY): Loop {
+fun csgCircle(diameter: Double = 1.0, n: Int = QUALITY): Loop {
     val radius = diameter * 0.5
     return Loop((0 until n).map { i ->
         val a = (i + 0.5) * PI * 2.0 / (n.toDouble())
@@ -28,7 +28,7 @@ fun circle(diameter: Double = 1.0, n: Int = QUALITY): Loop {
     })
 }
 
-fun chordedCirle(amount: Double = 0.5): Loop {
+fun csgChordedCircle(amount: Double = 0.5): Loop {
     // ph: semi-circle and the like
     val a1 = PI * (0.5 + amount)
     val a2 = PI * (2.5 - amount)
@@ -38,15 +38,7 @@ fun chordedCirle(amount: Double = 0.5): Loop {
     })
 }
 
-fun square(size: Double): Loop {
-    return Loop(
-        listOf(
-            Point(size, size), Point(-size, size), Point(-size, -size), Point(size, -size)
-        )
-    )
-}
-
-fun squaredCircle(xPad: Double, yPad: Double, diameter: Double = 1.0): Loop {
+fun csgSquaredCircle(xPad: Double, yPad: Double, diameter: Double = 1.0): Loop {
     // ph: Squared circle with same area as circle of specified diameter
     var result = (0 until QUALITY).map { i ->
         val a = (i.toDouble() + 0.5) * PI * 2.0 / (QUALITY.toDouble())
@@ -70,7 +62,7 @@ fun squaredCircle(xPad: Double, yPad: Double, diameter: Double = 1.0): Loop {
     return Loop(result.map { (x, y) -> Point(x * scale, y * scale) })
 }
 
-fun rectangle(p0: Point, p1: Point): Loop {
+fun csgRectangle(p0: Point, p1: Point): Loop {
     return Loop(
         listOf(
             p0, Point(p1.x, p0.y), p1, Point(p0.x, p1.y)
@@ -78,38 +70,34 @@ fun rectangle(p0: Point, p1: Point): Loop {
     )
 }
 
-fun roundedRectangle(p0: Point, p1: Point, diameter: Double): Loop {
+fun csgRoundedRectangle(p0: Point, p1: Point, diameter: Double): Loop {
     val radius = listOf(diameter, p1.x - p0.x, p1.y - p0.y).min() * 0.5
     val result = (0 until QUALITY).map { i ->
         val a = (i.toDouble() + 0.5) * PI * 2.0 / QUALITY.toDouble()
         var x = cos(a) * radius
-        if (x < 0.0) {
-            x += (p0.x + radius)
+        x += if (x < 0.0) {
+            (p0.x + radius)
         } else {
-            x += (p1.x - radius)
+            (p1.x - radius)
         }
         var y = sin(a) * radius
-        if (y < 0) {
-            y += p0.y + radius
+        y += if (y < 0) {
+            p0.y + radius
         } else {
-            y += p1.y - radius
+            p1.y - radius
         }
         Point(x, y)
     }
     return Loop(result)
 }
 
-fun halfRoundedRectangle(p0: Point, p1: Point): Loop {
+fun csgHalfRoundedRectangle(p0: Point, p1: Point): Loop {
     val radius = p1.x - p0.x
     val result = (0 until QUALITY).map { i -> i.toDouble() }.map { i ->
         val a = ((i + 0.5) / QUALITY - 0.5) * PI
         val x = cos(a) * radius + p0.x
         var y = sin(a) * radius
-        if (y < 0) {
-            y += (p0.y + radius)
-        } else {
-            y += (p1.y - radius)
-        }
+        if (y < 0) y += (p0.y + radius) else y += (p1.y - radius)
         Point(x, y)
     }.toMutableList()
     result.add(Point(p0.x, p1.y))
@@ -117,7 +105,7 @@ fun halfRoundedRectangle(p0: Point, p1: Point): Loop {
     return Loop(result)
 }
 
-fun lens(amount: Double, circumference: Double = PI): Loop {
+fun csgLens(amount: Double, circumference: Double = PI): Loop {
     val turn = asin(amount)
     val turn2 = PI - turn * 2
     val shift = sin(turn)
@@ -128,7 +116,7 @@ fun lens(amount: Double, circumference: Double = PI): Loop {
     return Loop(result + result.map { (x, y) -> Point(-x, -y) }).withCircumference(circumference)
 }
 
-fun lens2(amount: Double, circumference: Double = PI): Loop {
+fun csgLens2(amount: Double, circumference: Double = PI): Loop {
     val turn = PI * 0.5 * amount
     val turn2 = PI - turn * 2
     val shift = sin(turn)

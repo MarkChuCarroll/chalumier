@@ -19,10 +19,15 @@ import eu.mihosoft.jcsg.CSG
 import org.goodmath.chalumier.design.Profile
 import org.goodmath.chalumier.design.TaperedFluteDesigner
 import org.goodmath.chalumier.design.instruments.TaperedFlute
+import org.goodmath.chalumier.geom.ThreeDBody
+import org.goodmath.chalumier.geom.ThreeDGeometry
+import org.goodmath.chalumier.geom.TwoDShape
+import org.goodmath.chalumier.shape.circleCrossSection
 import org.goodmath.chalumier.shape.extrudeProfile
 import java.nio.file.Path
 
-class CorkMaker(
+class CorkMaker<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>>(
+    geometry: ThreeDGeometry<Body, Shape>,
     outputPrefix: String,
     workingDir: Path,
     instrument: TaperedFlute,
@@ -31,19 +36,19 @@ class CorkMaker(
     val diameter: Double = 10.0,
     val taperIn: Double = 0.25,
     val taperOut: Double = 0.125,
-) : InstrumentMaker<TaperedFlute>(outputPrefix, workingDir, instrument, designer) {
-    override fun run(): List<CSG> {
+) : InstrumentMaker<TaperedFlute, Shape, Body>(geometry, outputPrefix, workingDir, instrument, designer) {
+    override fun run(): List<Body> {
         val d1 = diameter - taperOut
         val d2 = diameter - taperIn
-        val cork =
-            extrudeProfile(
-                Profile.makeProfile(
+        val cork = geometry.extrudeShape(
+            circleCrossSection,
+                listOf(Profile.makeProfile(
                     listOf(
                         listOf(0.0, d1),
                         listOf(length, d2),
                     ),
                 ),
-            )
+            ))
         save(cork, "cork")
         return listOf(cork)
     }

@@ -42,7 +42,7 @@ class Limits(
     var xMin: Double, var xMax: Double, var yMin: Double, var yMax: Double, val zMin: Double, val zMax: Double
 )
 
-class Limits2(val xMin: Double, xMax: Double, yMin: Double, yMax: Double)
+data class Limits2(val xMin: Double, val xMax: Double, val yMin: Double, val yMax: Double)
 
 
 fun noise(): Double {

@@ -19,20 +19,24 @@ import eu.mihosoft.jcsg.CSG
 import org.goodmath.chalumier.design.Profile
 import org.goodmath.chalumier.design.TaperedFluteDesigner
 import org.goodmath.chalumier.design.instruments.TaperedFlute
+import org.goodmath.chalumier.geom.ThreeDBody
+import org.goodmath.chalumier.geom.ThreeDGeometry
+import org.goodmath.chalumier.geom.TwoDShape
 import org.goodmath.chalumier.util.fromEnd
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
 import kotlin.io.path.div
 import kotlin.io.path.writeText
 
-open class FluteMaker(
+open class FluteMaker<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>>(
+    geometry: ThreeDGeometry<Body, Shape>,
     prefix: String,
     dir: Path,
     instrument: TaperedFlute,
     override val designer: TaperedFluteDesigner,
 ) :
-    InstrumentMaker<TaperedFlute>(prefix, dir, instrument, designer) {
-    override fun run(): List<CSG> {
+    InstrumentMaker<TaperedFlute, Shape, Body>(geometry, prefix, dir, instrument, designer) {
+    override fun run(): List<Body> {
         val length = designer.length * 1.05 // Extend a bit to allow cork.
         val innerProfile =
             if (designer.openBothEnds) {

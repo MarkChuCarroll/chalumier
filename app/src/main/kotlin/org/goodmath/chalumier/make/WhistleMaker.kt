@@ -15,27 +15,28 @@
  */
 package org.goodmath.chalumier.make
 
-import eu.mihosoft.jcsg.CSG
-import eu.mihosoft.vvecmath.Transform
-import eu.mihosoft.vvecmath.Vector3d
 import org.goodmath.chalumier.design.AbstractWhistleDesigner
 import org.goodmath.chalumier.design.Profile
 import org.goodmath.chalumier.design.instruments.Whistle
 import org.goodmath.chalumier.errors.dAssert
-import org.goodmath.chalumier.shape.*
+import org.goodmath.chalumier.geom.ThreeDBody
+import org.goodmath.chalumier.geom.ThreeDGeometry
+import org.goodmath.chalumier.geom.ThreeDPoint
+import org.goodmath.chalumier.geom.TwoDShape
 import org.goodmath.chalumier.util.Point
 import org.goodmath.chalumier.util.repeat
 import java.nio.file.Path
 import kotlin.math.PI
 import kotlin.math.sqrt
 
-class WhistleHeadMaker(
+class WhistleHeadMaker<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>>(
+    geometry: ThreeDGeometry<Body, Shape>,
     prefix: String,
     dir: Path,
     instrument: Whistle,
     override val designer: AbstractWhistleDesigner,
     val boreDiam: Double = 15.0,
-    val outsideDiam: Double = 21.0): InstrumentMaker<Whistle>(prefix, dir, instrument, designer) {
+    val outsideDiam: Double = 21.0): InstrumentMaker<Whistle, Shape, Body>(geometry, prefix, dir, instrument, designer) {
 
     val gapWidth: Double = effectiveGapDiameter(boreDiam)
     val gapLength: Double = effectiveGapHeight(boreDiam, outsideDiam)
@@ -54,11 +55,10 @@ class WhistleHeadMaker(
         }
 
     }
-    fun construct(): List<CSG> {
+    fun construct(): List<Body> {
         reporter.print("Running head constructor")
-        Thread.sleep(2000)
         val boreLength = boreDiam * 1.5
-        val gapLength = boreLength * this.gapLength
+        val gapLength = boreDiam * this.gapLength
         val windCutterLength = boreDiam * 1.0  // Why???
         val airwayLength = boreDiam * 1.5
         val zMin = -boreLength
@@ -100,97 +100,98 @@ class WhistleHeadMaker(
                 listOf(zWindCutter1, boreDiam * 0.5)
             )
         )
-        var body = extrudeProfile(
+        var body = geometry.extrudeShape(circleCrossSection, listOf(
                 Profile.makeProfile(
                     listOf(listOf(zMin, outsideDiam), listOf(zMax, outsideDiam))
             )
-        )
-        val boreSpace = extrudeProfile(
-                Profile.makeProfile(
+        ))
+        val boreSpace = geometry.extrudeShape(circleCrossSection,
+                listOf(Profile.makeProfile(
                     listOf(
                         listOf(zMin, boreDiam),
                         listOf(zGap1, boreDiam)
                     )
-                )
+                ))
         )
 
-        val windCutterSpace = extrudeProfile(
-            zWindCutterLine.clipped(zWindCutter0 - 1.0, zGap1),
-            crossSection = { xList ->
+        val windCutterSpace = geometry.extrudeShape(
+            profiles = listOf(zWindCutterLine.clipped(zWindCutter0 - 1.0, zGap1)),
+            shape = { xList ->
                 val x = xList.first()
-                roundedRectangle(
-                    Point(x, windCutterYSize * -0.5),
-                    Point(x + boreDiam, windCutterYSize * 0.5,),
-                    windCutterRounding
+                geometry.lowerGeometry.roundedRectangle(boreDiam, windCutterYSize,
+                    windCutterRounding,
+                    Point(x, 0.0)
                 )
             })
+        save(body, "before_windcutter_space")
         body = body.difference(windCutterSpace)
-        val underCutterSpace = extrudeProfile(
-            underCutterLine.clipped(zWindCutter0, zGap1),
-            crossSection = { xs ->
+        save(body, "after_windcutter space")
+        val underCutterSpace = geometry.extrudeShape(
+            profiles=listOf(underCutterLine.clipped(zWindCutter0, zGap1)),
+            shape = { xs ->
                 dAssert(xs.size == 1, "Only expected 1 element for the crosssection of undercutter")
                 val x = xs.first()
-                rectangle(
-                    Point(x - airwayXSize, airwayYSize * -0.5),
-                    Point(x, airwayYSize * 0.5)
-                )
+                geometry.lowerGeometry.rectangle(airwayXSize, airwayYSize, Point(x, 0.0))
             })
         var space = boreSpace.difference(underCutterSpace).union(underCutterSpace)
-        val airwaySpace = extrudeProfile(
-            airwayLine0.clipped(zGap0, zAirway1 + airwayXSize * 2),
-            airwayLine1.clipped(zGap0, zAirway1 + airwayXSize * 2),
-            crossSection = { xs ->
+        val airwaySpace = geometry.extrudeShape(
+            profiles = listOf(airwayLine0.clipped(zGap0, zAirway1 + airwayXSize * 2),
+            airwayLine1.clipped(zGap0, zAirway1 + airwayXSize * 2)),
+            shape = { xs ->
                 dAssert(xs.size == 2, "Expected 2 params for airwayspace")
                 val x0 = xs[0]
                 val x1 = xs[1]
-                rectangle(
-                    Point(x0, airwayYSize * -0.5),
-                    Point(x1, airwayYSize * 0.5)
-                )
+                geometry.lowerGeometry.rectangle(
+                    (x1-x0), airwayYSize, Point(x0, 0.0))
             })
         body = body.difference(airwaySpace)
+        save(body, "after_airway_space")
         space = space.union(airwaySpace)
-        val gapSpace = block(
-            Vector3d.xyz(0.0, airwayYSize * -0.5, zGap0),
-            Vector3d.xyz(boreDiam, airwayYSize * 0.5, zGap1)
+        val gapSpace = geometry.block(
+            ThreeDPoint(0.0, airwayYSize * -0.5, zGap0),
+            ThreeDPoint(boreDiam, airwayYSize * 0.5, zGap1)
         )
         body = body.difference(gapSpace)
+        save(body, "after_gap_space")
+
         space = space.union(gapSpace)
 
         val cutawayDiameter = outsideDiam * 1.5
-        var cutawaySpace = extrudeProfile(
-                Profile.makeProfile(
+        var cutawaySpace = geometry.extrudeShape(
+            circleCrossSection,
+            listOf(Profile.makeProfile(
                     listOf(
                         listOf(-outsideDiam * 0.51, cutawayDiameter),
                         listOf(outsideDiam * 0.51, cutawayDiameter)
                     )
-                )
-        )
-        cutawaySpace = cutawaySpace.transformed(
-            Transform()
-                .rotX(90.0)
-                .translate(-cutawayDiameter * 0.5 + boreDiam * 0.5 - (outsideDiam * 0.5 - boreDiam * 0.5), 0.0, zMax)
-        )
+                )))
+        cutawaySpace = cutawaySpace.rotate(90.0, 0.0, 0.0)
+                .translate(-cutawayDiameter * 0.5 + boreDiam * 0.5 - (outsideDiam * 0.5 - boreDiam * 0.5),zMax, 0.0)
+
         body = body.difference(cutawaySpace)
+        save(body, "after_cutaway_space")
         space = space.union(cutawaySpace)
 
         var d = airwayXLow * 2
-        val jawClipper = extrudeProfile(
-            Profile.makeProfile(
+        val jawClipper = geometry.extrudeShape(
+            profiles = listOf(Profile.makeProfile(
                 listOf(listOf(-outsideDiam * 0.5 - 10, d), listOf(outsideDiam * 0.5 + 10.0, d))
-            ),
-            crossSection = { xs ->
+            )),
+            shape = { xs ->
                 dAssert(xs.size == 1, "Expected 1 parameter extruding jawclipper")
                 d = xs[0]
-                halfRoundedRectangle(
-                    Point(-0.001, zAirway0 - d * 0.5),
-                    Point(airwayXLow * 1.001, zMax + d * 0.5)
-                )
-            }).transformed(Transform().rotX(-90.0))
+                val width = airwayXLow*1.001 + 0.001
+                val height = (zMax - zAirway0) + d
+                geometry.lowerGeometry.halfRoundedRectangle(
+                    width, height, Point(0.0, (zMax - zAirway0)/2.0))
+            }).rotate(-90.0, 0.0, 0.0)
+        save(body, "head-body")
+        save(space, "head-space")
+        save(jawClipper, "head-clipper")
         return listOf(body, space, jawClipper)
     }
 
-    override fun run(): List<CSG> {
+    override fun run(): List<Body> {
         var (body, space, jawClipper) = construct()
 
         body = body.difference(space)
@@ -203,28 +204,29 @@ class WhistleHeadMaker(
         return listOf(body, jaw, head)
     }
 }
-class WhistleMaker(
+class WhistleMaker<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>>(
+    geometry: ThreeDGeometry<Body, Shape>,
     prefix: String,
     workingDir: Path,
     spec: Whistle,
-    override val designer: AbstractWhistleDesigner): InstrumentMaker<Whistle>(prefix, workingDir, spec, designer) {
+    override val designer: AbstractWhistleDesigner): InstrumentMaker<Whistle, Shape, Body>(geometry, prefix, workingDir, spec, designer) {
 
     override fun getCuts(): List<List<Double>> {
         val cuts = super.getCuts()
         return cuts.map { item -> item + listOf(designer.length) }
     }
 
-    override fun run(): List<CSG> {
-        val headMaker = WhistleHeadMaker(outputPrefix, workingDir, instrument, designer,
+    override fun run(): List<Body> {
+        val headMaker = WhistleHeadMaker(geometry, outputPrefix, workingDir, instrument, designer,
             boreDiam = instrument.inner(instrument.length),
             outsideDiam = instrument.outer(instrument.length))
         val before = System.currentTimeMillis()
         var (whistleHeadOuter, whistleHeadInner, whistleJawClipper) = headMaker.construct()
-        whistleHeadInner = whistleHeadInner.transformed(Transform()
+        whistleHeadInner = whistleHeadInner
             .translate(0.0, 0.0, designer.length)
-            .rotZ(90.0))
-        whistleHeadOuter = whistleHeadOuter.transformed(Transform()
-            .translate(0.0, 0.0, designer.length).rotZ(90.0))
+            .rotate(0.0, 0.0, 90.0)
+        whistleHeadOuter = whistleHeadOuter
+            .translate(0.0, 0.0, designer.length).rotate(0.0, 0.0, 90.0)
         val afterHead = System.currentTimeMillis()
         reporter.print("Head took ${afterHead - before}ms")
         val inst = makeInstrument(
