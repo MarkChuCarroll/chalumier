@@ -38,6 +38,12 @@ fun csgChordedCircle(amount: Double = 0.5): Loop {
     })
 }
 
+fun main() {
+    val c = csgSquaredCircle(20.0, 20.0, 100.0)
+    val s = c.loopValues.map { "[${it.x} , ${it.y}, 0]" } .joinToString(", ")
+    System.err.println("[$s]")
+    }
+
 fun csgSquaredCircle(xPad: Double, yPad: Double, diameter: Double = 1.0): Loop {
     // ph: Squared circle with same area as circle of specified diameter
     var result = (0 until QUALITY).map { i ->

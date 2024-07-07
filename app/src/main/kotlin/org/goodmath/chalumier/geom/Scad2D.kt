@@ -1,9 +1,9 @@
 package org.goodmath.chalumier.geom
 
 import org.goodmath.chalumier.design.curves.squared
+import org.goodmath.chalumier.shape.QUALITY
 import org.goodmath.chalumier.util.Point
-import kotlin.math.PI
-import kotlin.math.sqrt
+import kotlin.math.*
 
 object Scad2D: TwoDGeometry<Scad2DShape> {
     override fun circle(diameter: Double, origin: Point): Scad2DShape = ScadEllipse(origin, diameter, diameter)
@@ -21,12 +21,33 @@ object Scad2D: TwoDGeometry<Scad2DShape> {
     ): Scad2DShape = ScadRoundedRectangle(origin, width, height, diameter)
 
     override fun squaredCircle(
+        xPad: Double,
+        yPad: Double,
         diameter: Double,
         origin:Point
     ): Scad2DShape {
-        val a = PI * diameter*diameter
-        val width = sqrt(a)
-        return square(width, origin)
+        // ph: Squared circle with same area as circle of specified diameter
+        var result = (0 until QUALITY).map { i ->
+            val a = (i.toDouble() + 0.5) * PI * 2.0 / (QUALITY.toDouble())
+            var x = cos(a)
+            if (x < 0) {
+                x -= xPad * 0.5
+            } else {
+                x += xPad * 0.5
+            }
+            var y = sin(a)
+            if (y < 0) {
+                y -= yPad * 0.5
+            } else {
+                y += yPad * 0.5
+            }
+            Pair(x, y)
+        }
+        val area = PI + xPad * yPad + xPad * 2 + yPad * 2
+        val want = PI * (diameter * 0.5).pow(2)
+        val scale = sqrt(want / area)
+        val points =  result.map { (x, y) -> Point(x * scale, y * scale) }
+        return ScadPolygon(points, Point(0.0, 0.0))
     }
 
     override fun halfRoundedRectangle(
@@ -42,12 +63,11 @@ abstract class Scad2DShape: TwoDShape<Scad2DShape> {
 
 
     fun trans(origin: Point, r: String): String {
-        return r
-//        return if (origin != Point(0.0, 0.0)) {
-//            "translate([-${origin.x}, -${origin.y}, 0]) { $r }"
-//        } else {
-//            r
-//        }
+        return if (origin != Point(0.0, 0.0)) {
+            "translate([${origin.x}, ${origin.y}, 0]) { $r }"
+        } else {
+            r
+        }
     }
 
     override fun withArea(targetArea: Double): Scad2DShape {
@@ -95,7 +115,7 @@ open class ScadRectangle(val origin: Point, val width: Double, val height: Doubl
     }
 
     override fun render(): String {
-        return trans(origin, "square([$width, $height], center=true)")
+        return trans(origin, "square([$width, $height], center=true);")
     }
 }
 
@@ -103,7 +123,7 @@ class ScadRoundedRectangle(origin: Point, width: Double, height: Double, val dia
     ScadRectangle(origin, width, height) {
     override fun render(): String {
         //return trans(origin, "round2d(${diameter}) { square([$width, $height], center=true); }")
-        return trans(origin, "square([$width, $height], center=true)")
+        return trans(origin, "square([$width, $height], center=true);")
     }
 
     override fun offset(x: Double, y: Double): Scad2DShape {
@@ -115,8 +135,8 @@ class ScadRoundedRectangle(origin: Point, width: Double, height: Double, val dia
 class ScadHalfRoundedRectangle(origin: Point, width: Double, height: Double):
     ScadRectangle(origin, width, height) {
     override fun render(): String {
-        val circ = "circle(${2.0*width})"
-        val scaled = "scaled([1.0, ${height/width}, 1.0]) { $circ }"
+        val circ = "circle(${width/2.0}, center=true)"
+        val scaled = "scaled([1.0, ${height/width}, 1.0]) { $circ; }"
 
         return trans(origin, "right_half(planar=true) { top_half(planar=true) { $scaled } }")
     }
@@ -163,7 +183,7 @@ class ScadEllipse(val origin: Point, val width: Double, val height: Double): Sca
     }
 
     override fun render(): String {
-        val circle = "circle(${width})"
+        val circle = "circle(${width});"
         val ell = if (width != height) {
             "scale([1.0, ${height / width}, 1.0]) $circle"
         } else {
@@ -175,7 +195,7 @@ class ScadEllipse(val origin: Point, val width: Double, val height: Double): Sca
 
 class ScadPolygon(val points: List<Point>, val origin: Point): Scad2DShape() {
     override fun render(): String {
-        return "polygon(points=[${points.map { "[${it.x}, ${it.y}]" }.joinToString(", ")}])"
+        return "polygon(points=[${points.map { "[${it.x}, ${it.y}]" }.joinToString(", ")}]);"
     }
 
     override fun scale(factor: Double): Scad2DShape {

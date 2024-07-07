@@ -101,13 +101,11 @@ class ReedInstrumentMaker<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>>(
                 holeHorizAngles = designer.holeHorizAngles,
                 xPad = listOf(0.0).repeat(nHoles),
                 yPad = listOf(0.0).repeat(nHoles),
-                withFingerpad = listOf(designer.generatePads).repeat(nHoles),
+                withFingerPad = listOf(designer.generatePads).repeat(nHoles),
             )
         if (designer.addBauble) {
-            bauble =
-                bauble!!.rotate(180.0, 0.0, 0.0)
-                        .translate(0.0, 0.0, endDockLength)
-
+            bauble!!.rotate(180.0, 0.0, 0.0)
+            bauble.translate(0.0, 0.0, endDockLength)
             result = result.union(bauble)
         }
         instrumentBody = result

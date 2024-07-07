@@ -63,9 +63,10 @@ object CSG2DGeometry: TwoDGeometry<CSG2D> {
     )
 
     override fun squaredCircle(
+        xPad: Double, yPad: Double,
         diameter: Double,
         origin: Point
-    ): CSG2D = CSG2D(csgSquaredCircle(0.0, 0.0, diameter))
+    ): CSG2D = CSG2D(csgSquaredCircle(xPad, yPad, diameter))
 
     override fun halfRoundedRectangle(
         width: Double,
@@ -87,7 +88,14 @@ object CSG2DGeometry: TwoDGeometry<CSG2D> {
 }
 
 
-class CSG3D(val csg: CSG): ThreeDBody<CSG3D> {
+class CSG3D(var csg: CSG): ThreeDBody<CSG3D> {
+    override fun copy(): CSG3D {
+        return CSG3D(csg)
+    }
+
+    override fun label(label: String) {
+    }
+
     override fun save(dir: java.nio.file.Path, filename: String) {
         (dir / "$filename.stl").writeText(toText())
     }
@@ -96,32 +104,31 @@ class CSG3D(val csg: CSG): ThreeDBody<CSG3D> {
         return csg.toStlString()
     }
 
-    override fun scale(factor: Double): CSG3D {
-        return CSG3D(csg.transformed(Transform().scale(factor)))
+    override fun scale(factor: Double) {
+        csg = csg.transformed(Transform().scale(factor))
     }
 
-    override fun rotate(x: Double, y: Double, z: Double): CSG3D {
-        return CSG3D(
+    override fun rotate(x: Double, y: Double, z: Double) {
+        csg=
             csg.transformed(
                 Transform()
                     .rotX(x)
                     .rotY(y)
                     .rotZ(z)
             )
-        )
     }
 
     override fun translate(
         x: Double,
         y: Double,
         z: Double
-    ): CSG3D {
-        return CSG3D(
+    ) {
+        csg =
             csg.transformed(
                 Transform()
                     .translate(x, y, z)
             )
-        )
+
     }
 
     override fun union(other: CSG3D): CSG3D {
@@ -136,9 +143,9 @@ class CSG3D(val csg: CSG): ThreeDBody<CSG3D> {
         return CSG3D(csg.intersect(other.csg))
     }
 
-    override fun bounds(): Bounds {
+    override fun bounds(): Bounds3D {
         val b = csg.bounds
-        return Bounds(
+        return Bounds3D(
             ThreeDPoint(b.min.x, b.min.y, b.min.z),
             ThreeDPoint(b.max.x, b.max.y, b.max.z)
         )

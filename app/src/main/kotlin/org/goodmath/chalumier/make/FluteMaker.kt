@@ -15,7 +15,6 @@
  */
 package org.goodmath.chalumier.make
 
-import eu.mihosoft.jcsg.CSG
 import org.goodmath.chalumier.design.Profile
 import org.goodmath.chalumier.design.TaperedFluteDesigner
 import org.goodmath.chalumier.design.instruments.TaperedFlute
@@ -85,7 +84,7 @@ open class FluteMaker<Shape: TwoDShape<Shape>, Body: ThreeDBody<Body>>(
                 holeHorizAngles = designer.holeHorizAngles,
                 xPad = listOf(0.0).repeat(designer.numberOfHoles - 1) + listOf(embXpad),
                 yPad = listOf(0.0).repeat(designer.numberOfHoles - 1) + listOf(embYpad),
-                withFingerpad = listOf(true).repeat(designer.numberOfHoles - 1) + listOf(false),
+                withFingerPad = listOf(true).repeat(designer.numberOfHoles - 1) + listOf(false),
             )
         instrumentBody = whole
         val parts = makeParts(up = false)

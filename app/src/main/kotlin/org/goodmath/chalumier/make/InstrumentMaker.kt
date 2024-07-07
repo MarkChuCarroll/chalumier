@@ -24,7 +24,6 @@ import org.goodmath.chalumier.errors.ConfigurationParameterException
 import org.goodmath.chalumier.geom.ThreeDBody
 import org.goodmath.chalumier.geom.ThreeDGeometry
 import org.goodmath.chalumier.geom.TwoDShape
-import org.goodmath.chalumier.shape.*
 import org.goodmath.chalumier.util.Point
 
 
@@ -57,7 +56,7 @@ enum class JoinType {
                 "Straight", "StraightJoin" -> StraightJoin
                 "Tapered", "TaperedJoin" -> TaperedJoin
                 "Weld", "Welded", "WeldedJoin" -> WeldedJoin
-                else -> throw ConfigurationParameterException("Invalid value ${s }for jointype")
+                else -> throw ConfigurationParameterException("Invalid value $s for joinType")
             }
         }
     }
@@ -91,42 +90,23 @@ abstract class InstrumentMaker<Inst: Instrument,
 
     }
 
-    val bodyCost: Int = 21
-    val boreCost: Int = 23
-    val cutCost: Int = 1
-    val socketCost: Int = 12
-    val segmentCost: Int = 13
-    val holeCost: Int = 5
-    val bodyMinusBoreCost: Int = 6
-    val bodyRotateCost: Int = 7
-    val costMap = mapOf(
-        bodyCost to "body",
-        boreCost to "bore",
-        cutCost to "cut",
-        holeCost to "hole",
-        segmentCost to "segment",
-        bodyMinusBoreCost to "minus",
-        socketCost to "socket",
-        bodyRotateCost to "rot"
-    )
-
     open var instrumentBody: Body? = null
     open var outside: Body? = null
     open var bore: Body? = null
     open var progress: Int = 0
-    var stage: String = "not started"
-    val name: String
+    private var stage: String = "not started"
+    private val name: String
         get() = designer.name
 
     open fun report() {
-        reporter.update(name, stage, totalSteps().toInt(), progress)
+        reporter.update(name, stage, 10, 0)
     }
 
     fun save(shape: Body, name: String) {
         shape.save(workingDir, "${outputPrefix}-${name}")
     }
 
-    var top: Double = 0.0
+    private var top: Double = 0.0
 
     open fun makeParts(up: Boolean = false, flipTop: Boolean = false): List<Body> {
         return makeSegments(up, flipTop)
@@ -140,7 +120,6 @@ abstract class InstrumentMaker<Inst: Instrument,
                 } else {
                     holeIndex
                 }
-                progress += cutCost
                 val lower = if (hole >= 0) {
                     instrument.holePositions[hole] + 2 * instrument.holeDiameters[hole]
                 } else {
@@ -156,7 +135,7 @@ abstract class InstrumentMaker<Inst: Instrument,
         }
     }
 
-    fun makeSegments(up: Boolean = false, flipTop: Boolean = false): List<Body> {
+    private fun makeSegments(up: Boolean = false, flipTop: Boolean = false): List<Body> {
         return getCuts().map { cuts -> segment(cuts, up, flipTop) }.flatten()
     }
 
@@ -168,7 +147,7 @@ abstract class InstrumentMaker<Inst: Instrument,
         holeHorizAngles: List<Double>,
         xPad: List<Double>,
         yPad: List<Double>,
-        withFingerpad: List<Boolean>,
+        withFingerPad: List<Boolean>,
         outsideExtras: List<Body> = emptyList(),
         boreExtras: List<Body> = emptyList()
     ): Body {
@@ -179,14 +158,14 @@ abstract class InstrumentMaker<Inst: Instrument,
             circleCrossSection,
             listOf(outerProfile))
 
-        progress += bodyCost
         report()
         var instrumentBody = outside
         stage = "building bore"
         report()
         var bore = geometry.extrudeShape(circleCrossSection,
             listOf(innerProfile + designer.dilate))
-        progress += boreCost
+        instrumentBody.label("body")
+        bore.label("bore")
         val afterBore = System.currentTimeMillis()
         reporter.print("Main body took ${afterBore - before}ms")
         report()
@@ -194,79 +173,25 @@ abstract class InstrumentMaker<Inst: Instrument,
             val beforeHole = System.currentTimeMillis()
             stage = "Drilling hole $i"
             report()
-            val angle = holeVertAngles[i]
-            val radians = angle * PI / 180.0
-            val height = outerProfile(pos) * 0.5
-            val insideHeight = innerProfile(pos) * 0.5
-            val shift = sin(radians) * height
-            val holeDiameterCorrection = cos(radians).pow(-0.5)
-            val holeDiameter = holeDiameters[i] * holeDiameterCorrection
-            val crossSection = { a: Double ->
-                geometry.lowerGeometry.squaredCircle(a + xPad[i]) }
-//                squaredCircle(xPad[i], yPad[i]).withEffectiveDiameter(a) }
-            val h1 = insideHeight * 0.5
-            val shift1 = sin(radians) * h1
-            val h2 = height * 1.5
-            val shift2 = sin(radians) * h2
-            var hole = geometry.extrudeShapes(
-                listOf(h1, h2),
-                listOf(
-                    crossSection(holeDiameter).offset(0.0, shift1),
-                    crossSection(holeDiameter).offset(0.0, shift2)
-                )
-            )
-            hole = hole.rotate(-90.0, holeHorizAngles[i], 0.0)
-                .translate(0.0, 0.0, pos + shift)
-            if (withFingerpad[i] && designer.generatePads) {
-                val padHeight = height * 0.5 + 0.5 * sqrt(height * height - (holeDiameters[i] * 0.5).pow(2))
-                val padDepth = padHeight - insideHeight
-                val padMid = padDepth / 4.0
-                val padDiam = holeDiameter * 1.3
-                var fingerPad = geometry.extrudeShape(
-                    { cs: List<Double> ->
-                        if (cs.size != 1) {
-                            throw Exception("Invalid parameters in CS")
-                        }
-                        crossSection(cs[0]) },
-                    listOf(Profile(
-                        arrayListOf(-padDepth, -padMid, 0.0),
-                        arrayListOf(padDiam + padMid * 2.0, padDiam + padMid * 2, padDiam)
-                    )))
-                var fingerPadNegative = geometry.extrudeShape(
-                    { cs: List<Double> -> crossSection(cs[0]) },
-                    listOf(Profile(
-                        arrayListOf(0.0, padMid, padDepth),
-                        arrayListOf(padDiam, padDiam + padMid * 8.0, padDiam + padMid * 8.0)
-                    )))
-
-                val wallAngle = -atan2(
-                    0.5 * (outerProfile(pos + padDiam * 0.5) -
-                            outerProfile(pos - padDiam * 0.5)),
-                    padDiam
-                ) * 180.0 / PI
-                fingerPad = fingerPad
-                    .rotate(wallAngle, 0.0, 0.0)
-                    .translate(0.0, -padHeight, 0.0)
-                    .rotate(-90.0, 0.0, holeHorizAngles[i])
-                    .translate(0.0, pos, 0.0)
-                fingerPadNegative = fingerPadNegative
-                    .rotate(wallAngle, 0.0, 0.0)
-                    .translate(0.0, -padHeight, 0.0)
-                    .rotate(-90.0, 0.0, holeHorizAngles[i])
-                    .translate(0.0, pos, 0.0)
-                outside = outside.union(fingerPad)
-                    .difference(fingerPadNegative)
-                instrumentBody = instrumentBody.union(fingerPad)
-                    .difference(fingerPadNegative)
-            }
+            val hole = makeHole(i, pos, holeDiameters[i], holeVertAngles[i],
+                holeHorizAngles[i], outerProfile, innerProfile, xPad[i], yPad[i])
+//            if (withFingerPad[i] && designer.generatePads) {
+//                val (fingerPad, fingerPadNegative) = makeFingerPad(i, pos, holeDiameters[i],
+//                    holeHorizAngles[i], outerProfile,innerProfile, xPad[i], yPad[i])
+//                outside = outside.union(fingerPad)
+//                    .difference(fingerPadNegative)
+//                instrumentBody = instrumentBody.union(fingerPad)
+//                    .difference(fingerPadNegative)
+//            }
             bore = bore.union(hole)
-            if (angle != 0.0 || holeHorizAngles[i] != 0.0) {
+            if (holeVertAngles[i] != 0.0 || holeHorizAngles[i] != 0.0) {
                 outside = outside.difference(hole)
             }
             reporter.print("Hole $i took ${System.currentTimeMillis() - beforeHole}ms")
-            progress += holeCost
             report()
         }
+        instrumentBody.label("body with fingerPads")
+        bore.label("bore with fingerPads")
         stage = "assembling body"
         report()
         val beforeAssembly = System.currentTimeMillis()
@@ -280,10 +205,8 @@ abstract class InstrumentMaker<Inst: Instrument,
         instrumentBody = instrumentBody.difference(bore)
         val afterAssembly = System.currentTimeMillis()
         reporter.print("Assembly took ${afterAssembly - beforeAssembly}ms")
-        progress += bodyMinusBoreCost
         report()
         instrumentBody.rotate(0.0, 180.0, 0.0)
-        progress += bodyRotateCost
         stage = "writing"
         report()
         this.instrumentBody = instrumentBody
@@ -297,22 +220,24 @@ abstract class InstrumentMaker<Inst: Instrument,
     }
 
 
-    fun segment(originalCuts: List<Double>, up: Boolean, flipTop: Boolean): List<Body> {
+    private fun segment(originalCuts: List<Double>, up: Boolean, flipTop: Boolean): List<Body> {
         val length = top
         var remainder = instrumentBody!!
-        var workingBore = bore
+        val workingBore = bore
         var inner = instrument.inner
         var outer = instrument.outer
         var cuts = originalCuts
         stage = "segmenting"
-        reporter.print("Doing segmentation ${originalCuts}")
+        reporter.print("Doing segmentation $originalCuts")
         val before = System.currentTimeMillis()
         report()
         if (up) {
             cuts = cuts.reversed().map { length - it }
-            remainder = remainder.rotate(0.0, 180.0, 0.0).translate(0.0, length, 0.0);
+            remainder.rotate(0.0, 180.0, 0.0)
+            remainder.translate(0.0, length, 0.0)
             if (designer.thickSockets) {
-                workingBore = workingBore!!.rotate(0.0, 180.0, 0.0).translate(0.0, length, 0.0);
+                workingBore!!.rotate(0.0, 180.0, 0.0)
+                workingBore.translate(0.0, length, 0.0)
             }
             inner = inner.reversed().moved(length)
             outer = outer.reversed().moved(length)
@@ -367,6 +292,7 @@ abstract class InstrumentMaker<Inst: Instrument,
             val updatedItem = if (!flipTop || (up && i != shapes.size - 1) ||
                 (!up && i != 0)) {
                 item.rotate(0.0, 180.0, 0.0)
+                item
             } else {
                 item
             }
@@ -393,23 +319,31 @@ abstract class InstrumentMaker<Inst: Instrument,
         ))
         val triangleUpper = triangle.scale(d0*0.5+designer.gap)
         val triangleLower  = triangle.scale(d0*0.5-designer.gap)
-        val d1_3 = d0*0.6666+d1*0.3334
-        val d2_3 = d0*0.3334+d1*0.6666
+        val dOneThree = d0*0.6666+d1*0.3334
+        val dTwoThree = d0*0.3334+d1*0.6666
         for (i in (1 until 5)) {
             val upperBump = geometry.extrudeShapes(
-                arrayListOf(d1_3 * 0.5 - designer.gap * 0.5, d2_3 * 0.5 - designer.gap * 0.5, dMax * 0.5),
+                arrayListOf(dOneThree * 0.5 - designer.gap * 0.5, dTwoThree * 0.5 - designer.gap * 0.5, dMax * 0.5),
                 arrayListOf(triangleUpper.scale(0.0), triangleUpper, triangleUpper)
             )
-            val ubTransform = { shape: Body -> shape.rotate(-90.0,
-                180.0 + 360.0 / 5.0 * i, 0.0).translate(0.0, z1, 0.0) }
+            val ubTransform = { shape: Body ->
+                shape.rotate(
+                    -90.0,
+                    180.0 + 360.0 / 5.0 * i, 0.0
+                )
+                shape.translate(0.0, z1, 0.0)
+                shape
+            }
             maskUpper = maskUpper.union(ubTransform(upperBump))
             val lowerBump = geometry.extrudeShapes(
-                arrayListOf(d1_3 * 0.5 + designer.gap * 0.5, d2_3 * 0.5 + designer.gap * 0.5, 0.5),
+                arrayListOf(dOneThree * 0.5 + designer.gap * 0.5, dTwoThree * 0.5 + designer.gap * 0.5, 0.5),
                 arrayListOf(triangleLower.scale(0.0), triangleLower, triangleLower)
             )
             val lbTransform = { shape: Body ->
                 shape.rotate(-90.0, 180 + 360.0 / 5 * i, 0.0)
-                .translate(0.0, z1, 0.0) }
+                shape.translate(0.0, z1, 0.0)
+                shape
+            }
             maskLower = maskLower.union(lbTransform(lowerBump))
         }
         return Pair(maskLower, maskUpper)
@@ -479,14 +413,90 @@ abstract class InstrumentMaker<Inst: Instrument,
 
     abstract fun run(): List<Body>
 
-    open fun totalSteps(): Long {
-        val numberOfCuts = designer.divisions.sumOf { d -> d.size }
-        val numberOfParts = numberOfCuts + designer.divisions.size
-                return (bodyCost + boreCost +
-                numberOfParts*segmentCost +
-                numberOfCuts * (cutCost + socketCost) +
-                designer.numberOfHoles*holeCost
-                + bodyMinusBoreCost + bodyRotateCost).toLong()
+    private fun makeHole(number: Int,
+                         height: Double, // pos in orig
+                         diameter: Double,
+                         vertAngle: Double,
+                         horizAngle: Double,
+                         outerProfile: Profile,
+                         innerProfile: Profile,
+                         xPad: Double,
+                         yPad: Double): Body {
+        val radians = vertAngle * PI/180.0
+        val outerRadius = outerProfile(height)/2.0
+        val innerRadius = innerProfile(height)/2.0
+        val shift = sin(radians) * outerRadius
+        val diameterCorrection = cos(radians).pow(-0.5)
+        val holeDiameter = diameter * diameterCorrection
+        val crossSection = { a: Double -> geometry.lowerGeometry.squaredCircle(xPad, yPad).withEffectiveDiameter(a) }
+        // we want the hole to go through the body and any kinks or ornamentation, so we drill
+        // from half the radius of the inner shell to 1 1/2 times the radius of the outer.
+        val h1 = innerRadius / 2.0
+        val shift1 = sin(radians) * h1
+        val h2 =  outerRadius * 1.5
+        val shift2 = sin(radians) * h2
+        val hole = geometry.extrudeShapes(
+            listOf(h1, h2),
+            listOf(
+                crossSection(holeDiameter).offset(0.0, shift1),
+                crossSection(holeDiameter).offset(0.0, shift2)
+            )
+        )
+        hole.rotate(-90.0, horizAngle, 0.0)
+        hole.translate(0.0, 0.0, height + shift)
+        hole.label("hole $number")
+        return hole
     }
+
+    private fun makeFingerPad(number: Int,
+                              height: Double,
+                              diameter: Double,
+                              horizAngle: Double,
+                              outerProfile: Profile,
+                              innerProfile: Profile,
+                              xPad: Double, yPad: Double): Pair<Body, Body> {
+        val outerRadius = outerProfile(height)/2.0
+        val innerRadius = innerProfile(height)/2.0
+        val padHeight = outerRadius * 0.5 + 0.5 * sqrt(outerRadius * outerRadius - (diameter * 0.5).pow(2))
+        val padDepth = padHeight - innerRadius
+        val padMid = padDepth / 4.0
+        val padDiam = diameter * 1.3
+        val crossSection = { a: Double ->
+            geometry.lowerGeometry.squaredCircle(xPad, yPad).withEffectiveDiameter(a) }
+        val fingerPad = geometry.extrudeShape(
+            { cs: List<Double> ->
+                if (cs.size != 1) {
+                    throw Exception("Invalid parameters in CS")
+                }
+                crossSection(cs[0]) },
+            listOf(Profile(
+                arrayListOf(-padDepth, -padMid, 0.0),
+                arrayListOf(padDiam + padMid * 2.0, padDiam + padMid * 2, padDiam)
+            )))
+        val fingerPadNegative = geometry.extrudeShape(
+            { cs: List<Double> -> crossSection(cs[0]) },
+            listOf(Profile(
+                arrayListOf(0.0, padMid, padDepth),
+                arrayListOf(padDiam, padDiam + padMid * 8.0, padDiam + padMid * 8.0)
+            )))
+        val wallAngle = -atan2(
+            0.5 * (outerProfile(height + padDiam * 0.5) -
+                    outerProfile(height - padDiam * 0.5)),
+            padDiam
+        ) * 180.0 / PI
+        fingerPad.rotate(wallAngle, 0.0, 0.0)
+        fingerPad.translate(0.0, -padHeight, 0.0)
+        fingerPad.rotate(-90.0, 0.0, horizAngle)
+        fingerPad.translate(0.0, -height, 0.0)
+        fingerPad.label("transformed fingerPad[$number]")
+        fingerPadNegative.rotate(wallAngle, 0.0, 0.0)
+        fingerPadNegative.translate(0.0, -padHeight, 0.0)
+        fingerPadNegative.rotate(-90.0, 0.0, horizAngle)
+        fingerPadNegative.translate(0.0, height, 0.0)
+        fingerPadNegative.label("transformed fpNegative[$number]")
+        return Pair(fingerPad, fingerPadNegative)
+    }
+
+
 
 }
