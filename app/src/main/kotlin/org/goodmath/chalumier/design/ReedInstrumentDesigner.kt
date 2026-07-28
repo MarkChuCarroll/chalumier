@@ -360,6 +360,144 @@ open class ShawmDesigner(
 }
 
 /**
+ * Designer for a Bb clarinet (or similar closed-top reed instrument).
+ * Defaults are for a standard Boehm-system Bb clarinet.
+ * All dimensions in mm.
+ */
+class ClarinetDesigner(
+    override val instrumentName: String,
+    outputDir: Path,
+) : ReedInstrumentDesigner<ReedInstrument>(instrumentName, outputDir, ReedInstrument.builder) {
+    override fun readInstrument(path: Path): ReedInstrument {
+        return Json5.decodeFromString(path.readText())
+    }
+
+    override fun writeInstrument(instrument: ReedInstrument, path: Path) {
+        path.writeText(Json5.encodeToString(instrument))
+    }
+
+    override fun getInstrumentMaker(spec: ReedInstrument): InstrumentMaker<ReedInstrument> {
+        return ReedInstrumentMaker(name, outputDir, spec, this)
+    }
+
+    override fun patchInstrument(inst: Instrument): Instrument {
+        val patchedInst = inst.dup()
+        patchedInst.trueLength = length
+        val reedLength = bore * reedVirtualLength
+        val reedTop = bore * reedVirtualTop
+        val reed = Profile.makeProfile(listOf(listOf(0.0, bore), arrayListOf(reedLength, reedTop)))
+        // Use appendedWith instead of += (plus) to avoid doubling bore diameter
+        patchedInst.inner = patchedInst.inner.appendedWith(reed)
+        patchedInst.length += reedLength
+        return patchedInst
+    }
+
+    override var bore by doubleParameter { 14.5 }
+
+    override var initialLength by doubleParameter { wavelength("Bb3") * 0.5 }
+
+    // Cylindrical bore ~14.5mm, with slight bell flare at end
+    // Using raw mm values (not boreScaler) since bore=14.5 would over-scale
+    override var innerDiameters by listOfDoublePairParameter {
+        listOf(14.5, 14.5, 14.5, 14.5, 14.5, 16.0, 20.0, 30.0).map { Pair(it, it) }.toMutableList()
+    }
+
+    override var outerDiameters by listOfDoublePairParameter {
+        listOf(22.0, 22.0, 22.0, 22.0, 22.0, 28.0, 36.0, 60.0).map { Pair(it, it) }.toMutableList()
+    }
+
+    override var initialInnerFractions by listOfDoubleParameter {
+        mutableListOf(0.15, 0.4, 0.6, 0.75, 0.85, 0.92)
+    }
+
+    override var minInnerFractionSep by listOfDoubleParameter {
+        mutableListOf(0.05, 0.05, 0.05, 0.05, 0.05, 0.01, 0.01)
+    }
+
+    override var minHoleDiameters by listOfDoubleParameter {
+        listOf(4.5, 4.5, 4.5, 4.5, 4.5, 4.5, 4.5, 5.5, 5.5, 5.5, 4.5, 4.5, 4.5, 4.5, 4.5, 4.5, 4.5).toMutableList()
+    }
+
+    override var maxHoleDiameters by listOfDoubleParameter {
+        listOf(8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 10.0, 10.0, 10.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0).toMutableList()
+    }
+
+    override var balance by listOfOptDoubleParameter {
+        arrayListOf(0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1)
+    }
+
+    override var holeAngles by listOfDoubleParameter {
+        arrayListOf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    }
+
+    override var holeHorizAngles by listOfDoubleParameter {
+        arrayListOf(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    }
+
+    override var fingerings by listOfFingeringsParam {
+        arrayListOf(
+            // Lower register (chalumeau)
+            Fingering("D3",  arrayListOf(X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X)),
+            Fingering("Eb3", arrayListOf(O, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X)),
+            Fingering("E3",  arrayListOf(X, O, X, X, X, X, X, X, X, X, X, X, X, X, X, X, X)),
+            Fingering("F3",  arrayListOf(X, X, O, X, X, X, X, X, X, X, X, X, X, X, X, X, X)),
+            Fingering("F#3", arrayListOf(X, X, X, O, X, X, X, X, X, X, X, X, X, X, X, X, X)),
+            Fingering("G3",  arrayListOf(X, X, X, X, O, X, X, X, X, X, X, X, X, X, X, X, X)),
+            Fingering("Ab3", arrayListOf(X, X, X, X, X, O, X, X, X, X, X, X, X, X, X, X, X)),
+            Fingering("A3",  arrayListOf(X, X, X, X, X, X, O, X, X, X, X, X, X, X, X, X, X)),
+            Fingering("Bb3", arrayListOf(X, X, X, X, X, X, X, O, X, X, X, X, X, X, X, X, X)),
+            Fingering("B3",  arrayListOf(X, X, X, X, X, X, X, X, O, X, X, X, X, X, X, X, X)),
+            Fingering("C4",  arrayListOf(X, X, X, X, X, X, X, X, X, O, X, X, X, X, X, X, X)),
+            // Upper register (clarion)
+            Fingering("D4",  arrayListOf(X, X, X, X, X, X, X, O, X, X, X, O, O, O, X, X, X)),
+            Fingering("Eb4", arrayListOf(O, X, X, X, X, X, X, O, X, X, X, O, O, O, X, X, X)),
+            Fingering("E4",  arrayListOf(X, O, X, X, X, X, X, O, X, X, X, O, O, O, X, X, X)),
+            Fingering("F4",  arrayListOf(X, X, O, X, X, X, X, O, X, X, X, O, O, O, X, X, X)),
+            Fingering("F#4", arrayListOf(X, X, X, O, X, X, X, O, X, X, X, O, O, O, X, X, X)),
+            Fingering("G4",  arrayListOf(X, X, X, X, O, X, X, O, X, X, X, O, O, O, X, X, X)),
+            Fingering("Ab4", arrayListOf(X, X, X, X, X, O, X, O, X, X, X, O, O, O, X, X, X)),
+            Fingering("A4",  arrayListOf(X, X, X, X, X, X, O, O, X, X, X, O, O, O, X, X, X)),
+            Fingering("Bb4", arrayListOf(X, X, X, X, X, X, X, X, X, X, O, O, O, O, X, X, X)),
+            Fingering("B4",  arrayListOf(X, X, X, X, X, X, X, X, X, O, X, O, O, O, O, X, X)),
+            Fingering("C5",  arrayListOf(X, X, X, X, X, X, X, X, X, X, O, O, O, O, O, X, X)),
+            Fingering("C#5", arrayListOf(X, X, X, X, X, X, X, X, X, X, O, O, O, O, O, O, X)),
+            Fingering("D5",  arrayListOf(X, X, X, X, X, X, X, O, X, X, X, O, O, O, X, X, O)),
+        )
+    }
+
+    override var initialHoleFractions by listOfDoubleParameter {
+        // Spread holes along the length; register key near top
+        mutableListOf(0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.95)
+    }
+
+    override var initialHoleDiameterFractions by listOfDoubleParameter {
+        (0 until 17).map { 0.5 }.toMutableList()
+    }
+
+    override var minHoleSpacing by listOfOptDoubleParameter {
+        (0 until 16).map { 8.0 }.toMutableList()
+    }
+
+    override var maxHoleSpacing by listOfOptDoubleParameter {
+        mutableListOf(50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0,
+            50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0)
+    }
+
+    override var divisions by listOfListOfIntDoublePairParam {
+        listOf(
+            listOf(Pair(5, 0.0)),
+            listOf(Pair(2, 0.0), Pair(5, 0.333)),
+            listOf(Pair(-1, 0.9), Pair(2, 0.0), Pair(5, 0.333)),
+            listOf(Pair(-1, 0.9), Pair(2, 0.0), Pair(5, 0.0), Pair(5, 0.7)),
+        )
+    }
+}
+
+fun clarinetDesigner(name: String, outputDir: Path): ClarinetDesigner {
+    return ClarinetDesigner(name, outputDir)
+}
+
+/**
  * Designer for a shawm/haut-bois/oboe/bombard with a simple fingering system and compact hole
  * placement. The flare at the end is purely decorative.
  */
