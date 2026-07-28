@@ -27,6 +27,8 @@ abstract class ChalumierCommand(name: String, help: String) : CliktCommand(name,
             "folkShawm" to { n: String, dir: Path -> org.goodmath.chalumier.design.FolkShawmDesigner(n, dir) },
             "folkWhistle" to { n: String, dir: Path -> org.goodmath.chalumier.design.folkWhistleDesigner(n, dir) },
             "recorder" to { n: String, dir: Path -> org.goodmath.chalumier.design.RecorderDesigner(n, dir) },
+            "reedPipe" to { n: String, dir: Path -> org.goodmath.chalumier.design.ReedPipeDesigner(n, dir) },
+            "clarinet" to { n: String, dir: Path -> org.goodmath.chalumier.design.clarinetDesigner(n, dir) },
         )
     val builder = InstrumentDesignerFactory(templates)
 }

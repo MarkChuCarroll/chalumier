@@ -1,0 +1,67 @@
+# Bb Clarinet design for chalumier optimizer.
+# Uses the "clarinet" template (ReedPipeDesigner with clarinet defaults).
+# All dimensions in mm. Bore = 14.5mm, closed-top reed instrument.
+clarinet {
+    name = "BbClarinet",
+    rootNote = "Bb3",
+    bore = 14.5,
+    numberOfHoles = 17,
+    closedTop = true,
+    reedVirtualLength = 34.0,
+    reedVirtualTop = 0.0,
+
+    # Chalumeau through clarion register
+    fingerings = [
+        # Lower register (chalumeau) - all holes closed at D3
+        { noteName = "D3",  fingers = ["X","X","X","X","X","X","X","X","X","X","X","X","X","X","X","X","X"] },
+        { noteName = "Eb3", fingers = ["O","X","X","X","X","X","X","X","X","X","X","X","X","X","X","X","X"] },
+        { noteName = "E3",  fingers = ["X","O","X","X","X","X","X","X","X","X","X","X","X","X","X","X","X"] },
+        { noteName = "F3",  fingers = ["X","X","O","X","X","X","X","X","X","X","X","X","X","X","X","X","X"] },
+        { noteName = "F#3", fingers = ["X","X","X","O","X","X","X","X","X","X","X","X","X","X","X","X","X"] },
+        { noteName = "G3",  fingers = ["X","X","X","X","O","X","X","X","X","X","X","X","X","X","X","X","X"] },
+        { noteName = "Ab3", fingers = ["X","X","X","X","X","O","X","X","X","X","X","X","X","X","X","X","X"] },
+        { noteName = "A3",  fingers = ["X","X","X","X","X","X","O","X","X","X","X","X","X","X","X","X","X"] },
+        { noteName = "Bb3", fingers = ["X","X","X","X","X","X","X","O","X","X","X","X","X","X","X","X","X"] },
+        { noteName = "B3",  fingers = ["X","X","X","X","X","X","X","X","O","X","X","X","X","X","X","X","X"] },
+        { noteName = "C4",  fingers = ["X","X","X","X","X","X","X","X","X","O","X","X","X","X","X","X","X"] },
+        # Upper register (clarion) - register key + same fingering as chalumeau
+        { noteName = "D4",  fingers = ["X","X","X","X","X","X","X","O","X","X","X","O","O","O","X","X","X"] },
+        { noteName = "Eb4", fingers = ["O","X","X","X","X","X","X","O","X","X","X","O","O","O","X","X","X"] },
+        { noteName = "E4",  fingers = ["X","O","X","X","X","X","X","O","X","X","X","O","O","O","X","X","X"] },
+        { noteName = "F4",  fingers = ["X","X","O","X","X","X","X","O","X","X","X","O","O","O","X","X","X"] },
+        { noteName = "F#4", fingers = ["X","X","X","O","X","X","X","O","X","X","X","O","O","O","X","X","X"] },
+        { noteName = "G4",  fingers = ["X","X","X","X","O","X","X","O","X","X","X","O","O","O","X","X","X"] },
+        { noteName = "Ab4", fingers = ["X","X","X","X","X","O","X","O","X","X","X","O","O","O","X","X","X"] },
+        { noteName = "A4",  fingers = ["X","X","X","X","X","X","O","O","X","X","X","O","O","O","X","X","X"] },
+        { noteName = "Bb4", fingers = ["X","X","X","X","X","X","X","X","X","X","O","O","O","O","X","X","X"] },
+        { noteName = "B4",  fingers = ["X","X","X","X","X","X","X","X","X","O","X","O","O","O","O","X","X"] },
+        { noteName = "C5",  fingers = ["X","X","X","X","X","X","X","X","X","X","O","O","O","O","O","X","X"] },
+        { noteName = "C#5", fingers = ["X","X","X","X","X","X","X","X","X","X","O","O","O","O","O","O","X"] },
+        { noteName = "D5",  fingers = ["X","X","X","X","X","X","X","O","X","X","X","O","O","O","X","X","O"] }
+    ],
+
+    # Bore profile: cylindrical 14.5mm with bell flare at end
+    innerDiameters = [
+        (Pair: 14.5, 14.5), (Pair: 14.5, 14.5), (Pair: 14.5, 14.5), (Pair: 14.5, 14.5),
+        (Pair: 14.5, 14.5), (Pair: 16.0, 16.0), (Pair: 20.0, 20.0), (Pair: 30.0, 30.0)
+    ],
+    outerDiameters = [
+        (Pair: 22.0, 22.0), (Pair: 22.0, 22.0), (Pair: 22.0, 22.0), (Pair: 22.0, 22.0),
+        (Pair: 22.0, 22.0), (Pair: 28.0, 28.0), (Pair: 36.0, 36.0), (Pair: 60.0, 60.0)
+    ],
+
+    # Hole diameters: 4.5-10mm range typical for clarinet
+    minHoleDiameters = [4.5, 4.5, 4.5, 4.5, 4.5, 4.5, 4.5, 5.5, 5.5, 5.5, 4.5, 4.5, 4.5, 4.5, 4.5, 4.5, 4.5],
+    maxHoleDiameters = [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 10.0, 10.0, 10.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0],
+
+    # Hole spacing constraints
+    minHoleSpacing = [8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0, 8.0],
+    maxHoleSpacing = [50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0, 50.0],
+
+    # Balance: keep holes evenly spaced
+    balance = [0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1],
+
+    # All holes straight (no angling)
+    holeAngles = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+    holeHorizAngles = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+}
